@@ -42,7 +42,7 @@ class Sampler:
         self.S_min = S_min
         self.S_max = S_max
 
-    def sample_interior(self, N):
+    def generate(self, N):
         # Uniform sampling for both t and S for now
         t = torch.rand(N, 1) * (self.t_max - self.t_min) + self.t_min
         S = torch.rand(N, 1) * (self.S_max - self.S_min) + self.S_min
@@ -61,8 +61,12 @@ def payoff_put(S, K):
 def pde_residual(v_t, v_S, v_SS, v, S, r, sigma):
     return -v_t - r * S * v_S - 0.5 * sigma**2 * S**2 * v_SS + r * v
 
-def train(model, optimiser, params, sampler, num_epochs):
-    for _ in range(num_epochs):
+def train(model, optimiser, params, sampler, max_iterations):
+
+    # Store losses for plotting
+    losses = []
+
+    for i in range(max_iterations):
         optimiser.zero_grad()
 
         # Sample interior points
@@ -102,7 +106,25 @@ def train(model, optimiser, params, sampler, num_epochs):
         loss.backward()
         optimiser.step()
 
-    return model
+        if i % 100 == 0:
+            print(f"Iteration {i}, Loss: {loss.item()}")
+
+        losses.append(loss.item())
+
+        if i > 0 and abs(losses[-1] - losses[-2]) < 1e-6:
+            print(f"Converged at iteration {i}")
+            break
+
+    return model, losses
+
+
+def plot_losses(losses):
+    plt.plot(losses)
+    # plt.yscale('log')
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+    plt.title('Training Loss over Iterations')
+    plt.show()
 
 
 def main():
@@ -133,11 +155,13 @@ def main():
     optimiser = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     # Train
-    num_epochs = 1000
-    trained_model = train(model, optimiser, params, sampler, num_epochs)
+    max_iterations = 10000
+    trained_model, losses = train(model, optimiser, params, sampler, max_iterations)
 
     # Test
     print(trained_model(0, 0.5).item())
+    # Plot losses
+    plot_losses(losses)
 
 if __name__ == "__main__":
     main()
