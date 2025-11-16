@@ -1,5 +1,6 @@
 import torch
 
+
 class Sampler:
     def __init__(self, t_min, t_max, S_min, S_max):
         self.t_min = t_min

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class BaseNetwork(nn.Module):
     def __init__(self, act_fn, input_size, output_size, hidden_sizes):
         super().__init__()

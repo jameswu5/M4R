@@ -44,7 +44,6 @@ class NeuralNetworkTrainer:
             'loss': []
         }
 
-
     def set_seed(self, seed):
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -78,11 +77,11 @@ class NeuralNetworkTrainer:
             payoff = self.payoff(S_b, self.params.K)
             boundary_loss = nn.MSELoss()(v_b, payoff)
 
-            #f(t, S_max) = 0
+            # f(t, S_max) = 0
             v_Smax = self.model(t_b, ones * self.sampler.S_max)
             boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros(num_samples, 1))
 
-            #f(t, S_min) = 0
+            # f(t, S_min) = 0
             v_Smin = self.model(t_b, ones * self.sampler.S_min)
             boundary_Smin_loss = nn.MSELoss()(v_Smin, torch.zeros(num_samples, 1))
 
@@ -101,7 +100,7 @@ class NeuralNetworkTrainer:
                 break
 
         return self.history
-    
+
     def plot_losses(self):
         plt.plot(self.history['loss'])
         plt.xlabel('Iteration')

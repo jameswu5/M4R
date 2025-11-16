@@ -15,5 +15,3 @@ def compute_derivatives(model, t, S):
 def pde_residual(v_t, v_S, v_SS, v, S, r, sigma):
     residual = -v_t - r * S * v_S - 0.5 * sigma**2 * S**2 * v_SS + r * v
     return residual
-
-
