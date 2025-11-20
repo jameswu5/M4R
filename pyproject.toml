@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "M4R"
+version = "0.1"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "torch",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["binomial_tree", "neural_network"]
