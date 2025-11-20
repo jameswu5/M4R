@@ -63,7 +63,7 @@ class NeuralNetworkTrainer:
             pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
             pde_loss = torch.mean(pde_loss**2)
 
-            # Boundary conditions
+            # Boundary conditions (these are hardcoded for now)
             t_b, S_b = self.sampler.generate(mode="uniform", N=num_samples)
             ones = torch.ones(num_samples, 1)
 
@@ -75,9 +75,9 @@ class NeuralNetworkTrainer:
             v_Smax = self.model(t_b, ones * self.sampler.S_max)
             boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros(num_samples, 1))
 
-            # f(t, S_min) = 0
+            # f(t, S_min) = K - S_min
             v_Smin = self.model(t_b, ones * self.sampler.S_min)
-            boundary_Smin_loss = nn.MSELoss()(v_Smin, torch.zeros(num_samples, 1))
+            boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (self.market_params.K - self.sampler.S_min))
 
             # Loss (weights are 1 for now)
             loss = (pde_loss + boundary_loss + boundary_Smax_loss + boundary_Smin_loss) / 4
@@ -92,8 +92,6 @@ class NeuralNetworkTrainer:
             if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
                 print(f"Converged at iteration {i}")
                 break
-
-        return self.history
 
     def plot_losses(self):
         plt.plot(self.history['loss'])
