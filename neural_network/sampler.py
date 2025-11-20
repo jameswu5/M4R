@@ -1,3 +1,5 @@
+import numpy as np
+import matplotlib.pyplot as plt
 import torch
 
 
@@ -8,8 +10,64 @@ class Sampler:
         self.S_min = S_min
         self.S_max = S_max
 
-    def generate(self, N):
-        # Uniform sampling for both t and S for now
-        t = torch.rand(N, 1) * (self.t_max - self.t_min) + self.t_min
-        S = torch.rand(N, 1) * (self.S_max - self.S_min) + self.S_min
+    def generate(self, mode, N, **kwargs):
+
+        if mode == 'uniform':
+            t = uniform(self.t_min, self.t_max, N)
+            S = uniform(self.S_min, self.S_max, N)
+        elif mode == 'segmented_uniform':
+            weight = kwargs.get('weight', 0.7)
+            radius = kwargs.get('radius', (self.S_max - self.S_min) / 4)
+            S_centre = kwargs.get('S_centre', (self.S_min + self.S_max) / 2)
+
+            t = uniform(self.t_min, self.t_max, N)
+            S = segmented_uniform(self.S_min, self.S_max, S_centre, radius, weight, N)
+
         return t, S
+
+
+def uniform(left, right, n):
+    sample = np.random.uniform(left, right, n)
+    return torch.tensor(sample, dtype=torch.float32).view(-1, 1)
+
+
+def segmented_uniform(left, right, centre, radius, weight, n):
+    """
+    Generates samples in [left, right], with higher density in [centre - radius, centre + radius]
+    with weight in higher density region.
+    """
+
+    left_high_density = max(left, centre - radius)
+    right_high_density = min(right, centre + radius)
+    true_width = right_high_density - left_high_density
+
+    high_density_samples = np.random.uniform(left_high_density, right_high_density, n)
+    low_density_samples = np.random.uniform(left, right - true_width, n)
+
+    # Adjust low_density_samples so it does not overlap with high density region
+    low_density_samples = np.where(
+        low_density_samples >= left_high_density,
+        low_density_samples + true_width,
+        low_density_samples
+    )
+
+    signal = np.random.uniform(0, 1, n)
+    samples = np.where(signal < weight, high_density_samples, low_density_samples)
+    return torch.tensor(samples, dtype=torch.float32).view(-1, 1)
+
+
+def plot_samples(samples):
+    plt.hist(samples, bins=100, density=True)
+    plt.xlabel('Value')
+    plt.ylabel('Density')
+    plt.show()
+
+if __name__ == "__main__":
+    left = 0
+    right = 10
+    centre = 9.9
+    radius = 2
+    weight = 0.8
+    n = 100000
+    s = segmented_uniform(left, right, centre, radius, weight, n)
+    plot_samples(s)
