@@ -1,6 +1,6 @@
 import numpy as np
 
-def binomial_tree(S, K, r, sigma, T, n, option_type, exercise_type):
+def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="american"):
     """
     Price an option using a binomial tree.
 
