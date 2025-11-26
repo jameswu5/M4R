@@ -29,7 +29,8 @@ class NeuralNetworkTrainer:
             t_min=0.0,
             t_max=market_params.T,
             S_min=market_params.S_min,
-            S_max=market_params.S_max
+            S_max=market_params.S_max,
+            seed=seed
         )
 
         self.history = {
@@ -45,7 +46,7 @@ class NeuralNetworkTrainer:
             self.optimizer.zero_grad()
 
             # Sample interior points
-            t_interior, S_interior = self.sampler.generate(mode="segmented_uniform", N=num_samples,
+            t_interior, S_interior = self.sampler.generate(mode="segmented_uniform", shape=(num_samples,),
                                                            S_centre=self.market_params.K,
                                                            radius=(self.market_params.S_max - self.market_params.S_min) / 6,
                                                            weight=0.5)
@@ -64,7 +65,7 @@ class NeuralNetworkTrainer:
             pde_loss = torch.mean(pde_loss**2)
 
             # Boundary conditions (these are hardcoded for now)
-            t_b, S_b = self.sampler.generate(mode="uniform", N=num_samples)
+            t_b, S_b = self.sampler.generate(mode="uniform", shape=num_samples)
             ones = torch.ones(num_samples, 1)
 
             v_b = self.model(ones, S_b)
