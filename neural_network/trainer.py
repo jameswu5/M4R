@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 from .model import BaseNetwork
 from .sampler import Sampler
-from .losses import compute_derivatives, pde_residual
+from .losses import compute_derivatives, pde_residual, compute_derivatives_2d, pde_residual_2d
 
 
 class NeuralNetworkTrainer(ABC):
@@ -145,6 +145,66 @@ class OneDimensionalTrainer(NeuralNetworkTrainer):
         v_Smin = self.model(t_boundary, ones * self.sampler.S_min)
         boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (self.market_params.K - self.sampler.S_min))
 
-        total_boundary_loss = boundary_loss + boundary_Smax_loss + boundary_Smin_loss
+        total_boundary_loss = 3 * boundary_loss + boundary_Smax_loss + boundary_Smin_loss
+
+        return total_boundary_loss
+
+
+class TwoDimensionalTrainer(NeuralNetworkTrainer):
+    def __init__(self, model_config, market_params, payoff, seed):
+        super().__init__(model_config, market_params, payoff, seed)
+
+    def sample_interior_points(self, num_samples):
+        t_interior, S_interior = self.sampler.generate(mode="uniform", shape=(num_samples, 2))
+        return t_interior, S_interior
+
+    def sample_boundary_points(self, num_samples):
+        t_boundary, S_boundary = self.sampler.generate(mode="uniform", shape=(num_samples, 2))
+        return t_boundary, S_boundary
+
+    def get_pde_loss(self, t_interior, S_interior):
+        # Compute the derivatives
+        v, v_t, v_S1, v_S2, v_S1S1, v_S2S2, v_S1S2 = compute_derivatives_2d(self.model, t_interior, S_interior)
+
+        sigma1 = self.market_params.sigma['sigma1']
+        sigma2 = self.market_params.sigma['sigma2']
+        rho = self.market_params.sigma['rho']
+
+        # Compute PDE residual
+        residual = pde_residual_2d(
+            v_t, v_S1, v_S2, v_S1S1, v_S2S2, v_S1S2,
+            v,
+            S_interior[:, 0:1],
+            S_interior[:, 1:2],
+            self.market_params.r,
+            sigma1,
+            sigma2,
+            rho
+        )
+        pde_loss = torch.mean(residual**2)
+        return pde_loss
+
+
+    def get_boundary_losses(self, t_boundary, S_boundary):
+
+        length = t_boundary.shape[0]
+        ones = torch.ones(length)
+
+        v_1 = self.model(ones, S_boundary)
+        payoff = self.payoff(S_boundary, self.market_params.K)
+        boundary_loss = nn.MSELoss()(v_1, payoff)
+
+        # f(t, S_1, S_max) = 0
+        v_Smax = self.model(t_boundary, torch.cat((S_boundary[:, 0:1], ones * self.sampler.S_max), dim=1))
+        boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros((length, 1)))
+
+        # f(t, S_max, S_2) = 0
+        v_Smax_2 = self.model(t_boundary, torch.cat((ones * self.sampler.S_max, S_boundary[:, 1:2]), dim=1))
+        boundary_Smax_2_loss = nn.MSELoss()(v_Smax_2, torch.zeros((length, 1)))
+
+        # f(t, S_min, S_min) = K - S_min
+        v_Smin = self.model(t_boundary, torch.cat((ones * self.sampler.S_min, ones * self.sampler.S_min), dim=1))
+        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones.view(-1, 1) * (self.market_params.K - self.sampler.S_min))
+        total_boundary_loss = boundary_loss + boundary_Smax_loss + boundary_Smax_2_loss + boundary_Smin_loss
 
         return total_boundary_loss
