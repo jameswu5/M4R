@@ -34,3 +34,8 @@ def compute_derivatives_2d(model, t, S):
     v_S2S2 = torch.autograd.grad(v_S2, S, grad_outputs=torch.ones_like(v_S2), create_graph=True)[0][:, 1:2]
 
     return v, v_t, v_S1, v_S2, v_S1S1, v_S2S2, v_S1S2
+
+
+def pde_residual_2d(v_t, v_S1, v_S2, v_S1S1, v_S2S2, v_S1S2, v, S1, S2, r, sigma1, sigma2, rho):
+    residual = -v_t - r * (S1 * v_S1 + S2 * v_S2) - 0.5 * sigma1**2 * S1**2 * v_S1S1 - 0.5 * sigma2**2 * S2**2 * v_S2S2 - rho * sigma1 * sigma2 * S1 * S2 * v_S1S2 + r * v
+    return residual

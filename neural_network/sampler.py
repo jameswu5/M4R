@@ -24,7 +24,7 @@ class Sampler:
             S = self.segmented_uniform(self.S_min, self.S_max, S_centre, radius, weight, shape)
 
         return t, S
-    
+
     def uniform(self, left, right, shape):
         sample = self.rng.uniform(left, right, shape)
         return torch.tensor(sample, dtype=torch.float32).view(-1, 1)
