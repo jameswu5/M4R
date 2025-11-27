@@ -126,6 +126,12 @@ class OneDimensionalTrainer(NeuralNetworkTrainer):
         return pde_loss
 
     def get_boundary_losses(self, t_boundary, S_boundary):
+        return self.payoff.boundary_loss(self.model, t_boundary, S_boundary,
+                                         K=self.market_params.K,
+                                         S_max=self.sampler.S_max,
+                                         S_min=self.sampler.S_min)
+
+    def get_boundary_losses2(self, t_boundary, S_boundary):
         shape = t_boundary.shape
         ones = torch.ones(shape)
 
