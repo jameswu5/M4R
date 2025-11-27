@@ -58,24 +58,3 @@ class BaseNetwork(nn.Module):
 
         x = torch.cat([t] + assets, dim=-1)
         return self.layers(x)
-
-
-if __name__ == "__main__":
-    # small smoke test
-    model = BaseNetwork(act_fn=nn.ReLU(), input_size=1+2, output_size=1, hidden_sizes=[16,16])
-
-    batch = 4
-    t = torch.randn(batch,1)
-    S = torch.randn(batch,2)
-    S1 = S[:,0]
-    S2 = S[:,1]
-
-    # call with single S
-    out1 = model(t, S)
-    print('out1 shape', out1.shape)
-    # call with splatted columns
-    out2 = model(t, S1, S2)
-    print('out2 shape', out2.shape)
-    # call with column vectors
-    out3 = model(t, S[:,0:1], S[:,1:2])
-    print('out3 shape', out3.shape)

@@ -13,7 +13,7 @@ class Sampler:
 
     def generate(self, mode, shape, **kwargs):
         if mode == 'uniform':
-            t = self.uniform(self.t_min, self.t_max, (shape[0], 1)) # time always shape (N,1)
+            t = self.uniform(self.t_min, self.t_max, (shape[0], 1))  # time always shape (N,1)
             S = self.uniform(self.S_min, self.S_max, shape)
         elif mode == 'segmented_uniform':
             weight = kwargs.get('weight', 0.7)

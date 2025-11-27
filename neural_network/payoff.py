@@ -16,7 +16,7 @@ class Payoff(ABC):
 class Put(Payoff):
     def __call__(self, S, K):
         return torch.relu(K - S)
-    
+
     def boundary_loss(self, model, t_boundary, S_boundary, **kwargs):
         K = kwargs.get('K', None)
         S_max = kwargs.get('S_max', None)
@@ -24,7 +24,7 @@ class Put(Payoff):
 
         if K is None or S_max is None or S_min is None:
             raise ValueError("K, S_max, and S_min must be provided for boundary loss calculation.")
-        
+
         length = t_boundary.shape[0]
         ones = torch.ones((length, 1))
 

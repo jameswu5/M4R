@@ -186,7 +186,6 @@ class TwoDimensionalTrainer(NeuralNetworkTrainer):
         pde_loss = torch.mean(residual**2)
         return pde_loss
 
-
     def get_boundary_losses(self, t_boundary, S_boundary):
 
         length = t_boundary.shape[0]
