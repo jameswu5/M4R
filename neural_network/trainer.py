@@ -52,7 +52,7 @@ class NeuralNetworkTrainer(ABC):
             pde_loss = self.get_pde_loss(t_interior, S_interior)
 
             t_boundary, S_boundary = self.sample_boundary_points(num_samples)
-            boundary_losses = self.get_boundary_losses(t_boundary, S_boundary)
+            boundary_losses = self.get_boundary_loss(t_boundary, S_boundary)
 
             loss = pde_loss + boundary_losses
 
@@ -81,7 +81,7 @@ class NeuralNetworkTrainer(ABC):
         pass
 
     @abstractmethod
-    def get_boundary_losses(self, t_boundary, S_boundary):
+    def get_boundary_loss(self, t_boundary, S_boundary):
         pass
 
     def plot_losses(self):
@@ -125,31 +125,11 @@ class OneDimensionalTrainer(NeuralNetworkTrainer):
         pde_loss = torch.mean(pde_loss**2)
         return pde_loss
 
-    def get_boundary_losses(self, t_boundary, S_boundary):
+    def get_boundary_loss(self, t_boundary, S_boundary):
         return self.payoff.boundary_loss(self.model, t_boundary, S_boundary,
                                          K=self.market_params.K,
                                          S_max=self.sampler.S_max,
                                          S_min=self.sampler.S_min)
-
-    def get_boundary_losses2(self, t_boundary, S_boundary):
-        shape = t_boundary.shape
-        ones = torch.ones(shape)
-
-        v_b = self.model(ones, S_boundary)
-        payoff = self.payoff(S_boundary, self.market_params.K)
-        boundary_loss = nn.MSELoss()(v_b, payoff)
-
-        # f(t, S_max) = 0
-        v_Smax = self.model(t_boundary, ones * self.sampler.S_max)
-        boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros(shape))
-
-        # f(t, S_min) = K - S_min
-        v_Smin = self.model(t_boundary, ones * self.sampler.S_min)
-        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (self.market_params.K - self.sampler.S_min))
-
-        total_boundary_loss = 3 * boundary_loss + boundary_Smax_loss + boundary_Smin_loss
-
-        return total_boundary_loss
 
 
 class TwoDimensionalTrainer(NeuralNetworkTrainer):
@@ -186,26 +166,8 @@ class TwoDimensionalTrainer(NeuralNetworkTrainer):
         pde_loss = torch.mean(residual**2)
         return pde_loss
 
-    def get_boundary_losses(self, t_boundary, S_boundary):
-
-        length = t_boundary.shape[0]
-        ones = torch.ones((length, 1))
-
-        v_1 = self.model(ones, S_boundary)
-        payoff = self.payoff(S_boundary, self.market_params.K)
-        boundary_loss = nn.MSELoss()(v_1, payoff)
-
-        # f(t, S_1, S_max) = 0
-        v_Smax = self.model(t_boundary, torch.cat((S_boundary[:, 0:1], ones * self.sampler.S_max), dim=1))
-        boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros((length, 1)))
-
-        # f(t, S_max, S_2) = 0
-        v_Smax_2 = self.model(t_boundary, torch.cat((ones * self.sampler.S_max, S_boundary[:, 1:2]), dim=1))
-        boundary_Smax_2_loss = nn.MSELoss()(v_Smax_2, torch.zeros((length, 1)))
-
-        # f(t, S_min, S_min) = K - S_min
-        v_Smin = self.model(t_boundary, torch.cat((ones * self.sampler.S_min, ones * self.sampler.S_min), dim=1))
-        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (self.market_params.K - self.sampler.S_min))
-        total_boundary_loss = boundary_loss + boundary_Smax_loss + boundary_Smax_2_loss + boundary_Smin_loss
-
-        return total_boundary_loss
+    def get_boundary_loss(self, t_boundary, S_boundary):
+        return self.payoff.boundary_loss(self.model, t_boundary, S_boundary,
+                                         K=self.market_params.K,
+                                         S_max=self.sampler.S_max,
+                                         S_min=self.sampler.S_min)
