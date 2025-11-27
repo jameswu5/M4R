@@ -92,10 +92,6 @@ class NeuralNetworkTrainer(ABC):
         plt.show()
 
     def predict(self, t, S):
-        if not torch.is_tensor(t):
-            t = torch.tensor(t, dtype=torch.float32).view(-1, 1)
-        if not torch.is_tensor(S):
-            S = torch.tensor(S, dtype=torch.float32).view(-1, 1)
         return self.model(t, S)
 
 
