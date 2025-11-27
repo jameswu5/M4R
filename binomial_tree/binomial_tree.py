@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="american"):
     """
     Price an option using a binomial tree.
@@ -37,7 +38,6 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     for i in range(1, n+1):
         price_tree[i] = price_tree[i-1] * d
         price_tree[i, i] = price_tree[i-1, i-1] * u
-    
 
     # Compute option value at maturity
     option_tree = np.zeros((n+1, n+1))
