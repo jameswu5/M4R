@@ -91,8 +91,8 @@ class NeuralNetworkTrainer(ABC):
         plt.title('Training Loss over Iterations')
         plt.show()
 
-    def predict(self, t, S):
-        return self.model(t, S)
+    def predict(self, t, *S):
+        return self.model(t, *S)
 
 
 class OneDimensionalTrainer(NeuralNetworkTrainer):
@@ -191,8 +191,7 @@ class TwoDimensionalTrainer(NeuralNetworkTrainer):
         boundary_loss = nn.MSELoss()(v_1, payoff)
 
         # f(t, S_1, S_max) = 0
-        S1Smax = torch.cat((S_boundary[:, 0:1], ones * self.sampler.S_max), dim=1)
-        v_Smax = self.model(t_boundary, S1Smax)
+        v_Smax = self.model(t_boundary, torch.cat((S_boundary[:, 0:1], ones * self.sampler.S_max), dim=1))
         boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros((length, 1)))
 
         # f(t, S_max, S_2) = 0
