@@ -100,14 +100,14 @@ class OneDimensionalTrainer(NeuralNetworkTrainer):
         super().__init__(model_config, market_params, payoff, seed)
 
     def sample_interior_points(self, num_samples):
-        t_interior, S_interior = self.sampler.generate(mode="segmented_uniform", shape=num_samples,
+        t_interior, S_interior = self.sampler.generate(mode="segmented_uniform", shape=(num_samples, 1),
                                                        S_centre=self.market_params.K,
                                                        radius=(self.market_params.S_max - self.market_params.S_min) / 6,
                                                        weight=0.5)
         return t_interior, S_interior
 
     def sample_boundary_points(self, num_samples):
-        t_boundary, S_boundary = self.sampler.generate(mode="uniform", shape=num_samples)
+        t_boundary, S_boundary = self.sampler.generate(mode="uniform", shape=(num_samples, 1))
         return t_boundary, S_boundary
 
     def get_pde_loss(self, t_interior, S_interior):
@@ -200,7 +200,7 @@ class TwoDimensionalTrainer(NeuralNetworkTrainer):
 
         # f(t, S_min, S_min) = K - S_min
         v_Smin = self.model(t_boundary, torch.cat((ones * self.sampler.S_min, ones * self.sampler.S_min), dim=1))
-        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones.view(-1, 1) * (self.market_params.K - self.sampler.S_min))
+        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (self.market_params.K - self.sampler.S_min))
         total_boundary_loss = boundary_loss + boundary_Smax_loss + boundary_Smax_2_loss + boundary_Smin_loss
 
         return total_boundary_loss

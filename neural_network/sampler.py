@@ -13,21 +13,21 @@ class Sampler:
 
     def generate(self, mode, shape, **kwargs):
         if mode == 'uniform':
-            t = self.uniform(self.t_min, self.t_max, shape)
+            t = self.uniform(self.t_min, self.t_max, (shape[0], 1)) # time always shape (N,1)
             S = self.uniform(self.S_min, self.S_max, shape)
         elif mode == 'segmented_uniform':
             weight = kwargs.get('weight', 0.7)
             radius = kwargs.get('radius', (self.S_max - self.S_min) / 4)
             S_centre = kwargs.get('S_centre', (self.S_min + self.S_max) / 2)
 
-            t = self.uniform(self.t_min, self.t_max, shape)
+            t = self.uniform(self.t_min, self.t_max, (shape[0], 1))
             S = self.segmented_uniform(self.S_min, self.S_max, S_centre, radius, weight, shape)
 
         return t, S
 
     def uniform(self, left, right, shape):
         sample = self.rng.uniform(left, right, shape)
-        return torch.tensor(sample, dtype=torch.float32).view(-1, 1)
+        return torch.tensor(sample, dtype=torch.float32)
 
     def segmented_uniform(self, left, right, centre, radius, weight, shape):
         left_high_density = max(left, centre - radius)
@@ -45,7 +45,7 @@ class Sampler:
 
         signal = self.rng.uniform(0, 1, shape)
         samples = np.where(signal < weight, high_density_samples, low_density_samples)
-        return torch.tensor(samples, dtype=torch.float32).view(-1, 1)
+        return torch.tensor(samples, dtype=torch.float32)
 
     def plot_samples(self, samples):
         plt.hist(samples, bins=100, density=True)
