@@ -9,7 +9,8 @@ class ModelConfig:
 
 
 class MarketParams:
-    def __init__(self, r, sigma, K, T, S_min, S_max):
+    def __init__(self, S0, r, sigma, K, T, S_min, S_max):
+        self.S0 = S0
         self.r = r
         self.sigma = sigma
         self.K = K

@@ -101,7 +101,7 @@ class OneDimensionalTrainer(NeuralNetworkTrainer):
 
     def sample_interior_points(self, num_samples):
         t_interior, S_interior = self.sampler.generate(mode="segmented_uniform", shape=(num_samples, 1),
-                                                       S_centre=self.market_params.K,
+                                                       S_centre=self.market_params.S0,
                                                        radius=(self.market_params.S_max - self.market_params.S_min) / 6,
                                                        weight=0.5)
         return t_interior, S_interior
