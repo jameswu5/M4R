@@ -32,11 +32,14 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     d = 1 / u
     p = (np.exp(r * dt) - d) / (u - d)
 
+    assert 0 < p < 1, "Risk-neutral probability p must be between 0 and 1"
+
     # Compute binomial price tree
+    # Here price_tree[i, j] = S * u^j * d^(i-j)
     price_tree = np.zeros((n+1, n+1))
     price_tree[0, 0] = S
     for i in range(1, n+1):
-        price_tree[i] = price_tree[i-1] * d
+        price_tree[i, :i] = price_tree[i-1, :i] * d
         price_tree[i, i] = price_tree[i-1, i-1] * u
 
     # Compute option value at maturity
