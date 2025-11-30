@@ -79,7 +79,7 @@ class PutProductMultipleAssets(Payoff):
         S_min_array = np.tile(S_min, (length, 1))
         S_min_tensor = torch.tensor(S_min_array, dtype=S_boundary.dtype, device=S_boundary.device)
         v_Smin = model(t_boundary, S_min_tensor)
-        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (K - np.prod(S_min)))
+        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (K - torch.prod(S_min_tensor[0])))
 
         total_boundary_loss = 3 * boundary_loss + boundary_Smax_loss + boundary_Smin_loss
 

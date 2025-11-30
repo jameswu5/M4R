@@ -32,7 +32,7 @@ class MarketParams:
             return parameter
         else:
             raise TypeError("Parameter must be a number or a list/array of numbers.")
-        
+
     def process_sigma(self, sigma):
         if isinstance(sigma, Number):
             # return 2D array with variances on diagonal
