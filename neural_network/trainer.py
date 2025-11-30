@@ -95,6 +95,34 @@ class NeuralNetworkTrainer(ABC):
         return self.model(t, *S)
 
 
+class GeneralTrainer(NeuralNetworkTrainer):
+    def __init__(self, model_config, market_params, payoff, seed):
+        super().__init__(model_config, market_params, payoff, seed)
+
+    def sample_interior_points(self, num_samples):
+        t_interior, S_interior = self.sampler.generate(mode="uniform", n_samples=num_samples)
+        return t_interior, S_interior
+
+    def sample_boundary_points(self, num_samples):
+        t_boundary, S_boundary = self.sampler.generate(mode="uniform", n_samples=num_samples)
+        return t_boundary, S_boundary
+
+    def get_pde_loss(self, t_interior, S_interior):
+        v, v_t, v_S, H = compute_derivatives_nd(self.model, t_interior, S_interior)
+        r = self.market_params.r
+        Sigma = self.market_params.sigma
+        residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
+        pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
+        pde_loss = torch.mean(pde_loss**2)
+        return pde_loss
+
+    def get_boundary_loss(self, t_boundary, S_boundary):
+        return self.payoff.boundary_loss(self.model, t_boundary, S_boundary,
+                                         K=self.market_params.K,
+                                         S_max=self.sampler.S_max,
+                                         S_min=self.sampler.S_min)
+
+
 class OneDimensionalTrainer(NeuralNetworkTrainer):
     def __init__(self, model_config, market_params, payoff, seed):
         super().__init__(model_config, market_params, payoff, seed)
