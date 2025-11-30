@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 from .model import BaseNetwork
 from .sampler import Sampler
-from .losses import compute_derivatives, pde_residual, compute_derivatives_2d, pde_residual_2d
+from .losses import compute_derivatives, pde_residual, compute_derivatives_nd, pde_residual_nd
 
 
 class NeuralNetworkTrainer(ABC):
@@ -145,25 +145,12 @@ class TwoDimensionalTrainer(NeuralNetworkTrainer):
         return t_boundary, S_boundary
 
     def get_pde_loss(self, t_interior, S_interior):
-        # Compute the derivatives
-        v, v_t, v_S1, v_S2, v_S1S1, v_S2S2, v_S1S2 = compute_derivatives_2d(self.model, t_interior, S_interior)
-
-        sigma1 = self.market_params.sigma['sigma1']
-        sigma2 = self.market_params.sigma['sigma2']
-        rho = self.market_params.sigma['rho']
-
-        # Compute PDE residual
-        residual = pde_residual_2d(
-            v_t, v_S1, v_S2, v_S1S1, v_S2S2, v_S1S2,
-            v,
-            S_interior[:, 0:1],
-            S_interior[:, 1:2],
-            self.market_params.r,
-            sigma1,
-            sigma2,
-            rho
-        )
-        pde_loss = torch.mean(residual**2)
+        v, v_t, v_S, H = compute_derivatives_nd(self.model, t_interior, S_interior)
+        r = self.market_params.r
+        Sigma = self.market_params.sigma
+        residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
+        pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
+        pde_loss = torch.mean(pde_loss**2)
         return pde_loss
 
     def get_boundary_loss(self, t_boundary, S_boundary):
