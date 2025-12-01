@@ -66,21 +66,27 @@ class PutProductMultipleAssets(Payoff):
 
         v_1 = model(ones, S_boundary)
         payoff = self(S_boundary, K)
-        boundary_loss = nn.MSELoss()(v_1, payoff)
+        exercise_loss = nn.MSELoss()(v_1, payoff)
 
-        # f(t, S1_max, ..., SN_max) = 0
-        # Create a tensor where each row is S_max
-        S_max_array = np.tile(S_max, (length, 1))
-        S_max_tensor = torch.tensor(S_max_array, dtype=S_boundary.dtype, device=S_boundary.device)
-        v_Smax = model(t_boundary, S_max_tensor)
-        boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros((length, 1)))
+        # f(t, S1, ..., SN) where any Si = Si_max = 0
+        boundary_max_losses = []
+        n_assets = S_boundary.shape[1]
+        for i in range(n_assets):
+            S_boundary_max = S_boundary.clone()
+            S_boundary_max[:, i] = S_max[i]
+            v_Si_max = model(t_boundary, S_boundary_max)
+            boundary_loss_Si_max = nn.MSELoss()(v_Si_max, torch.zeros((length, 1)))
+            boundary_max_losses.append(boundary_loss_Si_max)
 
-        # f(t, S1_min, ..., SN_min) = K - prod(S_min)
-        S_min_array = np.tile(S_min, (length, 1))
-        S_min_tensor = torch.tensor(S_min_array, dtype=S_boundary.dtype, device=S_boundary.device)
-        v_Smin = model(t_boundary, S_min_tensor)
-        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (K - torch.prod(S_min_tensor[0])))
+        # f(t, S1, ..., SN) where any Si = Si_min = max(K - prod(S_min), 0)
+        boundary_min_losses = []
+        for i in range(n_assets):
+            S_boundary_min = S_boundary.clone()
+            S_boundary_min[:, i] = S_min[i]
+            v_Si_min = model(t_boundary, S_boundary_min)
+            boundary_loss_Si_min = nn.MSELoss()(v_Si_min, ones * torch.relu(K - torch.prod(S_boundary_min[0])))
+            boundary_min_losses.append(boundary_loss_Si_min)
 
-        total_boundary_loss = 3 * boundary_loss + boundary_Smax_loss + boundary_Smin_loss
+        total_boundary_loss = 3 * exercise_loss + sum(boundary_max_losses) + sum(boundary_min_losses)
 
         return total_boundary_loss
