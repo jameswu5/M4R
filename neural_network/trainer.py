@@ -122,11 +122,10 @@ class SobolevTrainer(NeuralNetworkTrainer):
             t2_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
 
             S_interior = self.sampler.uniform(1 / self.a, self.a, (batch_size, 1))
-            S_boundary = self.sampler.sample_from_points(np.array([1 / self.a, self.a]), (batch_size, 1))
 
             pde_loss = self.get_pde_loss(t1_interior, S_interior)
 
-            sobolev_loss = self.payoff.sobolev_loss(self.model, S_interior, S_boundary, t1_interior, t2_interior, a=self.a, K=self.market_params.K)
+            sobolev_loss = self.payoff.sobolev_loss(self.model, S_interior, t1_interior, t2_interior, a=self.a, K=self.market_params.K)
 
             loss = pde_loss + sobolev_loss
 
