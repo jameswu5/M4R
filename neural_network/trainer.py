@@ -40,8 +40,27 @@ class NeuralNetworkTrainer(ABC):
         np.random.seed(seed)
         torch.manual_seed(seed)
 
+    @abstractmethod
     def train(self, num_samples, max_iterations, tol=1e-3):
-        for i in range(max_iterations):
+        pass
+
+    def plot_losses(self):
+        plt.plot(self.history['loss'])
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Training Loss over Iterations')
+        plt.show()
+
+    def predict(self, t, *S):
+        return self.model(t, *S)
+
+
+class GeneralTrainer(NeuralNetworkTrainer):
+    def __init__(self, model_config, market_params, payoff, seed):
+        super().__init__(model_config, market_params, payoff, seed)
+
+    def train(self, num_samples, iterations, tol=1e-3):
+        for i in range(iterations):
             self.optimizer.zero_grad()
 
             t_interior, S_interior = self.sample_interior_points(num_samples)
@@ -61,39 +80,8 @@ class NeuralNetworkTrainer(ABC):
             self.history['loss'].append(loss.item())
 
             if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
-                print(f"Converged at iteration {i}")
+                print(f"Converged at epoch {i}")
                 break
-
-    @abstractmethod
-    def sample_interior_points(self, num_samples):
-        pass
-
-    @abstractmethod
-    def sample_boundary_points(self, num_samples):
-        pass
-
-    @abstractmethod
-    def get_pde_loss(self, t_interior, S_interior):
-        pass
-
-    @abstractmethod
-    def get_boundary_loss(self, t_boundary, S_boundary):
-        pass
-
-    def plot_losses(self):
-        plt.plot(self.history['loss'])
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.title('Training Loss over Iterations')
-        plt.show()
-
-    def predict(self, t, *S):
-        return self.model(t, *S)
-
-
-class GeneralTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, market_params, payoff, seed):
-        super().__init__(model_config, market_params, payoff, seed)
 
     def sample_interior_points(self, num_samples):
         t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
@@ -119,3 +107,46 @@ class GeneralTrainer(NeuralNetworkTrainer):
                                          K=self.market_params.K,
                                          S_max=self.market_params.S_max,
                                          S_min=self.market_params.S_min)
+
+
+class SobolevTrainer(NeuralNetworkTrainer):
+    def __init__(self, model_config, market_params, payoff, seed):
+        super().__init__(model_config, market_params, payoff, seed)
+        self.a = market_params.S_max[0]
+
+    def train(self, batch_size, epochs, tol=1e-3):
+        for i in range(epochs):
+            self.optimizer.zero_grad()
+
+            t1_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
+            t2_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
+
+            S_interior = self.sampler.uniform(1 / self.a, self.a, (batch_size, 1))
+            S_boundary = self.sampler.sample_from_points(np.array([1 / self.a, self.a]), (batch_size, 1))
+
+            pde_loss = self.get_pde_loss(t1_interior, S_interior)
+
+            sobolev_loss = self.payoff.sobolev_loss(self.model, S_interior, S_boundary, t1_interior, t2_interior, a=self.a, K=self.market_params.K)
+
+            loss = pde_loss + sobolev_loss
+
+            loss.backward()
+            self.optimizer.step()
+
+            if i % 100 == 0:
+                print(f"Iteration {i}, Loss: {loss.item()}")
+
+            self.history['loss'].append(loss.item())
+
+            if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
+                print(f"Converged at epoch {i}")
+                break
+
+    def get_pde_loss(self, t_interior, S_interior):
+        v, v_t, v_S, H = compute_derivatives_nd(self.model, t_interior, S_interior)
+        r = self.market_params.r
+        Sigma = self.market_params.sigma
+        residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
+        pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
+        pde_loss = torch.mean(pde_loss**2)
+        return pde_loss

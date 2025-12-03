@@ -48,7 +48,7 @@ class Put(Payoff):
 
         return total_boundary_loss
 
-    def sobolev_loss(self, model, S_interior, t1_interior, t2_interior, S_boundary, **kwargs):
+    def sobolev_loss(self, model, S_interior, S_boundary, t1_interior, t2_interior, **kwargs):
         K = kwargs.get('K', None)
         a = kwargs.get('a', None)
 
@@ -88,7 +88,6 @@ class Put(Payoff):
         w4 = value_loss3 + first_fractional_loss_4 + fractional_loss_4
 
         return w2 + w3 + w4
-
 
 
 class PutProductMultipleAssets(Payoff):
