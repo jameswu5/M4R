@@ -13,6 +13,10 @@ class Payoff(ABC):
     def boundary_loss(self, model, t_boundary, S_boundary, **kwargs):
         pass
 
+    @abstractmethod
+    def sobolev_loss(self, model, **kwargs):
+        pass
+
 
 class Put(Payoff):
     def __call__(self, S, K):
@@ -43,6 +47,48 @@ class Put(Payoff):
         total_boundary_loss = 3 * boundary_loss + boundary_Smax_loss + boundary_Smin_loss
 
         return total_boundary_loss
+
+    def sobolev_loss(self, model, S_interior, t1_interior, t2_interior, S_boundary, **kwargs):
+        K = kwargs.get('K', None)
+        a = kwargs.get('a', None)
+
+        S_interior.requires_grad_(True)
+        length = S_interior.shape[0]
+        zeros = torch.zeros((length, 1))
+        ones = torch.ones((length, 1))
+
+        # w2 loss ||f(0, .) - g(.)||^2_H1
+        v2 = model(zeros, S_interior)
+        payoff = self(S_interior, K)
+        value_loss = nn.MSELoss()(v2, payoff)
+        v_S = torch.autograd.grad(v2 - value_loss, S_interior, grad_outputs=torch.ones_like(v2), create_graph=True)[0]
+        derivative_loss = nn.MSELoss()(v_S, zeros)
+        w2 = value_loss + derivative_loss
+
+        # w3 loss ||f(t, x) - g(x)||^2_H3/4,3/2
+        v3 = model(t1_interior, S_boundary)
+        payoff_boundary = self(S_boundary, K)
+        value_loss3 = nn.MSELoss()(v3, payoff_boundary)
+        # fractional loss
+        integrand_num_1 = model(t1_interior, ones * a) - model(t2_interior, ones * a)
+        integrand_num_2 = model(t1_interior, ones / a) - model(t2_interior, ones / a)
+        integrand_denom = torch.abs(t1_interior - t2_interior) ** (5/2)
+        fractional_loss_3 = torch.mean((integrand_num_1 ** 2 + integrand_num_2 ** 2) / integrand_denom)
+
+        w3 = value_loss3 + fractional_loss_3
+
+        # w4 loss ||d/dx (f(t, x) - g(x))||^2_H1/4,1/2
+        integrand2_num = (model(t1_interior, ones * a) - model(t1_interior, ones / a) - self(ones * a, K) + self(ones / a, K)) ** 2
+        integrand2_denom = 2 * (a**2 + 1/a**2)
+        first_fractional_loss_4 = torch.mean(integrand2_num / integrand2_denom)
+
+        integrand_denom_4 = torch.abs(t1_interior - t2_interior) ** (3/2)
+        fractional_loss_4 = torch.mean((integrand_num_1 ** 2 + integrand_num_2 ** 2) / integrand_denom_4)
+
+        w4 = value_loss3 + first_fractional_loss_4 + fractional_loss_4
+
+        return w2 + w3 + w4
+
 
 
 class PutProductMultipleAssets(Payoff):
@@ -90,3 +136,6 @@ class PutProductMultipleAssets(Payoff):
         total_boundary_loss = 3 * exercise_loss + sum(boundary_max_losses) + sum(boundary_min_losses)
 
         return total_boundary_loss
+
+    def sobolev_loss(self, model):
+        raise NotImplementedError("Sobolev loss is not implemented for PutProductMultipleAssets.")

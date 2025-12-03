@@ -29,6 +29,11 @@ class Sampler:
         samples = np.where(signal < weight, high_density_samples, low_density_samples)
         return torch.tensor(samples, dtype=torch.float32)
 
+    def sample_from_points(self, points, shape):
+        indices = self.rng.integers(0, len(points), size=shape)
+        sampled_points = points[indices]
+        return torch.tensor(sampled_points, dtype=torch.float32)
+
     def plot_samples(self, samples):
         plt.hist(samples, bins=100, density=True)
         plt.xlabel('Value')
