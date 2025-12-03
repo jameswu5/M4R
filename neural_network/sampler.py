@@ -4,27 +4,8 @@ import torch
 
 
 class Sampler:
-    def __init__(self, t_min, t_max, S_min, S_max, seed=None):
-        self.t_min = t_min
-        self.t_max = t_max
-        self.S_min = S_min
-        self.S_max = S_max
-        self.n_assets = S_min.shape[0]
+    def __init__(self, seed=None):
         self.rng = np.random.default_rng(seed)
-
-    def generate(self, mode, n_samples, **kwargs):
-        t = self.uniform(self.t_min, self.t_max, (n_samples, 1))  # time always shape (N,1)
-        S = torch.zeros((n_samples, self.n_assets), dtype=torch.float32)
-        if mode == 'uniform':
-            for i in range(self.n_assets):
-                S[:, i] = self.uniform(self.S_min[i], self.S_max[i], (n_samples,))
-        elif mode == 'segmented_uniform':
-            weight = kwargs.get('weight', 0.7)
-            radius = kwargs.get('radius', (self.S_max - self.S_min) / 4)
-            S_centre = kwargs.get('S_centre', (self.S_min + self.S_max) / 2)
-            for i in range(self.n_assets):
-                S[:, i] = self.segmented_uniform(self.S_min[i], self.S_max[i], S_centre[i], radius[i], weight, (n_samples,))
-        return t, S
 
     def uniform(self, left, right, shape):
         sample = self.rng.uniform(left, right, shape)

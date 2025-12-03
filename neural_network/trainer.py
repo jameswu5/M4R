@@ -29,10 +29,6 @@ class NeuralNetworkTrainer(ABC):
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=model_config.learning_rate)
 
         self.sampler = Sampler(
-            t_min=0.0,
-            t_max=market_params.T,
-            S_min=market_params.S_min,
-            S_max=market_params.S_max,
             seed=seed
         )
 
@@ -100,11 +96,13 @@ class GeneralTrainer(NeuralNetworkTrainer):
         super().__init__(model_config, market_params, payoff, seed)
 
     def sample_interior_points(self, num_samples):
-        t_interior, S_interior = self.sampler.generate(mode="uniform", n_samples=num_samples)
+        t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
+        S_interior = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
         return t_interior, S_interior
 
     def sample_boundary_points(self, num_samples):
-        t_boundary, S_boundary = self.sampler.generate(mode="uniform", n_samples=num_samples)
+        t_boundary = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
+        S_boundary = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
         return t_boundary, S_boundary
 
     def get_pde_loss(self, t_interior, S_interior):
@@ -119,5 +117,5 @@ class GeneralTrainer(NeuralNetworkTrainer):
     def get_boundary_loss(self, t_boundary, S_boundary):
         return self.payoff.boundary_loss(self.model, t_boundary, S_boundary,
                                          K=self.market_params.K,
-                                         S_max=self.sampler.S_max,
-                                         S_min=self.sampler.S_min)
+                                         S_max=self.market_params.S_max,
+                                         S_min=self.market_params.S_min)
