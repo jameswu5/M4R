@@ -121,7 +121,8 @@ class SobolevTrainer(NeuralNetworkTrainer):
             t1_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
             t2_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
 
-            S_interior = self.sampler.uniform(1 / self.a, self.a, (batch_size, 1))
+            S0 = self.market_params.S0[0]
+            S_interior = self.sampler.segmented_uniform(1 / self.a, self.a, centre=S0, radius=0.4*S0, weight=0.4, shape=(batch_size, 1))
 
             pde_loss = self.get_pde_loss(t1_interior, S_interior)
 
