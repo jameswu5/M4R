@@ -112,21 +112,33 @@ class GeneralTrainer(NeuralNetworkTrainer):
 class SobolevTrainer(NeuralNetworkTrainer):
     def __init__(self, model_config, market_params, payoff, seed):
         super().__init__(model_config, market_params, payoff, seed)
-        self.a = market_params.S_max[0]
 
     def train(self, batch_size, epochs, tol=1e-3):
+
+        K = self.market_params.K
+        S_min = self.market_params.S_min
+        S_max = self.market_params.S_max
+        n_assets = self.market_params.n_assets
+
         for i in range(epochs):
             self.optimizer.zero_grad()
 
-            t1_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
-            t2_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
+            # t1_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
+            # t2_interior = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
 
-            S0 = self.market_params.S0[0]
-            S_interior = self.sampler.segmented_uniform(1 / self.a, self.a, centre=S0, radius=0.4*S0, weight=0.4, shape=(batch_size, 1))
+            t1_interior, t2_interior, _, _ = self.sampler.uniform_pair(0, self.market_params.T, batch_size, 1, epsilon=0.01, boundary=False)
+
+            # S0 = self.market_params.S0[0]
+            # S_interior = self.sampler.segmented_uniform(1 / self.a, self.a, centre=S0, radius=0.4*S0, weight=0.4, shape=(batch_size, 1))
+
+            S_interior = self.sampler.uniform(S_min, S_max, (batch_size, n_assets))
+
+            S1_boundary, S2_boundary, face1, face2 = self.sampler.uniform_pair(S_min, S_max, batch_size, n_assets, epsilon=0.01, boundary=True)
 
             pde_loss = self.get_pde_loss(t1_interior, S_interior)
+            sobolev_loss = self.payoff.sobolev_loss(self.model, t1_interior, t2_interior, S_interior, S1_boundary, S2_boundary, a=1/S_min, b=S_max, K=K, face1=face1, face2=face2)
 
-            sobolev_loss = self.payoff.sobolev_loss(self.model, S_interior, t1_interior, t2_interior, a=self.a, K=self.market_params.K)
+            # sobolev_loss = self.payoff.sobolev_loss(self.model, S_interior, t1_interior, t2_interior, a=self.a, K=self.market_params.K)
 
             loss = pde_loss + sobolev_loss
 

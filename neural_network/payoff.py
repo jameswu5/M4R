@@ -174,5 +174,130 @@ class PutProductMultipleAssets(Payoff):
 
         return total_boundary_loss
 
-    def sobolev_loss(self, model):
-        raise NotImplementedError("Sobolev loss is not implemented for PutProductMultipleAssets.")
+    def sobolev_loss(self, model, t1_interior, t2_interior, S_interior, S1_boundary, S2_boundary, **kwargs):
+        device = S_interior.device
+        dtype = S_interior.dtype
+
+        K = kwargs.get('K', None)
+        a = kwargs.get('a', None)
+        b = kwargs.get('b', None)
+
+        # Which index is set to a or b on the boundary
+        S1_face = kwargs.get('S1_face', None)
+        S2_face = kwargs.get('S2_face', None)
+
+        if K is None or a is None or b is None:
+            raise ValueError("K, a, and b must be provided for Sobolev loss calculation.")
+
+        # Fractional exponents
+        s_time_J3 = 0.75
+        s_space_J3 = 1.5
+        s_time_J4 = 0.25
+        s_space_J4 = 0.5
+
+        d = S_interior.shape[1]
+
+        # --- J2: H^1 on Omega at t=0 ---
+        S_interior.requires_grad_(True)
+        t0 = torch.zeros((S_interior.shape[0], 1), device=device, dtype=dtype)
+        v0 = model(t0, S_interior)
+        g0 = self(S_interior, K)
+        u0 = v0 - g0
+
+        J2_L2 = torch.mean(u0 ** 2)
+        grad_u0 = torch.autograd.grad(u0, S_interior, grad_outputs=torch.ones_like(u0), create_graph=True)[0]
+        J2_grad = torch.mean(torch.sum(grad_u0 ** 2, dim=1, keepdim=True))
+
+        J2 = J2_L2 + J2_grad
+
+        # Boundary evaluations for J3 and J4
+        t1 = t1_interior.to(device=device, dtype=dtype)
+        t2 = t2_interior.to(device=device, dtype=dtype)
+
+        # Evaluate model at required points
+        v_t1_S1 = model(t1, S1_boundary)
+        v_t1_S2 = model(t1, S2_boundary)
+        v_t2_S1 = model(t2, S1_boundary)
+        v_t2_S2 = model(t2, S2_boundary)
+
+        g_S1 = self(S1_boundary, K)
+        g_S2 = self(S2_boundary, K)
+
+        d_t1_S1 = v_t1_S1 - g_S1
+        d_t1_S2 = v_t1_S2 - g_S2
+        d_t2_S1 = v_t2_S1 - g_S1
+        d_t2_S2 = v_t2_S2 - g_S2
+
+        # --- J3: mixed fractional norm on Sigma ---
+
+        # Value term (L2 over Sigma) averaged across two boundary batches
+        J3_val = 0.5 * (torch.mean(d_t1_S1 ** 2) + torch.mean(d_t1_S2 ** 2))
+
+        # Time fractional: denom is |t1 - t2|^(1 + 2*s_time_J3)
+        denom_time_J3 = (torch.abs(t1 - t2) ** (1 + 2 * s_time_J3)).clamp_min(1e-8)
+        time_frac_S1 = torch.mean(((d_t1_S1 - d_t2_S1) ** 2) / denom_time_J3)
+        time_frac_S2 = torch.mean(((d_t1_S2 - d_t2_S2) ** 2) / denom_time_J3)
+        J3_time_frac = 0.5 * (time_frac_S1 + time_frac_S2)
+
+        # Space fractional: denom exponent is 2 * (fractional s_space_J3) + d - 1
+        frac_s_space_J3 = s_space_J3 - torch.floor(torch.tensor(s_space_J3))
+        s_exponent_J3 = 2 * frac_s_space_J3 + d - 1
+        diff_xy = S1_boundary - S2_boundary
+        dist_xy = torch.norm(diff_xy, dim=1, keepdim=True).clamp_min(1e-8)
+        spatial_frac = torch.mean(((d_t1_S1 - d_t1_S2) ** 2) / (dist_xy ** s_exponent_J3))
+
+        J3 = J3_val + J3_time_frac + spatial_frac
+
+        # --- J4: normal derivative norm on Sigma in H^{s_time_J4, s_space_J4} ---
+        S1_boundary.requires_grad_(True)
+        S2_boundary.requires_grad_(True)
+
+        v_t1_S1 = model(t1, S1_boundary) - self(S1_boundary, K)
+        v_t1_S2 = model(t1, S2_boundary) - self(S2_boundary, K)
+
+        grad_d_S1 = torch.autograd.grad(
+            v_t1_S1, S1_boundary, grad_outputs=torch.ones_like(v_t1_S1), create_graph=True
+        )[0]
+        grad_d_S2 = torch.autograd.grad(
+            v_t1_S2, S2_boundary, grad_outputs=torch.ones_like(v_t1_S2), create_graph=True
+        )[0]
+
+        idx_rows = torch.arange(grad_d_S1.shape[0], device=device)
+        dnu_S1 = grad_d_S1[idx_rows, S1_face].unsqueeze(1)
+        dnu_S2 = grad_d_S2[idx_rows, S2_face].unsqueeze(1)
+
+        # L2 part
+        J4_L2 = torch.mean(dnu_S1 ** 2) + torch.mean(dnu_S2 ** 2)
+
+        # Time fractional part
+        # Compute gradients at t2 for time fractional difference
+        v_t2_S1 = model(t2, S1_boundary) - self(S1_boundary, K)
+        v_t2_S2 = model(t2, S2_boundary) - self(S2_boundary, K)
+
+        grad_t2_S1 = torch.autograd.grad(
+            v_t2_S1, S1_boundary, grad_outputs=torch.ones_like(v_t2_S1), create_graph=True
+        )[0]
+        grad_t2_S2 = torch.autograd.grad(
+            v_t2_S2, S2_boundary, grad_outputs=torch.ones_like(v_t2_S2), create_graph=True
+        )[0]
+
+        dnu_t2_S1 = grad_t2_S1[idx_rows, S1_face].unsqueeze(1)
+        dnu_t2_S2 = grad_t2_S2[idx_rows, S2_face].unsqueeze(1)
+
+        denom_time_J4 = (torch.abs(t1 - t2) ** (1 + 2 * s_time_J4)).clamp_min(1e-8)
+        J4_time = 0.5 * (
+            torch.mean(((dnu_S1 - dnu_t2_S1) ** 2) / denom_time_J4) +
+            torch.mean(((dnu_S2 - dnu_t2_S2) ** 2) / denom_time_J4)
+        )
+
+        # Spatial fractional part
+        frac_s_space_J4 = s_space_J4 - torch.floor(torch.tensor(s_space_J4))
+        s_exponent_J4 = 2 * frac_s_space_J4 + d - 1
+        diff_xy = S1_boundary - S2_boundary
+        dist_xy = torch.norm(diff_xy, dim=1, keepdim=True).clamp_min(1e-8)
+        J4_space = torch.mean(((dnu_S1 - dnu_S2) ** 2) / (dist_xy ** s_exponent_J4))
+
+        J4 = J4_L2 + J4_time + J4_space
+
+        total = J2 + J3 + J4
+        return total
