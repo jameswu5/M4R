@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from numbers import Number
 
 
 class Sampler:
@@ -33,6 +34,57 @@ class Sampler:
         indices = self.rng.integers(0, len(points), size=shape)
         sampled_points = points[indices]
         return torch.tensor(sampled_points, dtype=torch.float32)
+
+    def uniform_pair(self, left, right, batch_size, dimensions, epsilon, boundary=False):
+        """
+        Samples uniformly pairs of points (x1, x2) such that |x1 - x2| < epsilon.
+
+        boundary: if true, for each sample, one of the points is at the boundary
+        """
+
+        # Sample bigger batch to account for rejections
+        big_batch_size = int(batch_size * 1.2)
+
+        if isinstance(left, Number):
+            left = np.full((dimensions,), left)
+        if isinstance(right, Number):
+            right = np.full((dimensions,), right)
+
+        assert len(left) == dimensions
+        assert len(right) == dimensions
+
+        def sample_point():
+            x = np.column_stack([
+                self.rng.uniform(left[d], right[d], big_batch_size)
+                for d in range(dimensions)
+            ])
+
+            face = None
+
+            if boundary:
+                face = self.rng.integers(0, dimensions, size=big_batch_size)
+                side = self.rng.integers(0, 2, size=big_batch_size)
+                replace = np.where(side == 0, left[face], right[face])
+                x[np.arange(big_batch_size), face] = replace
+
+            return x, face
+
+        x1, face1 = sample_point()
+        x2, face2 = sample_point()
+
+        valid_indices = np.where(
+            np.linalg.norm(x1 - x2, axis=1) >= epsilon
+        )[0]
+
+        valid_indices = valid_indices[:batch_size]
+
+        x1 = torch.tensor(x1[valid_indices], dtype=torch.float32)
+        x2 = torch.tensor(x2[valid_indices], dtype=torch.float32)
+
+        face1 = face1[valid_indices] if face1 is not None else None
+        face2 = face2[valid_indices] if face2 is not None else None
+
+        return x1, x2, face1, face2
 
     def plot_samples(self, samples):
         plt.hist(samples, bins=100, density=True)
