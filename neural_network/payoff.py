@@ -48,9 +48,16 @@ class Put(Payoff):
 
         return total_boundary_loss
 
-    def sobolev_loss(self, model, S_interior, t1_interior, t2_interior, **kwargs):
+    def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
         a = kwargs.get('a', None)
+
+        S_interior = kwargs.get('S_interior', None)
+        t1_interior = kwargs.get('t1_interior', None)
+        t2_interior = kwargs.get('t2_interior', None)
+
+        if K is None or a is None or S_interior is None or t1_interior is None or t2_interior is None:
+            raise ValueError("K, a, S_interior, t1_interior, and t2_interior must be provided for Sobolev loss calculation.")
 
         S_interior.requires_grad_(True)
         length = S_interior.shape[0]
@@ -174,20 +181,26 @@ class PutProductMultipleAssets(Payoff):
 
         return total_boundary_loss
 
-    def sobolev_loss(self, model, t1_interior, t2_interior, S_interior, S1_boundary, S2_boundary, **kwargs):
-        device = S_interior.device
-        dtype = S_interior.dtype
-
+    def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
         a = kwargs.get('a', None)
         b = kwargs.get('b', None)
+
+        S_interior = kwargs.get('S_interior', None)
+        t1_interior = kwargs.get('t1_interior', None)
+        t2_interior = kwargs.get('t2_interior', None)
+        S1_boundary = kwargs.get('S1_boundary', None)
+        S2_boundary = kwargs.get('S2_boundary', None)
+
+        device = S_interior.device
+        dtype = S_interior.dtype
 
         # Which index is set to a or b on the boundary
         S1_face = kwargs.get('S1_face', None)
         S2_face = kwargs.get('S2_face', None)
 
-        if K is None or a is None or b is None:
-            raise ValueError("K, a, and b must be provided for Sobolev loss calculation.")
+        if K is None or a is None or b is None or S_interior is None or t1_interior is None or t2_interior is None or S1_boundary is None or S2_boundary is None or S1_face is None or S2_face is None:
+            raise ValueError("Missing required parameters for Sobolev loss calculation.")
 
         # Fractional exponents
         s_time_J3 = 0.75
