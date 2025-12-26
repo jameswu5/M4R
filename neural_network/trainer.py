@@ -41,7 +41,7 @@ class NeuralNetworkTrainer(ABC):
         torch.manual_seed(seed)
 
     @abstractmethod
-    def train(self, num_samples, max_iterations, tol=1e-3):
+    def train(self, batch_size, epochs, tol=1e-3):
         pass
 
     def plot_losses(self):
@@ -59,14 +59,14 @@ class GeneralTrainer(NeuralNetworkTrainer):
     def __init__(self, model_config, market_params, payoff, seed):
         super().__init__(model_config, market_params, payoff, seed)
 
-    def train(self, num_samples, iterations, tol=1e-3):
-        for i in range(iterations):
+    def train(self, batch_size, epochs, tol=1e-3):
+        for i in range(epochs):
             self.optimizer.zero_grad()
 
-            t_interior, S_interior = self.sample_interior_points(num_samples)
+            t_interior, S_interior = self.sample_interior_points(batch_size)
             pde_loss = self.get_pde_loss(t_interior, S_interior)
 
-            t_boundary, S_boundary = self.sample_boundary_points(num_samples)
+            t_boundary, S_boundary = self.sample_boundary_points(batch_size)
             boundary_losses = self.get_boundary_loss(t_boundary, S_boundary)
 
             loss = pde_loss + boundary_losses
