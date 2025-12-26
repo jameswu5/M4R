@@ -32,7 +32,7 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     d = 1 / u
     p = (np.exp(r * dt) - d) / (u - d)
 
-    assert 0 < p < 1, "Risk-neutral probability p must be between 0 and 1"
+    assert 0 < p < 1, f"Risk-neutral probability p must be between 0 and 1 [params: S={S}, K={K}, r={r}, sigma={sigma}, T={T}, n={n}]"
 
     # Compute binomial price tree
     # Here price_tree[i, j] = S * u^j * d^(i-j)
@@ -66,6 +66,33 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     price = option_tree[0, 0]
 
     return price, price_tree, option_tree
+
+
+class BinomialTree:
+    def __init__(self, market_params, n_steps, option_type="put", exercise_type="american"):
+        self.market_params = market_params
+        self.n_steps = n_steps
+        self.option_type = option_type
+        self.exercise_type = exercise_type
+
+    def predict(self, t, S):
+        """
+        Predict the option price at time t and stock price S=S_t using the binomial tree method.
+
+        We can shift by time t, so we price the option with time to maturity T - t and S0=S.
+        """
+
+        price, _, _ = binomial_tree(
+            S,
+            self.market_params.K,
+            self.market_params.r,
+            self.market_params.sigma,
+            self.market_params.T - t,
+            self.n_steps,
+            self.option_type,
+            self.exercise_type
+        )
+        return price
 
 
 if __name__ == "__main__":
