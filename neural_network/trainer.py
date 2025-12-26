@@ -56,8 +56,23 @@ class NeuralNetworkTrainer(ABC):
 
 
 class GeneralTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, market_params, payoff, seed):
+    def __init__(self, model_config, market_params, payoff, loss_weights=None, seed=None):
         super().__init__(model_config, market_params, payoff, seed)
+
+        self.loss_weights = loss_weights if loss_weights is not None else {
+            'pde': 1.0,
+            'exercise': 1.0,
+            'boundary_Smax': 1.0,
+            'boundary_Smin': 1.0
+        }
+
+        self.history = {
+            'loss': [],
+            'pde_loss': [],
+            'exercise_loss': [],
+            'boundary_Smax_loss': [],
+            'boundary_Smin_loss': []
+        }
 
     def train(self, batch_size, epochs, tol=1e-3):
         for i in range(epochs):
@@ -67,9 +82,14 @@ class GeneralTrainer(NeuralNetworkTrainer):
             pde_loss = self.get_pde_loss(t_interior, S_interior)
 
             t_boundary, S_boundary = self.sample_boundary_points(batch_size)
-            boundary_losses = self.get_boundary_loss(t_boundary, S_boundary)
+            boundary_loss, boundary_Smax_loss, boundary_Smin_loss = self.get_boundary_loss(t_boundary, S_boundary)
 
-            loss = pde_loss + boundary_losses
+            pde_loss *= self.loss_weights['pde']
+            boundary_loss *= self.loss_weights['exercise']
+            boundary_Smax_loss *= self.loss_weights['boundary_Smax']
+            boundary_Smin_loss *= self.loss_weights['boundary_Smin']
+
+            loss = pde_loss + boundary_loss + boundary_Smax_loss + boundary_Smin_loss
 
             loss.backward()
             self.optimizer.step()
@@ -78,6 +98,10 @@ class GeneralTrainer(NeuralNetworkTrainer):
                 print(f"Iteration {i}, Loss: {loss.item()}")
 
             self.history['loss'].append(loss.item())
+            self.history['pde_loss'].append(pde_loss.item())
+            self.history['exercise_loss'].append(boundary_loss.item())
+            self.history['boundary_Smax_loss'].append(boundary_Smax_loss.item())
+            self.history['boundary_Smin_loss'].append(boundary_Smin_loss.item())
 
             if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
                 print(f"Converged at epoch {i}")
@@ -85,7 +109,14 @@ class GeneralTrainer(NeuralNetworkTrainer):
 
     def sample_interior_points(self, num_samples):
         t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
-        S_interior = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
+
+        S_interior = self.sampler.segmented_uniform(
+            self.market_params.S_min, self.market_params.S_max,
+            centre=self.market_params.S0, radius=0.1 * self.market_params.S0,
+            weight=0.4, shape=(num_samples, self.dimension),
+        )
+
+        # S_interior = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
         return t_interior, S_interior
 
     def sample_boundary_points(self, num_samples):
@@ -107,6 +138,18 @@ class GeneralTrainer(NeuralNetworkTrainer):
                                          K=self.market_params.K,
                                          S_max=self.market_params.S_max,
                                          S_min=self.market_params.S_min)
+
+    def plot_losses_detailed(self):
+        # plt.plot(self.history['loss'], label='Total Loss')
+        plt.plot(self.history['pde_loss'], label='PDE Loss')
+        plt.plot(self.history['exercise_loss'], label='Exercise Loss')
+        plt.plot(self.history['boundary_Smax_loss'], label='Boundary Smax Loss')
+        plt.plot(self.history['boundary_Smin_loss'], label='Boundary Smin Loss')
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Training Loss Components over Iterations')
+        plt.legend()
+        plt.show()
 
 
 class SobolevTrainer(NeuralNetworkTrainer):

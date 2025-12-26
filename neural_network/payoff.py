@@ -33,20 +33,20 @@ class Put(Payoff):
         length = t_boundary.shape[0]
         ones = torch.ones((length, 1))
 
+        # exercise loss: f(T, S) = payoff(S)
         v_1 = model(ones, S_boundary)
         payoff = self(S_boundary, K)
-        boundary_loss = nn.MSELoss()(v_1, payoff)
+        exercise_loss = nn.MSELoss()(v_1, payoff)
 
-        # f(t, S_max) = 0
+        # S_max loss: f(t, S_max) = 0
         v_Smax = model(t_boundary, ones * S_max)
         boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros((length, 1)))
 
+        # S_min loss: f(t, S_min) = K - S_min
         v_Smin = model(t_boundary, ones * S_min)
         boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (K - S_min))
 
-        total_boundary_loss = 3 * boundary_loss + boundary_Smax_loss + boundary_Smin_loss
-
-        return total_boundary_loss
+        return exercise_loss, boundary_Smax_loss, boundary_Smin_loss
 
     def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
@@ -177,9 +177,7 @@ class PutProductMultipleAssets(Payoff):
             boundary_loss_Si_min = nn.MSELoss()(v_Si_min, ones * torch.relu(K - torch.prod(S_boundary_min[0])))
             boundary_min_losses.append(boundary_loss_Si_min)
 
-        total_boundary_loss = 3 * exercise_loss + sum(boundary_max_losses) + sum(boundary_min_losses)
-
-        return total_boundary_loss
+        return exercise_loss, sum(boundary_max_losses), sum(boundary_min_losses)
 
     def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
