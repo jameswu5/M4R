@@ -110,13 +110,14 @@ class GeneralTrainer(NeuralNetworkTrainer):
     def sample_interior_points(self, num_samples):
         t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
 
-        S_interior = self.sampler.segmented_uniform(
-            self.market_params.S_min, self.market_params.S_max,
-            centre=self.market_params.S0, radius=0.1 * self.market_params.S0,
-            weight=0.4, shape=(num_samples, self.dimension),
-        )
-
-        # S_interior = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
+        if self.dimension == 1:
+            S_interior = self.sampler.segmented_uniform(
+                self.market_params.S_min, self.market_params.S_max,
+                centre=self.market_params.S0, radius=0.1 * self.market_params.S0,
+                weight=0.4, shape=(num_samples, self.dimension),
+            )
+        else:
+            S_interior = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
         return t_interior, S_interior
 
     def sample_boundary_points(self, num_samples):
