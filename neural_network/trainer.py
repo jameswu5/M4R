@@ -159,8 +159,23 @@ class GeneralTrainer(NeuralNetworkTrainer):
 
 
 class SobolevTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, market_params, payoff, seed):
+    def __init__(self, model_config, market_params, payoff, loss_weights=None, seed=None):
         super().__init__(model_config, market_params, payoff, seed)
+
+        self.loss_weights = loss_weights if loss_weights is not None else {
+            'pde': 1.0,
+            'J2': 1.0,
+            'J3': 1.0,
+            'J4': 1.0
+        }
+
+        self.history = {
+            'loss': [],
+            'pde_loss': [],
+            'J2_loss': [],
+            'J3_loss': [],
+            'J4_loss': []
+        }
 
     def train(self, batch_size, epochs, tol=1e-3):
 
@@ -177,23 +192,28 @@ class SobolevTrainer(NeuralNetworkTrainer):
             if n_assets == 1:
                 a = S_max[0]
                 S_interior = self.sampler.uniform(1 / a, a, (batch_size, 1))
-                sobolev_loss = self.payoff.sobolev_loss(self.model,
-                                                        t1_interior=t1_interior, t2_interior=t2_interior,
-                                                        S_interior=S_interior,
-                                                        a=a, K=K)
+                J2, J3, J4 = self.payoff.sobolev_loss(self.model,
+                                                      t1_interior=t1_interior, t2_interior=t2_interior,
+                                                      S_interior=S_interior,
+                                                      a=a, K=K)
             else:
                 S_interior = self.sampler.uniform(S_min, S_max, (batch_size, n_assets))
                 S1_boundary, S2_boundary, face1, face2 = self.sampler.uniform_pair(S_min, S_max, batch_size, n_assets, epsilon=0.01, boundary=True)
-                sobolev_loss = self.payoff.sobolev_loss(self.model,
-                                                        t1_interior=t1_interior, t2_interior=t2_interior,
-                                                        S_interior=S_interior,
-                                                        S1_boundary=S1_boundary, S2_boundary=S2_boundary,
-                                                        S1_face=face1, S2_face=face2,
-                                                        a=S_min, b=S_max, K=K)
+                J2, J3, J4 = self.payoff.sobolev_loss(self.model,
+                                                      t1_interior=t1_interior, t2_interior=t2_interior,
+                                                      S_interior=S_interior,
+                                                      S1_boundary=S1_boundary, S2_boundary=S2_boundary,
+                                                      S1_face=face1, S2_face=face2,
+                                                      a=S_min, b=S_max, K=K)
 
             pde_loss = self.get_pde_loss(t1_interior, S_interior)
 
-            loss = pde_loss + sobolev_loss
+            pde_loss *= self.loss_weights['pde']
+            J2 *= self.loss_weights['J2']
+            J3 *= self.loss_weights['J3']
+            J4 *= self.loss_weights['J4']
+
+            loss = pde_loss + J2 + J3 + J4
 
             loss.backward()
             self.optimizer.step()
@@ -202,6 +222,10 @@ class SobolevTrainer(NeuralNetworkTrainer):
                 print(f"Iteration {i}, Loss: {loss.item()}")
 
             self.history['loss'].append(loss.item())
+            self.history['pde_loss'].append(pde_loss.item())
+            self.history['J2_loss'].append(J2.item())
+            self.history['J3_loss'].append(J3.item())
+            self.history['J4_loss'].append(J4.item())
 
             if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
                 print(f"Converged at epoch {i}")
@@ -215,3 +239,15 @@ class SobolevTrainer(NeuralNetworkTrainer):
         pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
         pde_loss = torch.mean(pde_loss**2)
         return pde_loss
+
+    def plot_losses_detailed(self):
+        # plt.plot(self.history['loss'], label='Total Loss')
+        plt.plot(self.history['pde_loss'], label='PDE Loss')
+        plt.plot(self.history['J2_loss'], label='J2 Loss')
+        plt.plot(self.history['J3_loss'], label='J3 Loss')
+        plt.plot(self.history['J4_loss'], label='J4 Loss')
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Training Loss Components over Iterations')
+        plt.legend()
+        plt.show()

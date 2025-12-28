@@ -78,7 +78,7 @@ class Put(Payoff):
         grad_u0 = torch.autograd.grad(u0, S_interior, grad_outputs=torch.ones_like(u0), create_graph=True)[0]
         H1_w2 = torch.mean(grad_u0 ** 2)
 
-        w2 = L2_w2 + H1_w2
+        J2 = L2_w2 + H1_w2
 
         # --- w3: mixed fractional norm on Sigma ---
         # Boundary points x1 = 1/a, x2 = a
@@ -115,7 +115,7 @@ class Put(Payoff):
 
         val_term = 0.5 * (torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2))
 
-        w3 = val_term + time_frac + spatial_frac
+        J3 = val_term + time_frac + spatial_frac
 
         # --- w4: derivative norm on Sigma in H^{1/4, 1/2} ---
         dx_val = (x2 - x1).clamp_min(1e-8)
@@ -130,9 +130,9 @@ class Put(Payoff):
         du_t1 = (model(t1_interior, x2M) - self(x2M, K) - (model(t1_interior, x1M) - self(x1M, K))) / dx_val
         du_t2 = (model(t2_interior, x2M) - self(x2M, K) - (model(t2_interior, x1M) - self(x1M, K))) / dx_val
         time_frac_du = torch.mean(((du_t1 - du_t2) ** 2) / denom_t_w4)
-        w4 = deriv_L2 + time_frac_du
+        J4 = deriv_L2 + time_frac_du
 
-        return w2 + w3 + w4
+        return J2, J3, J4
 
 
 class PutProductMultipleAssets(Payoff):
@@ -322,5 +322,4 @@ class PutProductMultipleAssets(Payoff):
 
         J4 = J4_L2 + J4_time + J4_space
 
-        total = J2 + J3 + J4
-        return total
+        return J2, J3, J4
