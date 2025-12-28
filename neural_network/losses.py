@@ -19,6 +19,9 @@ def compute_derivatives_nd(model, t, S):
         vi_S = torch.autograd.grad(vi, S, grad_outputs=torch.ones_like(vi), create_graph=True)[0]  # shape (N, n_assets)
         H[:, i, :] = vi_S
 
+    # Enforce symmetry of Hessian
+    H = 0.5 * (H + H.transpose(1, 2))
+
     # Now the H tensor is of form H[b, i, j] = d^2 v(b) / dS_i dS_j
 
     return v, v_t, v_S, H

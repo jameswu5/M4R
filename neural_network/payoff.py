@@ -153,22 +153,33 @@ class PutProductMultipleAssets(Payoff):
 
         length = t_boundary.shape[0]
         ones = torch.ones((length, 1))
+        T = kwargs.get('T', 1.0)
 
-        v_1 = model(ones, S_boundary)
+        v_1 = model(ones * T, S_boundary)
         payoff = self(S_boundary, K)
         exercise_loss = nn.MSELoss()(v_1, payoff)
 
-        # f(t, S1, ..., SN) where any Si = Si_max = 0
-        boundary_max_losses = []
-        n_assets = S_boundary.shape[1]
-        for i in range(n_assets):
-            S_boundary_max = S_boundary.clone()
-            S_boundary_max[:, i] = S_max[i]
-            v_Si_max = model(t_boundary, S_boundary_max)
-            boundary_loss_Si_max = nn.MSELoss()(v_Si_max, torch.zeros((length, 1)))
-            boundary_max_losses.append(boundary_loss_Si_max)
+        # Max boundary loss: if prod of assets greater than threshold, set to 0
+        max_threshold = np.prod(S_max) * 0.8
+        max_mask = torch.prod(S_boundary, dim=1) >= max_threshold
+        if max_mask.any():
+            v_max_boundary = model(t_boundary[max_mask], S_boundary[max_mask])
+            boundary_max_loss = nn.MSELoss()(v_max_boundary, torch.zeros_like(v_max_boundary))
+        else:
+            boundary_max_loss = 0.0
+
+        # f(t, S1, ..., SN) where any Si = Si_max = 0 [incorrect]
+        # boundary_max_losses = []
+        # n_assets = S_boundary.shape[1]
+        # for i in range(n_assets):
+        #     S_boundary_max = S_boundary.clone()
+        #     S_boundary_max[:, i] = S_max[i]
+        #     v_Si_max = model(t_boundary, S_boundary_max)
+        #     boundary_loss_Si_max = nn.MSELoss()(v_Si_max, torch.zeros((length, 1)))
+        #     boundary_max_losses.append(boundary_loss_Si_max)
 
         # f(t, S1, ..., SN) where any Si = Si_min = max(K - prod(S_min), 0)
+        n_assets = S_boundary.shape[1]
         boundary_min_losses = []
         for i in range(n_assets):
             S_boundary_min = S_boundary.clone()
@@ -177,7 +188,8 @@ class PutProductMultipleAssets(Payoff):
             boundary_loss_Si_min = nn.MSELoss()(v_Si_min, ones * torch.relu(K - torch.prod(S_boundary_min[0])))
             boundary_min_losses.append(boundary_loss_Si_min)
 
-        return exercise_loss, sum(boundary_max_losses), sum(boundary_min_losses)
+        # return exercise_loss, sum(boundary_max_losses), sum(boundary_min_losses)
+        return exercise_loss, boundary_max_loss, sum(boundary_min_losses)
 
     def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
