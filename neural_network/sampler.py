@@ -12,7 +12,7 @@ class Sampler:
         sample = self.rng.uniform(left, right, shape)
         return torch.tensor(sample, dtype=torch.float32)
 
-    def segmented_uniform(self, left, right, centre, radius, weight, shape):
+    def segmented_uniform_1d(self, left, right, centre, radius, weight, shape):
         left_high_density = max(left, centre - radius)
         right_high_density = min(right, centre + radius)
         true_width = right_high_density - left_high_density
@@ -28,6 +28,29 @@ class Sampler:
 
         signal = self.rng.uniform(0, 1, shape)
         samples = np.where(signal < weight, high_density_samples, low_density_samples)
+        return torch.tensor(samples, dtype=torch.float32)
+
+    def segmented_uniform(self, left, right, centres, radii, weights, batch_size):
+        dimensions = len(centres)
+        if isinstance(left, Number):
+            left = np.ones(dimensions) * left
+        if isinstance(right, Number):
+            right = np.ones(dimensions) * right
+        if isinstance(weights, Number):
+            weights = np.ones(dimensions) * weights
+
+        assert len(centres) == len(radii) == len(weights)
+
+        dimensions = len(centres)
+        samples = np.zeros((batch_size, dimensions))
+
+        for d in range(dimensions):
+            samples[:, d] = self.segmented_uniform_1d(
+                left[d], right[d],
+                centres[d], radii[d], weights[d],
+                (batch_size,)
+            ).numpy()
+
         return torch.tensor(samples, dtype=torch.float32)
 
     def sample_from_points(self, points, shape):
