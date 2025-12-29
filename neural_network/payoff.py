@@ -111,7 +111,8 @@ class Put(Payoff):
         time_frac_x2 = torch.mean(((u_t1_x2 - u_t2_x2) ** 2) / denom_t_J3)
         time_frac = time_frac_x1 + time_frac_x2
 
-        val_term = torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2)
+        # Value term (L2 over Sigma) averaged across two boundary batches
+        val_term = 0.5 * (torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2))
 
         J3 = val_term + time_frac
 
@@ -166,16 +167,6 @@ class PutProductMultipleAssets(Payoff):
         else:
             boundary_max_loss = 0.0
 
-        # f(t, S1, ..., SN) where any Si = Si_max = 0 [incorrect]
-        # boundary_max_losses = []
-        # n_assets = S_boundary.shape[1]
-        # for i in range(n_assets):
-        #     S_boundary_max = S_boundary.clone()
-        #     S_boundary_max[:, i] = S_max[i]
-        #     v_Si_max = model(t_boundary, S_boundary_max)
-        #     boundary_loss_Si_max = nn.MSELoss()(v_Si_max, torch.zeros((length, 1)))
-        #     boundary_max_losses.append(boundary_loss_Si_max)
-
         # f(t, S1, ..., SN) where any Si = Si_min = max(K - prod(S_min), 0)
         n_assets = S_boundary.shape[1]
         boundary_min_losses = []
@@ -200,6 +191,12 @@ class PutProductMultipleAssets(Payoff):
         S1_boundary = kwargs.get('S1_boundary', None)
         S2_boundary = kwargs.get('S2_boundary', None)
 
+        # Fractional exponents
+        s_time_J3 = kwargs.get('s_time_J3', 0.75)
+        s_space_J3 = kwargs.get('s_space_J3', 1.5)
+        s_time_J4 = kwargs.get('s_time_J4', 0.25)
+        s_space_J4 = kwargs.get('s_space_J4', 0.5)
+
         device = S_interior.device
         dtype = S_interior.dtype
 
@@ -209,12 +206,6 @@ class PutProductMultipleAssets(Payoff):
 
         if K is None or a is None or b is None or S_interior is None or t1_interior is None or t2_interior is None or S1_boundary is None or S2_boundary is None or S1_face is None or S2_face is None:
             raise ValueError("Missing required parameters for Sobolev loss calculation.")
-
-        # Fractional exponents
-        s_time_J3 = 0.75
-        s_space_J3 = 1.5
-        s_time_J4 = 0.25
-        s_space_J4 = 0.5
 
         d = S_interior.shape[1]
 
@@ -250,7 +241,6 @@ class PutProductMultipleAssets(Payoff):
         d_t2_S2 = v_t2_S2 - g_S2
 
         # --- J3: mixed fractional norm on Sigma ---
-
         # Value term (L2 over Sigma) averaged across two boundary batches
         J3_val = 0.5 * (torch.mean(d_t1_S1 ** 2) + torch.mean(d_t1_S2 ** 2))
 
@@ -258,7 +248,7 @@ class PutProductMultipleAssets(Payoff):
         denom_time_J3 = (torch.abs(t1 - t2) ** (1 + 2 * s_time_J3)).clamp_min(1e-8)
         time_frac_S1 = torch.mean(((d_t1_S1 - d_t2_S1) ** 2) / denom_time_J3)
         time_frac_S2 = torch.mean(((d_t1_S2 - d_t2_S2) ** 2) / denom_time_J3)
-        J3_time_frac = 0.5 * (time_frac_S1 + time_frac_S2)
+        J3_time_frac = 0.5 * (time_frac_S1 + time_frac_S2)  # Average over two batches
 
         # Space fractional: denom exponent is 2 * (fractional s_space_J3) + d - 1
         frac_s_space_J3 = s_space_J3 - torch.floor(torch.tensor(s_space_J3))
@@ -283,6 +273,7 @@ class PutProductMultipleAssets(Payoff):
             v_t1_S2, S2_boundary, grad_outputs=torch.ones_like(v_t1_S2), create_graph=True
         )[0]
 
+        # Identify tangential derivative
         idx_rows = torch.arange(grad_d_S1.shape[0], device=device)
         dnu_S1 = grad_d_S1[idx_rows, S1_face].unsqueeze(1)
         dnu_S2 = grad_d_S2[idx_rows, S2_face].unsqueeze(1)
