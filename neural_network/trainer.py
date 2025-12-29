@@ -190,12 +190,13 @@ class SobolevTrainer(NeuralNetworkTrainer):
             t1_interior, t2_interior, _, _ = self.sampler.uniform_pair(0, self.market_params.T, batch_size, 1, epsilon=0.01, boundary=False)
 
             if n_assets == 1:
-                a = S_max[0]
-                S_interior = self.sampler.uniform(1 / a, a, (batch_size, 1))
+                # a = S_max[0]
+                S_interior = self.sampler.uniform(S_min, S_max, (batch_size, 1))
                 J2, J3, J4 = self.payoff.sobolev_loss(self.model,
                                                       t1_interior=t1_interior, t2_interior=t2_interior,
+                                                      S_min=S_min, S_max=S_max,
                                                       S_interior=S_interior,
-                                                      a=a, K=K)
+                                                      K=K)
             else:
                 S_interior = self.sampler.uniform(S_min, S_max, (batch_size, n_assets))
                 S1_boundary, S2_boundary, face1, face2 = self.sampler.uniform_pair(S_min, S_max, batch_size, n_assets, epsilon=0.01, boundary=True)

@@ -50,40 +50,42 @@ class Put(Payoff):
 
     def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
-        a = kwargs.get('a', None)
+        # a = kwargs.get('a', None)
+        S_max = kwargs.get('S_max', None)[0]
+        S_min = kwargs.get('S_min', None)[0]
 
         S_interior = kwargs.get('S_interior', None)
         t1_interior = kwargs.get('t1_interior', None)
         t2_interior = kwargs.get('t2_interior', None)
 
-        if K is None or a is None or S_interior is None or t1_interior is None or t2_interior is None:
-            raise ValueError("K, a, S_interior, t1_interior, and t2_interior must be provided for Sobolev loss calculation.")
+        if K is None or S_max is None or S_min is None or S_interior is None or t1_interior is None or t2_interior is None:
+            raise ValueError("K, S_max, S_min, S_interior, t1_interior, and t2_interior must be provided for Sobolev loss calculation.")
 
         S_interior.requires_grad_(True)
         length = S_interior.shape[0]
         zeros = torch.zeros((length, 1))
         ones = torch.ones((length, 1))
 
-        # --- w2: H^1 on Omega at t=0 ---
+        # --- J2: H^1 on Omega at t=0 ---
         # Compute u0(x) = f(0, x) - g(x)
         v0 = model(zeros, S_interior)
         g0 = self(S_interior, K)
         u0 = v0 - g0
 
         # L2 part (value)
-        L2_w2 = torch.mean(u0 ** 2)
+        L2_J2 = torch.mean(u0 ** 2)
 
         # H^1 seminorm: ||du0/dx||_L2
         # Compute gradient of u0 wrt S_interior
         grad_u0 = torch.autograd.grad(u0, S_interior, grad_outputs=torch.ones_like(u0), create_graph=True)[0]
-        H1_w2 = torch.mean(grad_u0 ** 2)
+        H1_J2 = torch.mean(grad_u0 ** 2)
 
-        J2 = L2_w2 + H1_w2
+        J2 = L2_J2 + H1_J2
 
-        # --- w3: mixed fractional norm on Sigma ---
-        # Boundary points x1 = 1/a, x2 = a
-        x1 = ones / a
-        x2 = ones * a
+        # --- J3: mixed fractional norm on Sigma ---
+        # Boundary points x1 = S_min, x2 = S_max
+        x1 = ones * S_min
+        x2 = ones * S_max
 
         # Evaluate u at boundary times and points
         M = t1_interior.shape[0]
@@ -103,34 +105,30 @@ class Put(Payoff):
         u_t2_x2 = v_t2_x2 - g_x2
 
         dt = torch.abs(t1_interior - t2_interior)
-        denom_t_w3 = (dt ** 2.5).clamp_min(1e-8)
+        denom_t_J3 = (dt ** 2.5).clamp_min(1e-8)
 
-        time_frac_x1 = torch.mean(((u_t1_x1 - u_t2_x1) ** 2) / denom_t_w3)
-        time_frac_x2 = torch.mean(((u_t1_x2 - u_t2_x2) ** 2) / denom_t_w3)
-        time_frac = 0.5 * (time_frac_x1 + time_frac_x2)
+        time_frac_x1 = torch.mean(((u_t1_x1 - u_t2_x1) ** 2) / denom_t_J3)
+        time_frac_x2 = torch.mean(((u_t1_x2 - u_t2_x2) ** 2) / denom_t_J3)
+        time_frac = time_frac_x1 + time_frac_x2
 
-        dx = torch.abs(x2 - x1).clamp_min(1e-8)
-        u_t1_xdiff = (model(t1_interior, x2M) - g_x2) - (model(t1_interior, x1M) - g_x1)
-        spatial_frac = torch.mean((u_t1_xdiff ** 2) / (dx ** 4))
+        val_term = torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2)
 
-        val_term = 0.5 * (torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2))
+        J3 = val_term + time_frac
 
-        J3 = val_term + time_frac + spatial_frac
+        # --- J4: derivative norm on Sigma in H^{1/4, 1/2} ---
+        # Val term remains the same
+        # Time frac is same as J3 but with different exponent
+        denom_t_J4 = (dt ** 1.5).clamp_min(1e-8)
+        time_frac_x1_J4 = torch.mean(((u_t1_x1 - u_t2_x1) ** 2) / denom_t_J4)
+        time_frac_x2_J4 = torch.mean(((u_t1_x2 - u_t2_x2) ** 2) / denom_t_J4)
+        time_frac_J4 = time_frac_x1_J4 + time_frac_x2_J4
 
-        # --- w4: derivative norm on Sigma in H^{1/4, 1/2} ---
-        dx_val = (x2 - x1).clamp_min(1e-8)
-        u_t1_x1_v = model(t1_interior, x1M) - g_x1
-        u_t1_x2_v = model(t1_interior, x2M) - g_x2
-        du_est = (u_t1_x2_v - u_t1_x1_v) / dx_val
+        # Spatial frac:
+        x_denom_J4 = 2 * (S_min**2 + S_max**2)
+        du_val = (u_t1_x2 - u_t1_x1) ** 2
+        spatial_frac_J4 = torch.mean(du_val / x_denom_J4)
 
-        deriv_L2 = torch.mean(du_est ** 2)
-
-        denom_t_w4 = (dt ** 1.5).clamp_min(1e-8)
-
-        du_t1 = (model(t1_interior, x2M) - self(x2M, K) - (model(t1_interior, x1M) - self(x1M, K))) / dx_val
-        du_t2 = (model(t2_interior, x2M) - self(x2M, K) - (model(t2_interior, x1M) - self(x1M, K))) / dx_val
-        time_frac_du = torch.mean(((du_t1 - du_t2) ** 2) / denom_t_w4)
-        J4 = deriv_L2 + time_frac_du
+        J4 = val_term + time_frac_J4 + spatial_frac_J4
 
         return J2, J3, J4
 
