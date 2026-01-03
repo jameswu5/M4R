@@ -116,6 +116,16 @@ class GeneralTrainer(NeuralNetworkTrainer):
                 centre=self.market_params.S0, radius=0.1 * self.market_params.S0,
                 weight=0.4, shape=(num_samples, self.dimension),
             )
+
+            # std = (self.market_params.S_max - self.market_params.S_min) / 3
+
+            # S_interior = self.sampler.truncated_normal_1d(
+            #     mean=self.market_params.S0, std=std,
+            #     left=self.market_params.S_min,
+            #     right=self.market_params.S_max,
+            #     batch_size=num_samples
+            # )
+
         else:
             # S_interior = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
             S_interior = self.sampler.segmented_uniform(

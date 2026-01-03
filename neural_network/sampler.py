@@ -53,6 +53,16 @@ class Sampler:
 
         return torch.tensor(samples, dtype=torch.float32)
 
+    def truncated_normal_1d(self, mean, std, left, right, batch_size):
+        samples = []
+        while len(samples) < batch_size:
+            sample = self.rng.normal(mean, std, batch_size - len(samples))
+            sample = sample[(sample >= left) & (sample <= right)]
+            samples.extend(sample.tolist())
+
+        result = torch.tensor(samples[:batch_size], dtype=torch.float32)
+        return result.view(-1, 1)
+
     def sample_from_points(self, points, shape):
         indices = self.rng.integers(0, len(points), size=shape)
         sampled_points = points[indices]
@@ -117,5 +127,6 @@ class Sampler:
 
 
 if __name__ == "__main__":
-    rng = np.random.default_rng(42)
-    print(rng.uniform(0, 1, (3, 4)))
+    sampler = Sampler(seed=42)
+    samples = sampler.truncated_normal_1d(mean=0, std=0.5, left=-1, right=1, batch_size=1000000)
+    sampler.plot_samples(samples.numpy())

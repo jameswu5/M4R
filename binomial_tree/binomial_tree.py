@@ -76,7 +76,6 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
     """
 
     S = np.asarray(S)
-
     B = S.shape[0]
 
     dt = T / n                         # shape (B,)
@@ -136,6 +135,8 @@ class BinomialTree:
         Returns: price or array of prices of shape (B,)
         """
         tau = self.market_params.T - t
+        if np.isscalar(S):
+            S = np.array([S])
         return binomial_tree_batch(
             S, self.market_params.K, self.market_params.r, self.market_params.sigma,
             tau, self.n_steps, self.option_type, self.exercise_type
