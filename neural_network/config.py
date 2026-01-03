@@ -12,7 +12,7 @@ class ModelConfig:
 
 
 class MarketParams:
-    def __init__(self, n_assets, S0, r, sigma, K, T, S_min, S_max):
+    def __init__(self, n_assets, S0, r, sigma, K, T, S_min=None, S_max=None):
         self.n_assets = n_assets
         self.S0 = self.process(S0)
         self.r = r
@@ -23,7 +23,9 @@ class MarketParams:
         self.S_max = self.process(S_max)
 
     def process(self, parameter):
-        if isinstance(parameter, Number):
+        if parameter is None:
+            return None
+        elif isinstance(parameter, Number):
             return np.full(self.n_assets, parameter)
         elif isinstance(parameter, (list, np.ndarray)):
             parameter = np.array(parameter)
