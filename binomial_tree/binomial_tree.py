@@ -32,8 +32,7 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     d = 1 / u
     p = (np.exp(r * dt) - d) / (u - d)
 
-    assert np.all((p > 0) & (p < 1))
-    # assert 0 < p < 1, f"Risk-neutral probability p must be between 0 and 1 [params: S={S}, K={K}, r={r}, sigma={sigma}, T={T}, n={n}]"
+    assert 0 < p < 1, f"Risk-neutral probability p must be between 0 and 1 [params: S={S}, K={K}, r={r}, sigma={sigma}, T={T}, n={n}]"
 
     # Compute binomial price tree
     # Here price_tree[i, j] = S * u^j * d^(i-j)
@@ -84,7 +83,8 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
     d = 1.0 / u
     p = (np.exp(r * dt) - d) / (u - d)
 
-    assert 0 < p < 1, f"Risk-neutral probability p must be between 0 and 1 [params: S={S}, K={K}, r={r}, sigma={sigma}, T={T}, n={n}]"
+    assert np.all((p > 0) & (p < 1))
+    # assert 0 < p < 1, f"Risk-neutral probability p must be between 0 and 1 [params: S={S}, K={K}, r={r}, sigma={sigma}, T={T}, n={n}]"
 
     # Compute binomial price tree
     # price_tree[b, i, j] = price of path j at time i for batch b
