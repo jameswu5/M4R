@@ -265,8 +265,27 @@ class SobolevTrainer(NeuralNetworkTrainer):
 
 
 class HestonTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, heston_params, payoff, seed=None):
+    def __init__(self, model_config, heston_params, payoff, loss_weights=None, seed=None):
         super().__init__(model_config, heston_params, payoff, seed)
+
+        self.loss_weights = loss_weights if loss_weights is not None else {
+            'pde': 1.0,
+            'payoff': 1.0,
+            'S_min': 1.0,
+            'S_max': 1.0,
+            'V_min': 1.0,
+            'V_max': 1.0
+        }
+
+        self.history = {
+            'loss': [],
+            'pde_loss': [],
+            'payoff_loss': [],
+            'S_min_loss': [],
+            'S_max_loss': [],
+            'V_min_loss': [],
+            'V_max_loss': []
+        }
 
     def train(self, batch_size, epochs, tol=1e-5):
         for i in range(epochs):
@@ -276,7 +295,15 @@ class HestonTrainer(NeuralNetworkTrainer):
             pde_loss = self.get_pde_loss(t, S, V)
             payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss = self.get_boundary_loss(t, S, V)
 
+            pde_loss *= self.loss_weights['pde']
+            payoff_loss *= self.loss_weights['payoff']
+            S_min_loss *= self.loss_weights['S_min']
+            S_max_loss *= self.loss_weights['S_max']
+            V_min_loss *= self.loss_weights['V_min']
+            V_max_loss *= self.loss_weights['V_max']
+
             loss = pde_loss + payoff_loss + S_min_loss + S_max_loss + V_min_loss + V_max_loss
+
             loss.backward()
             self.optimizer.step()
 
@@ -284,6 +311,12 @@ class HestonTrainer(NeuralNetworkTrainer):
                 print(f"Iteration {i}, Loss: {loss.item()}")
 
             self.history['loss'].append(loss.item())
+            self.history['pde_loss'].append(pde_loss.item())
+            self.history['payoff_loss'].append(payoff_loss.item())
+            self.history['S_min_loss'].append(S_min_loss.item())
+            self.history['S_max_loss'].append(S_max_loss.item())
+            self.history['V_min_loss'].append(V_min_loss.item())
+            self.history['V_max_loss'].append(V_max_loss.item())
 
             if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
                 print(f"Converged at epoch {i}")
@@ -365,3 +398,16 @@ class HestonTrainer(NeuralNetworkTrainer):
         )**2)
 
         return payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss
+
+    def plot_losses_detailed(self):
+        plt.plot(self.history['pde_loss'], label='PDE Loss')
+        plt.plot(self.history['payoff_loss'], label='Payoff Loss')
+        plt.plot(self.history['S_min_loss'], label='S min Loss')
+        plt.plot(self.history['S_max_loss'], label='S max Loss')
+        plt.plot(self.history['V_min_loss'], label='V min Loss')
+        plt.plot(self.history['V_max_loss'], label='V max Loss')
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Training Loss Components over Iterations')
+        plt.legend()
+        plt.show()

@@ -99,8 +99,11 @@ def heston_residual(model, t, S, V, **kwargs):
     sigma = kwargs["sigma"]
     rho = kwargs["rho"]
 
-    inputs = torch.stack([t, S, V], dim=1)
-    f = model(inputs)
+    t = t.requires_grad_(True)
+    S = S.requires_grad_(True)
+    V = V.requires_grad_(True)
+
+    f = model(t, S, V)
 
     f_t, f_S, f_V = torch.autograd.grad(
         f, (t, S, V), grad_outputs=torch.ones_like(f), create_graph=True, retain_graph=True
