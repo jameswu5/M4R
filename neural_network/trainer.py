@@ -268,28 +268,36 @@ class HestonTrainer(NeuralNetworkTrainer):
     def __init__(self, model_config, heston_params, payoff, seed=None):
         super().__init__(model_config, heston_params, payoff, seed)
 
-    def train(self, batch_size, epochs, tol=1e-3):
+    def train(self, batch_size, epochs, tol=1e-5):
         for i in range(epochs):
             self.optimizer.zero_grad()
 
-            t_interior, S_interior, V_interior = self.sample_interior_points(batch_size)
-            pde_loss = self.get_pde_loss(t_interior, S_interior, V_interior)
+            t, S, V = self.sample_points(batch_size)
+            pde_loss = self.get_pde_loss(t, S, V)
+            payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss = self.get_boundary_loss(t, S, V)
 
-            t_boundary, S_boundary, V_boundary = self.sample_boundary_points(batch_size)
-            boundary_loss = self.get_boundary_loss(t_boundary, S_boundary)
-
-            loss = pde_loss + boundary_loss
+            loss = pde_loss + payoff_loss + S_min_loss + S_max_loss + V_min_loss + V_max_loss
             loss.backward()
             self.optimizer.step()
 
-    def sample_interior_points(self, num_samples):
-        pass
+            if i % 100 == 0:
+                print(f"Iteration {i}, Loss: {loss.item()}")
 
-    def sample_boundary_points(self, num_samples):
-        pass
+            self.history['loss'].append(loss.item())
 
-    def get_pde_loss(self, t_interior, S_interior, V_interior):
-        residual = heston_residual(self.model, t_interior, S_interior, V_interior,
+            if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
+                print(f"Converged at epoch {i}")
+                break
+
+    def sample_points(self, num_samples):
+        t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
+        S = self.sampler.uniform(0, self.market_params.S_max, (num_samples, 1))
+        V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, 1))
+        return t, S, V
+
+    def get_pde_loss(self, t, S, V):
+        # t, S, V are all interior points
+        residual = heston_residual(self.model, t, S, V,
                                    r=self.market_params.r,
                                    kappa=self.market_params.kappa,
                                    theta=self.market_params.theta,
@@ -299,5 +307,61 @@ class HestonTrainer(NeuralNetworkTrainer):
         pde_loss = torch.mean(residual**2)
         return pde_loss
 
-    def get_boundary_loss(self, t_boundary, S_boundary, V_boundary):
-        pass
+    def get_boundary_loss(self, t, S, V):
+        # t, S, V are all interior points
+
+        # Hardcode the call option in for now
+        K = self.market_params.K
+        S_max = self.market_params.S_max
+        V_max = self.market_params.V_max
+        T = self.market_params.T
+
+        ones = torch.ones_like(t)
+        zeros = torch.zeros_like(t)
+
+        # J2
+        payoff_loss = torch.mean((
+            self.model(ones * T, S, V) - torch.maximum(S - K * ones, zeros)
+        )**2)
+
+        # J3
+        S_min_loss = torch.mean((
+            self.model(t, zeros, V)
+        )**2)
+
+        # J4
+        S_max_tensor = (ones * S_max).requires_grad_(True)
+        f_Smax = self.model(t, S_max_tensor, V)
+        df_Smax_dS = torch.autograd.grad(
+            f_Smax, S_max_tensor, grad_outputs=torch.ones_like(f_Smax), create_graph=True, retain_graph=True
+        )[0]
+
+        S_max_loss = torch.mean((
+            df_Smax_dS - ones
+        )**2)
+
+        # J5
+        V_min = zeros.requires_grad_(True)
+        f_Vmin = self.model(t, S, V_min)
+        df_dt = torch.autograd.grad(
+            f_Vmin, t, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
+        )[0]
+        df_dS = torch.autograd.grad(
+            f_Vmin, S, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
+        )[0]
+        df_dV = torch.autograd.grad(
+            f_Vmin, V_min, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
+        )[0]
+        r = self.market_params.r
+        kappa = self.market_params.kappa
+        theta = self.market_params.theta
+
+        V_min_loss = torch.mean((
+            r * S * df_dS + kappa * theta * df_dV - r * f_Vmin + df_dt
+        )**2)
+
+        V_max_loss = torch.mean((
+            self.model(t, S, ones * V_max) - S
+        )**2)
+
+        return payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss
