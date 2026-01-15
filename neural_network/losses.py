@@ -67,3 +67,71 @@ def pde_residual_nd(v, v_t, v_S, H, S, r, Sigma):
 
     residual = -v_t - drift - diffusion + r * v  # shape (B, 1)
     return residual
+
+
+def heston_residual(model, t, S, V, **kwargs):
+    """
+    Computes the Heston infinitesimal generator Lf and PDE residual applied to a neural network f.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Neural network approximating f(t, S, V)
+    t, S, V : torch.Tensor
+        Inputs with requires_grad=True
+    kwargs : dict
+        Must include:
+            r      : risk-free rate
+            kappa  : mean reversion speed
+            theta  : long-run variance
+            sigma  : vol of vol
+            rho    : correlation
+
+    Returns
+    -------
+    torch.Tensor
+        Residual evaluated at (t, S, V)
+    """
+
+    r = kwargs["r"]
+    kappa = kwargs["kappa"]
+    theta = kwargs["theta"]
+    sigma = kwargs["sigma"]
+    rho = kwargs["rho"]
+
+    inputs = torch.stack([t, S, V], dim=1)
+    f = model(inputs)
+
+    f_t, f_S, f_V = torch.autograd.grad(
+        f, (t, S, V), grad_outputs=torch.ones_like(f), create_graph=True, retain_graph=True
+    )
+
+    f_SS = torch.autograd.grad(
+        f_S, S, grad_outputs=torch.ones_like(f_S), create_graph=True, retain_graph=True
+    )[0]
+
+    f_VV = torch.autograd.grad(
+        f_V, V, grad_outputs=torch.ones_like(f_V), create_graph=True, retain_graph=True
+    )[0]
+
+    f_SV = torch.autograd.grad(
+        f_S,
+        V,
+        grad_outputs=torch.ones_like(f_S),
+        create_graph=True,
+        retain_graph=True
+    )[0]
+
+    Lf = (
+        r * S * f_S
+        + kappa * (theta - V) * f_V
+        + 0.5 * (
+            S**2 * V * f_SS
+            + 2.0 * rho * sigma * S * V * f_SV
+            + sigma**2 * V * f_VV
+        )
+    )
+
+    residual = -f_t - Lf + r * f
+
+    return residual

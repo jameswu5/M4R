@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 from .model import BaseNetwork
 from .sampler import Sampler
-from .losses import compute_derivatives_nd, pde_residual_nd
+from .losses import compute_derivatives_nd, pde_residual_nd, heston_residual
 
 
 class NeuralNetworkTrainer(ABC):
@@ -262,3 +262,42 @@ class SobolevTrainer(NeuralNetworkTrainer):
         plt.title('Training Loss Components over Iterations')
         plt.legend()
         plt.show()
+
+
+class HestonTrainer(NeuralNetworkTrainer):
+    def __init__(self, model_config, heston_params, payoff, seed=None):
+        super().__init__(model_config, heston_params, payoff, seed)
+
+    def train(self, batch_size, epochs, tol=1e-3):
+        for i in range(epochs):
+            self.optimizer.zero_grad()
+
+            t_interior, S_interior, V_interior = self.sample_interior_points(batch_size)
+            pde_loss = self.get_pde_loss(t_interior, S_interior, V_interior)
+
+            t_boundary, S_boundary, V_boundary = self.sample_boundary_points(batch_size)
+            boundary_loss = self.get_boundary_loss(t_boundary, S_boundary)
+
+            loss = pde_loss + boundary_loss
+            loss.backward()
+            self.optimizer.step()
+
+    def sample_interior_points(self, num_samples):
+        pass
+
+    def sample_boundary_points(self, num_samples):
+        pass
+
+    def get_pde_loss(self, t_interior, S_interior, V_interior):
+        residual = heston_residual(self.model, t_interior, S_interior, V_interior,
+                                   r=self.market_params.r,
+                                   kappa=self.market_params.kappa,
+                                   theta=self.market_params.theta,
+                                   sigma=self.market_params.sigma,
+                                   rho=self.market_params.rho)
+
+        pde_loss = torch.mean(residual**2)
+        return pde_loss
+
+    def get_boundary_loss(self, t_boundary, S_boundary, V_boundary):
+        pass

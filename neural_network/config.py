@@ -53,3 +53,16 @@ class MarketParams:
                 raise ValueError("Sigma must be a 1D or 2D array.")
         else:
             raise TypeError("Sigma must be a number or a list/array of numbers.")
+
+
+class HestonParams:
+    def __init__(self, S0, v0, r, kappa, theta, sigma, rho, K, T):
+        self.S0 = S0
+        self.v0 = v0
+        self.r = r
+        self.kappa = kappa
+        self.theta = theta
+        self.sigma = sigma
+        self.rho = rho
+        self.K = K
+        self.T = T
