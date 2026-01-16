@@ -324,7 +324,11 @@ class HestonTrainer(NeuralNetworkTrainer):
 
     def sample_points(self, num_samples):
         t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
-        S = self.sampler.uniform(0, self.market_params.S_max, (num_samples, 1))
+        # S = self.sampler.uniform(0, self.market_params.S_max, (num_samples, 1))
+        S = self.sampler.segmented_uniform_1d(
+            0, self.market_params.S_max, self.market_params.S0, 0.1 * self.market_params.S0,
+            0.5, (num_samples, 1)
+        )
         V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, 1))
         return t, S, V
 
