@@ -55,6 +55,29 @@ def interpolate(S_x, S_y, x, y, f):
             c11 * f(x1, y1))
 
 
+def build_grid(V_min, V_max, mv, Z_min, Z_max, mz):
+    """
+    Builds a grid of shape (n, mx, my, 2)
+    V_min, V_max, Z_min, Z_max have shape (n,)
+    """
+    n = V_min.shape[0]
+
+    u_v = np.linspace(0.0, 1.0, mv)
+    u_z = np.linspace(0.0, 1.0, mz)
+
+    v_grid = V_min[:, None] + (V_max - V_min)[:, None] * u_v[None, :]
+    z_grid = Z_min[:, None] + (Z_max - Z_min)[:, None] * u_z[None, :]
+
+    V = v_grid[:, :, None]        # (n, mv, 1)
+    Z = z_grid[:, None, :]        # (n, 1, mz)
+
+    grid = np.empty((n, mv, mz, 2))
+    grid[..., 0] = V
+    grid[..., 1] = Z
+
+    return grid
+
+
 def construct_tree(V0, S0, n, mz, mv, T, r, kappa, theta, sigma, rho):
 
     Z0 = np.log(S0)
@@ -83,6 +106,8 @@ def construct_tree(V0, S0, n, mz, mv, T, r, kappa, theta, sigma, rho):
         Z_max[i] = Z_up
         Z_min[i] = Z_down
 
+    grid = build_grid(V_min, V_max, mv, Z_min, Z_max, mz)
+
 
 # ---Unit tests---
 
@@ -108,12 +133,26 @@ def test_interpolate():
         print(f"Interpolated: {interp_value}, True: {true_value}, Difference: {abs(interp_value - true_value)}")
 
 
+def test_build_grid():
+    x_min = np.array([0.0, 0.5, 1.0])
+    x_max = np.array([1.0, 1.5, 2.0])
+
+    y_min = np.array([3.0, 2.5, 2.0])
+    y_max = np.array([4.0, 4.5, 5.0])
+
+    mx = 5
+    my = 10
+    grid = build_grid(x_min, x_max, mx, y_min, y_max, my)
+    print("Grid shape:", grid.shape)
+    print(grid)
+
+
 def test_construct_tree():
     V0 = 0.04
     S0 = 100
-    n = 50
-    mz = 100
-    mv = 100
+    n = 5
+    mz = 4
+    mv = 6
     T = 1.0
     r = 0
     kappa = 2.0
@@ -125,4 +164,5 @@ def test_construct_tree():
 
 if __name__ == "__main__":
     # test_interpolate()
-    test_construct_tree()
+    # test_construct_tree()
+    test_build_grid()
