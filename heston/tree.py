@@ -2,6 +2,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+def snap(points, value):
+    """
+    Find the biggest point in points that is <= value by binary search and return the index.
+    Note by construction, value is always within the range of points
+    """
+    # Enforce bounds
+    if value < points[0]:
+        raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too small).")
+    if value > points[-1]:
+        raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too large).")
+
+    low = 0
+    high = len(points) - 1
+    while low < high:
+        mid = (low + high + 1) // 2
+        if points[mid] <= value:
+            low = mid
+        else:
+            high = mid - 1
+
+    # If it is the last point, move one back
+    if low == len(points) - 1:
+        low -= 1
+
+    return low
+
+
 def interpolate(S_x, S_y, x, y, f):
     """
     S_x: x_coordinates of grid
@@ -10,32 +37,6 @@ def interpolate(S_x, S_y, x, y, f):
     y: y coordinate of point to interpolate
     f: function f(x, y) to interpolate
     """
-
-    def snap(points, value):
-        """
-        Find the biggest point in points that is <= value by binary search and return the index.
-        Note by construction, value is always within the range of points
-        """
-        # Enforce bounds
-        if value < points[0]:
-            raise ValueError("Value is out of bounds (too small).")
-        if value > points[-1]:
-            raise ValueError("Value is out of bounds (too large).")
-
-        low = 0
-        high = len(points) - 1
-        while low < high:
-            mid = (low + high + 1) // 2
-            if points[mid] <= value:
-                low = mid
-            else:
-                high = mid - 1
-
-        # If it is the last point, move one back
-        if low == len(points) - 1:
-            low -= 1
-
-        return low
 
     x_idx, y_idx = snap(S_x, x), snap(S_y, y)
     x0, x1 = S_x[x_idx], S_x[x_idx + 1]
@@ -78,12 +79,10 @@ def build_grid(V_min, V_max, mv, Z_min, Z_max, mz):
     return grid
 
 
-def construct_tree(V0, S0, n, mz, mv, T, r, kappa, theta, sigma, rho):
+def construct_tree(V0, S0, K, n, mz, mv, T, r, kappa, theta, sigma, rho):
 
     Z0 = np.log(S0)
     dt = T / n
-
-    # Placeholder for max and min of V and Z
 
     # Instead of generating every node, I will do proxy of just keeping track of up-most and down-most paths and readjusting
     V_max = np.zeros(n)
@@ -106,7 +105,59 @@ def construct_tree(V0, S0, n, mz, mv, T, r, kappa, theta, sigma, rho):
         Z_max[i] = Z_up
         Z_min[i] = Z_down
 
-    grid = build_grid(V_min, V_max, mv, Z_min, Z_max, mz)
+    VZ_grid = build_grid(V_min, V_max, mv, Z_min, Z_max, mz)
+
+    price_grid = np.zeros((n, mv, mz))
+
+    # Fill in option values at maturity
+    price_grid[-1, :, :] = np.maximum(np.exp(VZ_grid[-1, :, :, 1]) - K, 0)
+
+    def v_next(y, v, z):
+        return v + kappa * (theta - np.maximum(v, 0)) * dt + y * sigma * np.sqrt(np.maximum(v, 0) * dt)
+
+    def z_next(y, v, z):
+        return z + (r - 0.5 * v) * dt + y * np.sqrt(np.maximum(v, 0) * dt)
+
+    # Backward induction
+    for k in range(n-2, -1, -1):
+        v_points = VZ_grid[k+1, :, 0, 0]
+        z_points = VZ_grid[k+1, 0, :, 1]
+
+        for i in range(mv):
+            for j in range(mz):
+                v, z = VZ_grid[k, i, j, :]
+
+                expected_value = 0.0
+
+                # Store 16 possible states as a 4-bit number 0b[Y4][Y3][Y2][Y1]
+                for state in range(16):
+                    y1 = 1 if (state & 0b0001) else -1
+                    y2 = 1 if (state & 0b0010) else -1
+                    y3 = 1 if (state & 0b0100) else 0
+                    y4 = 1 if (state & 0b1000) else 0
+
+                    v_ = v_next(y1, v, z)
+                    z_ = z_next(y2, v, z)
+
+                    v_idx = snap(v_points, v_)
+                    z_idx = snap(z_points, z_)
+
+                    v_tilde = (v_ - v_points[v_idx]) / (v_points[v_idx + 1] - v_points[v_idx])
+                    z_tilde = (z_ - z_points[z_idx]) / (z_points[z_idx + 1] - z_points[z_idx])
+
+                    # Joint probability of y1, y2, y3, y4
+                    c = 1
+                    c *= v_tilde if y3 == 1 else (1 - v_tilde)
+                    c *= z_tilde if y4 == 1 else (1 - z_tilde)
+                    q = 0.25 * (1 + y1 * y2 * rho) * c
+
+                    expected_value += q * price_grid[k+1, v_idx + y3, z_idx + y4]
+
+                price_grid[k, i, j] = np.exp(-r * dt) * expected_value
+
+    # Finally, interpolate to get initial price
+    price = None
+    return price
 
 
 # ---Unit tests---
@@ -150,19 +201,20 @@ def test_build_grid():
 def test_construct_tree():
     V0 = 0.04
     S0 = 100
-    n = 5
-    mz = 4
-    mv = 6
+    K = 100
+    n = 10
+    mz = 50
+    mv = 50
     T = 1.0
     r = 0
     kappa = 2.0
     theta = 0.04
     sigma = 0.3
     rho = -0.7
-    construct_tree(V0, S0, n, mz, mv, T, r, kappa, theta, sigma, rho)
+    construct_tree(V0, S0, K, n, mz, mv, T, r, kappa, theta, sigma, rho)
 
 
 if __name__ == "__main__":
     # test_interpolate()
-    # test_construct_tree()
-    test_build_grid()
+    test_construct_tree()
+    # test_build_grid()
