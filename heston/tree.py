@@ -7,11 +7,11 @@ def snap(points, value):
     Find the biggest point in points that is <= value by binary search and return the index.
     Note by construction, value is always within the range of points
     """
-    # Enforce bounds
-    if value < points[0]:
-        raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too small).")
-    if value > points[-1]:
-        raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too large).")
+    # Enforce bounds (disabled for performance)
+    # if value < points[0]:
+    #     raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too small).")
+    # if value > points[-1]:
+    #     raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too large).")
 
     low = 0
     high = len(points) - 1
@@ -31,6 +31,9 @@ def snap(points, value):
 
 def interpolate(S_x, S_y, x, y, f):
     """
+    We don't need this function, but I implemented it to check how well it works.
+    Bilinear interpolation of f(x, y) on grid defined by S_x and S_y.
+
     S_x: x_coordinates of grid
     S_y: y_coordinates of grid
     x: x coordinate of point to interpolate
@@ -80,7 +83,6 @@ def build_grid(V_min, V_max, mv, Z_min, Z_max, mz):
 
 
 def construct_tree(V0, S0, K, n, mz, mv, T, r, kappa, theta, sigma, rho):
-
     Z0 = np.log(S0)
     dt = T / n
 
@@ -118,45 +120,51 @@ def construct_tree(V0, S0, K, n, mz, mv, T, r, kappa, theta, sigma, rho):
     def z_next(y, v, z):
         return z + (r - 0.5 * v) * dt + y * np.sqrt(np.maximum(v, 0) * dt)
 
+    def interpolate_price(v, z, k):
+        """
+        Interpolates the price at time step k-1 by projecting onto time step k
+        for variance v and log-price z
+        """
+        v_points = VZ_grid[k, :, 0, 0]
+        z_points = VZ_grid[k, 0, :, 1]
+        expected_value = 0.0
+
+        # Store 16 possible states as a 4-bit number 0b[Y4][Y3][Y2][Y1]
+        for state in range(16):
+            y1 = 1 if (state & 0b0001) else -1
+            y2 = 1 if (state & 0b0010) else -1
+            y3 = 1 if (state & 0b0100) else 0
+            y4 = 1 if (state & 0b1000) else 0
+
+            v_ = v_next(y1, v, z)
+            z_ = z_next(y2, v, z)
+
+            v_idx = snap(v_points, v_)
+            z_idx = snap(z_points, z_)
+
+            v_tilde = (v_ - v_points[v_idx]) / (v_points[v_idx + 1] - v_points[v_idx])
+            z_tilde = (z_ - z_points[z_idx]) / (z_points[z_idx + 1] - z_points[z_idx])
+
+            # Joint probability of y1, y2, y3, y4
+            c = 1
+            c *= v_tilde if y3 == 1 else (1 - v_tilde)
+            c *= z_tilde if y4 == 1 else (1 - z_tilde)
+            q = 0.25 * (1 + y1 * y2 * rho) * c
+
+            expected_value += q * price_grid[k, v_idx + y3, z_idx + y4]
+
+        return expected_value
+
     # Backward induction
     for k in range(n-2, -1, -1):
-        v_points = VZ_grid[k+1, :, 0, 0]
-        z_points = VZ_grid[k+1, 0, :, 1]
-
         for i in range(mv):
             for j in range(mz):
                 v, z = VZ_grid[k, i, j, :]
-
-                expected_value = 0.0
-
-                # Store 16 possible states as a 4-bit number 0b[Y4][Y3][Y2][Y1]
-                for state in range(16):
-                    y1 = 1 if (state & 0b0001) else -1
-                    y2 = 1 if (state & 0b0010) else -1
-                    y3 = 1 if (state & 0b0100) else 0
-                    y4 = 1 if (state & 0b1000) else 0
-
-                    v_ = v_next(y1, v, z)
-                    z_ = z_next(y2, v, z)
-
-                    v_idx = snap(v_points, v_)
-                    z_idx = snap(z_points, z_)
-
-                    v_tilde = (v_ - v_points[v_idx]) / (v_points[v_idx + 1] - v_points[v_idx])
-                    z_tilde = (z_ - z_points[z_idx]) / (z_points[z_idx + 1] - z_points[z_idx])
-
-                    # Joint probability of y1, y2, y3, y4
-                    c = 1
-                    c *= v_tilde if y3 == 1 else (1 - v_tilde)
-                    c *= z_tilde if y4 == 1 else (1 - z_tilde)
-                    q = 0.25 * (1 + y1 * y2 * rho) * c
-
-                    expected_value += q * price_grid[k+1, v_idx + y3, z_idx + y4]
-
+                expected_value = interpolate_price(v, z, k+1)
                 price_grid[k, i, j] = np.exp(-r * dt) * expected_value
 
-    # Finally, interpolate to get initial price
-    price = None
+    # Interpolate to get initial price
+    price = interpolate_price(V0, Z0, 0)
     return price
 
 
@@ -202,7 +210,7 @@ def test_construct_tree():
     V0 = 0.04
     S0 = 100
     K = 100
-    n = 10
+    n = 100
     mz = 50
     mv = 50
     T = 1.0
@@ -211,7 +219,9 @@ def test_construct_tree():
     theta = 0.04
     sigma = 0.3
     rho = -0.7
-    construct_tree(V0, S0, K, n, mz, mv, T, r, kappa, theta, sigma, rho)
+    price = construct_tree(V0, S0, K, n, mz, mv, T, r, kappa, theta, sigma, rho)
+
+    print(f"Option Price: {price:.5f}")
 
 
 if __name__ == "__main__":
