@@ -1,22 +1,5 @@
 import numpy as np
-
-
-def sample_binary(length, rho):
-    """
-    Sample Y_1, Y_2 in {-1, 1} as in the paper.
-
-    Returns 2 nparrays of shape (length,) with entries in {-1, 1} and correlation rho.
-    """
-
-    uniform1 = np.random.rand(length)  # Determines Y1 = Y2
-    uniform2 = np.random.rand(length)  # Determines Y1 = 1 or -1
-
-    y_equal = uniform1 < (1 + rho) / 2
-
-    y1 = np.where(uniform2 < 0.5, 1, -1)
-    y2 = np.where(y_equal, y1, -y1)
-
-    return y1, y2
+import matplotlib.pyplot as plt
 
 
 def interpolate(S_x, S_y, x, y, f):
@@ -33,6 +16,12 @@ def interpolate(S_x, S_y, x, y, f):
         Find the biggest point in points that is <= value by binary search and return the index.
         Note by construction, value is always within the range of points
         """
+        # Enforce bounds
+        if value < points[0]:
+            raise ValueError("Value is out of bounds (too small).")
+        if value > points[-1]:
+            raise ValueError("Value is out of bounds (too large).")
+
         low = 0
         high = len(points) - 1
         while low < high:
@@ -66,36 +55,36 @@ def interpolate(S_x, S_y, x, y, f):
             c11 * f(x1, y1))
 
 
-def construct_tree(V0, S0, n, mz, mv, T, kappa, theta, sigma, rho):
-    # Build tree for V
-    V_layer = [V0]
+def construct_tree(V0, S0, n, mz, mv, T, r, kappa, theta, sigma, rho):
 
+    Z0 = np.log(S0)
     dt = T / n
 
-    for i in range(n):
-        next_V_layer = np.array([])
-        for v in V_layer:
-            up_v = v + kappa * (theta - max(v, 0)) * dt + sigma * np.sqrt(max(v, 0) * dt)
-            down_v = v + kappa * (theta - max(v, 0)) * dt - sigma * np.sqrt(max(v, 0) * dt)
-            next_V_layer = np.append(next_V_layer, [up_v, down_v])
-        V_layer = next_V_layer
-        print(V_layer)
+    # Placeholder for max and min of V and Z
 
-        print(np.max(V_layer) == V_layer[0])
-        print(np.min(V_layer) == V_layer[-1])
+    # Instead of generating every node, I will do proxy of just keeping track of up-most and down-most paths and readjusting
+    V_max = np.zeros(n)
+    V_min = np.zeros(n)
+    Z_max = np.zeros(n)
+    Z_min = np.zeros(n)
+
+    V_up = V_down = V0
+    Z_up = Z_down = Z0
+
+    for i in range(n):
+        Z_up = Z_up + (r - 0.5 * V_down) * dt + np.sqrt(np.maximum(V_up, 0) * dt)
+        Z_down = Z_down + (r - 0.5 * V_up) * dt - np.sqrt(np.maximum(V_down, 0) * dt)
+
+        V_up = V_up + kappa * (theta - np.maximum(V_up, 0)) * dt + sigma * np.sqrt(np.maximum(V_up, 0) * dt)
+        V_down = V_down + kappa * (theta - np.maximum(V_down, 0)) * dt - sigma * np.sqrt(np.maximum(V_down, 0) * dt)
+
+        V_max[i] = V_up
+        V_min[i] = V_down
+        Z_max[i] = Z_up
+        Z_min[i] = Z_down
 
 
 # ---Unit tests---
-
-def test_sample_binary():
-    length = 1000000
-    rhos = [-0.9, -0.5, 0.0, 0.5, 0.9]
-
-    for rho in rhos:
-        y1, y2 = sample_binary(length, rho)
-        empirical_rho = np.corrcoef(y1, y2)[0, 1]
-        print(f"Empirical correlation: {empirical_rho:.4f}\t Target correlation: {rho}\tDifference: {abs(empirical_rho - rho):.4f}")
-
 
 def test_interpolate():
     S_x = np.array([1.0, 2.0, 3.0])
@@ -122,16 +111,18 @@ def test_interpolate():
 def test_construct_tree():
     V0 = 0.04
     S0 = 100
-    n = 5
+    n = 50
     mz = 100
     mv = 100
     T = 1.0
+    r = 0
     kappa = 2.0
     theta = 0.04
     sigma = 0.3
     rho = -0.7
-    construct_tree(V0, S0, n, mz, mv, T, kappa, theta, sigma, rho)
+    construct_tree(V0, S0, n, mz, mv, T, r, kappa, theta, sigma, rho)
 
 
 if __name__ == "__main__":
-    test_interpolate()
+    # test_interpolate()
+    test_construct_tree()
