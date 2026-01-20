@@ -187,7 +187,7 @@ class HestonTree:
         self.VZ_grid = VZ_grid
         self.price_grid = price_grid
 
-    def price(self, V0, S0):
+    def price(self, V0, S0, k=0):
         """
         Prices the option given initial variance V0 and stock price S0 with horizon T.
         Requires that build_tree() has been called first.
@@ -201,4 +201,4 @@ class HestonTree:
         if S0 < self.S0_min or S0 > self.S0_max:
             raise ValueError(f"S0={S0} out of bounds ({self.S0_min}, {self.S0_max})")
 
-        return self.interpolate_price(V0, np.log(S0), 0, self.VZ_grid, self.price_grid)
+        return self.interpolate_price(V0, np.log(S0), k, self.VZ_grid, self.price_grid)
