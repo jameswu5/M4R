@@ -74,15 +74,30 @@ class HestonTree:
         return grid
 
     def v_next(self, y, v, z):
+        """
+        Evolves v according to the Euler scheme
+
+        y: +1 or -1
+        v: current variance
+        z: current log-price (not used here but kept for symmetry)
+        """
         return v + self.kappa * (self.theta - np.maximum(v, 0)) * self.dt + y * self.sigma * np.sqrt(np.maximum(v, 0) * self.dt)
 
     def z_next(self, y, v, z):
+        """
+        Evolves z according to the Euler scheme
+
+        y: +1 or -1
+        v: current variance
+        z: current log-price (not used here but kept for symmetry)
+        """
         return z + (self.r - 0.5 * v) * self.dt + y * np.sqrt(np.maximum(v, 0) * self.dt)
 
     def interpolate_price(self, v, z, k, VZ_grid, price_grid):
         """
-        Interpolates the price at time step k-1 by projecting onto time step k
-        for variance v and log-price z
+        Interpolates the price at time step k-1 by computing weighted sum of
+        four closest points of space at time step k for variance v and log-price z
+        No discounting done here
         """
         v_points = VZ_grid[k, :, 0, 0]
         z_points = VZ_grid[k, 0, :, 1]
@@ -115,6 +130,12 @@ class HestonTree:
         return expected_value
 
     def build_tree(self, V0_min, V0_max, S0_min, S0_max):
+        """
+        Builds the Heston tree within the specified bounds for initial variance and stock price.
+        Constructs the price tree using backward induction.
+
+        Doesn't return anything but saves the grids internally.
+        """
         # Save the bounds
         self.V0_min = V0_min
         self.V0_max = V0_max
@@ -166,9 +187,12 @@ class HestonTree:
         self.VZ_grid = VZ_grid
         self.price_grid = price_grid
 
-        return VZ_grid, price_grid
-
     def price(self, V0, S0):
+        """
+        Prices the option given initial variance V0 and stock price S0 with horizon T.
+        Requires that build_tree() has been called first.
+        Also requires V0 and S0 to be within the specified bounds when build_tree() was called.
+        """
         if not self.tree_built:
             raise ValueError("Tree not built yet. Call build_tree() first.")
 
