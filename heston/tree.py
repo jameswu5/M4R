@@ -318,36 +318,56 @@ class HestonTreeFast:
         self.tree_built = True
 
     def price(self, V0, S0, k=0):
+        """
+        Prices the option given initial variance V0 and stock price S0 at time step k.
+        Requires that build_tree() has been called first.
+
+        Allows one of V0 and S0 to be a vector, enabling batch pricing. The other must be a scalar.
+        """
+
         if not self.tree_built:
             raise RuntimeError("Tree not built")
-        if not (self.V0_min <= V0 <= self.V0_max):
+
+        V0 = np.asarray(V0, dtype=float)
+        S0 = np.asarray(S0, dtype=float)
+
+        if np.any(V0 < self.V0_min) or np.any(V0 > self.V0_max):
             raise ValueError("V0 out of bounds")
-        if not (self.S0_min <= S0 <= self.S0_max):
+        if np.any(S0 < self.S0_min) or np.any(S0 > self.S0_max):
             raise ValueError("S0 out of bounds")
 
-        z0 = np.log(S0)
+        Z0 = np.log(S0)
 
-        # interpolate at time step k using bilinear interpolation
+        # reshape to at least 2D to make batch-safe
+        V0 = np.atleast_2d(V0)
+        Z0 = np.atleast_2d(Z0)
+
         Vmin = self.VZ_grid[k, 0, 0, 0]
         Zmin = self.VZ_grid[k, 0, 0, 1]
+
         dv = (self.VZ_grid[k, -1, 0, 0] - Vmin) / (self.mv - 1)
         dz = (self.VZ_grid[k, 0, -1, 1] - Zmin) / (self.mz - 1)
 
-        i0 = int((V0 - Vmin) / dv)
-        j0 = int((z0 - Zmin) / dz)
+        # lower-left indices
+        i0 = ((V0 - Vmin) / dv).astype(np.int32)
+        j0 = ((Z0 - Zmin) / dz).astype(np.int32)
         i0 = np.clip(i0, 0, self.mv - 2)
         j0 = np.clip(j0, 0, self.mz - 2)
 
-        v_tilde = (V0 - (Vmin + i0*dv)) / dv
-        z_tilde = (z0 - (Zmin + j0*dz)) / dz
+        v0 = Vmin + i0 * dv
+        z0 = Zmin + j0 * dz
+
+        v_tilde = (V0 - v0) / dv
+        z_tilde = (Z0 - z0) / dz
 
         p = self.price_grid[k]
 
-        result = (
+        # bilinear interpolation
+        price = (
             (1 - v_tilde) * (1 - z_tilde) * p[i0, j0] +
             (1 - v_tilde) * z_tilde * p[i0, j0 + 1] +
             v_tilde * (1 - z_tilde) * p[i0 + 1, j0] +
             v_tilde * z_tilde * p[i0 + 1, j0 + 1]
         )
 
-        return result
+        return price.item() if price.size == 1 else price.flatten()
