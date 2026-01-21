@@ -14,6 +14,22 @@ def black_scholes(S, K, r, sigma, T, option_type="put"):
     raise ValueError("option_type must be 'call' or 'put'")
 
 
+def implied_volatility(price, S, K, r, T, option_type="put", tol=1e-6, max_iterations=1000):
+    sigma = 0.2
+    for _ in range(max_iterations):
+        price_estimate = black_scholes(S, K, r, sigma, T, option_type)
+        vega = (S * norm.pdf((np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))) *
+                np.sqrt(T))
+
+        price_diff = price_estimate - price
+        if abs(price_diff) < tol:
+            return sigma
+
+        sigma -= price_diff / vega
+
+    raise ValueError("Implied volatility not found within the maximum number of iterations")
+
+
 class BlackScholes:
     def __init__(self, market_params, option_type):
         self.K = market_params.K
