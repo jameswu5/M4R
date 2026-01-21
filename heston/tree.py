@@ -219,6 +219,35 @@ class HestonTreeFast:
         grid[..., 1] = Z
         return grid
 
+    def interpolate_price(self, v, z, k):
+        Vmin = self.VZ_grid[k, 0, 0, 0]
+        Zmin = self.VZ_grid[k, 0, 0, 1]
+
+        dv = (self.VZ_grid[k, -1, 0, 0] - Vmin) / (self.mv - 1)
+        dz = (self.VZ_grid[k, 0, -1, 1] - Zmin) / (self.mz - 1)
+
+        # lower-left indices
+        i0 = ((v - Vmin) / dv).astype(np.int32)
+        j0 = ((z - Zmin) / dz).astype(np.int32)
+
+        i0 = np.clip(i0, 0, self.mv - 2)
+        j0 = np.clip(j0, 0, self.mz - 2)
+
+        v0 = Vmin + i0 * dv
+        z0 = Zmin + j0 * dz
+
+        v_tilde = (v - v0) / dv
+        z_tilde = (z - z0) / dz
+
+        p = self.price_grid[k]
+
+        return (
+            (1 - v_tilde) * (1 - z_tilde) * p[i0, j0] +
+            (1 - v_tilde) * z_tilde * p[i0, j0 + 1] +
+            v_tilde * (1 - z_tilde) * p[i0 + 1, j0] +
+            v_tilde * z_tilde * p[i0 + 1, j0 + 1]
+        )
+
     def build_tree(self, V0_min, V0_max, S0_min, S0_max):
         self.V0_min = V0_min
         self.V0_max = V0_max
@@ -250,12 +279,11 @@ class HestonTreeFast:
             Z_max[k] = Z_up
             Z_min[k] = Z_dn
 
-        VZ_grid = self.build_grid(V_min, V_max, Z_min, Z_max)
-
-        price = np.zeros((self.n, self.mv, self.mz))
+        self.VZ_grid = self.build_grid(V_min, V_max, Z_min, Z_max)
+        self.price_grid = np.zeros((self.n, self.mv, self.mz))
 
         # terminal payoff
-        price[-1] = np.maximum(np.exp(VZ_grid[-1, :, :, 1]) - self.K, 0.0)
+        self.price_grid[-1] = np.maximum(np.exp(self.VZ_grid[-1, :, :, 1]) - self.K, 0.0)
 
         # Predefine stochastic branches
         y1 = np.array([-1, -1, +1, +1])[:, None, None]
@@ -266,8 +294,8 @@ class HestonTreeFast:
 
         # Backward induction
         for k in range(self.n - 2, -1, -1):
-            v = VZ_grid[k, :, :, 0]
-            z = VZ_grid[k, :, :, 1]
+            v = self.VZ_grid[k, :, :, 0]
+            z = self.VZ_grid[k, :, :, 1]
 
             v_pos = np.maximum(v, 0.0)
             sqrt_v = np.sqrt(v_pos * self.dt)
@@ -279,42 +307,9 @@ class HestonTreeFast:
             v_next = v + v_drift + y1 * self.sigma * sqrt_v
             z_next = z + z_drift + y2 * sqrt_v
 
-            # grid spacing
-            Vmin = VZ_grid[k+1, 0, 0, 0]
-            Zmin = VZ_grid[k+1, 0, 0, 1]
-            dv = (VZ_grid[k+1, -1, 0, 0] - Vmin) / (self.mv - 1)
-            dz = (VZ_grid[k+1, 0, -1, 1] - Zmin) / (self.mz - 1)
+            interp = self.interpolate_price(v_next, z_next, k+1)
+            self.price_grid[k] = discount * np.sum(prob * interp, axis=0)
 
-            # lower-left corner indices
-            i0 = ((v_next - Vmin) / dv).astype(np.int32)
-            j0 = ((z_next - Zmin) / dz).astype(np.int32)
-            i0 = np.clip(i0, 0, self.mv - 2)
-            j0 = np.clip(j0, 0, self.mz - 2)
-
-            v0 = Vmin + i0 * dv
-            z0 = Zmin + j0 * dz
-
-            v_tilde = (v_next - v0) / dv
-            z_tilde = (z_next - z0) / dz
-
-            p = price[k+1]
-
-            p00 = p[i0, j0]
-            p01 = p[i0, j0 + 1]
-            p10 = p[i0 + 1, j0]
-            p11 = p[i0 + 1, j0 + 1]
-
-            interp = (
-                (1 - v_tilde)*(1 - z_tilde)*p00 +
-                (1 - v_tilde)*z_tilde*p01 +
-                v_tilde*(1 - z_tilde)*p10 +
-                v_tilde*z_tilde*p11
-            )
-
-            price[k] = discount * np.sum(prob * interp, axis=0)
-
-        self.VZ_grid = VZ_grid
-        self.price_grid = price
         self.tree_built = True
 
     def price(self, V0, S0, k=0):
@@ -342,32 +337,5 @@ class HestonTreeFast:
         V0 = np.atleast_2d(V0)
         Z0 = np.atleast_2d(Z0)
 
-        Vmin = self.VZ_grid[k, 0, 0, 0]
-        Zmin = self.VZ_grid[k, 0, 0, 1]
-
-        dv = (self.VZ_grid[k, -1, 0, 0] - Vmin) / (self.mv - 1)
-        dz = (self.VZ_grid[k, 0, -1, 1] - Zmin) / (self.mz - 1)
-
-        # lower-left indices
-        i0 = ((V0 - Vmin) / dv).astype(np.int32)
-        j0 = ((Z0 - Zmin) / dz).astype(np.int32)
-        i0 = np.clip(i0, 0, self.mv - 2)
-        j0 = np.clip(j0, 0, self.mz - 2)
-
-        v0 = Vmin + i0 * dv
-        z0 = Zmin + j0 * dz
-
-        v_tilde = (V0 - v0) / dv
-        z_tilde = (Z0 - z0) / dz
-
-        p = self.price_grid[k]
-
-        # bilinear interpolation
-        price = (
-            (1 - v_tilde) * (1 - z_tilde) * p[i0, j0] +
-            (1 - v_tilde) * z_tilde * p[i0, j0 + 1] +
-            v_tilde * (1 - z_tilde) * p[i0 + 1, j0] +
-            v_tilde * z_tilde * p[i0 + 1, j0 + 1]
-        )
-
+        price = self.interpolate_price(V0, Z0, k)
         return price.item() if price.size == 1 else price.flatten()
