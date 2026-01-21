@@ -26,6 +26,16 @@ def heston_call_price(S0, K, T, r, kappa, theta, sigma, rho, v0):
     return S0 * P1 - K * np.exp(-r * T) * P2
 
 
+def heston_closed_price(S0, K, T, r, kappa, theta, sigma, rho, v0, option_type='call'):
+    call_price = heston_call_price(S0, K, T, r, kappa, theta, sigma, rho, v0)
+    if option_type == "call":
+        return call_price
+    elif option_type == "put":
+        return call_price - S0 + K * np.exp(-r * T)
+    else:
+        raise ValueError(f"Payoff type ({option_type}) is not valid")
+
+
 if __name__ == "__main__":
     S0 = 100.0    # Initial stock price
     K = 100.0     # Strike price

@@ -252,7 +252,7 @@ class HestonTreeFast:
             v_tilde * z_tilde * p[i0 + 1, j0 + 1]
         )
 
-    def build_tree(self, V0_min, V0_max, S0_min, S0_max, payoff_type="call", exercise_type="european"):
+    def build_tree(self, V0_min, V0_max, S0_min, S0_max, option_type="call", exercise_type="european"):
         self.V0_min = V0_min
         self.V0_max = V0_max
         self.S0_min = S0_min
@@ -269,12 +269,12 @@ class HestonTreeFast:
         V_up, V_dn = V0_max, V0_min
         Z_up, Z_dn = Z0_max, Z0_min
 
-        if payoff_type == "call":
+        if option_type == "call":
             self.payoff = lambda x: np.maximum(x - self.K, 0.0)
-        elif payoff_type == "put":
+        elif option_type == "put":
             self.payoff = lambda x: np.maximum(self.K - x, 0.0)
         else:
-            raise ValueError(f"Payoff type ({payoff_type}) is not valid")
+            raise ValueError(f"Payoff type ({option_type}) is not valid")
 
         for k in range(self.n):
             Z_up = Z_up + (self.r - 0.5 * V_dn) * self.dt + np.sqrt(max(V_up, 0) * self.dt)
@@ -331,7 +331,7 @@ class HestonTreeFast:
 
         self.information['tree_built'] = True
         self.information['exercise_type'] = exercise_type
-        self.information['payoff_type'] = payoff_type
+        self.information['payoff_type'] = option_type
 
     def price(self, V0, S0, k=0):
         """
