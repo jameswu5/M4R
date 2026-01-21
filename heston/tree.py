@@ -202,7 +202,11 @@ class HestonTreeFast:
 
         self.dt = T / n
 
-        self.tree_built = False
+        self.information = {
+            "tree_built": False,
+            "exercise_type": None,
+            "payoff_type": None,
+        }
 
     def build_grid(self, V_min, V_max, Z_min, Z_max):
         u_v = np.linspace(0.0, 1.0, self.mv)
@@ -248,7 +252,7 @@ class HestonTreeFast:
             v_tilde * z_tilde * p[i0 + 1, j0 + 1]
         )
 
-    def build_tree(self, V0_min, V0_max, S0_min, S0_max):
+    def build_tree(self, V0_min, V0_max, S0_min, S0_max, payoff_type="call", exercise_type="european"):
         self.V0_min = V0_min
         self.V0_max = V0_max
         self.S0_min = S0_min
@@ -264,6 +268,13 @@ class HestonTreeFast:
 
         V_up, V_dn = V0_max, V0_min
         Z_up, Z_dn = Z0_max, Z0_min
+
+        if payoff_type == "call":
+            self.payoff = lambda x: np.maximum(x - self.K, 0.0)
+        elif payoff_type == "put":
+            self.payoff = lambda x: np.maximum(self.K - x, 0.0)
+        else:
+            raise ValueError(f"Payoff type ({payoff_type}) is not valid")
 
         for k in range(self.n):
             Z_up = Z_up + (self.r - 0.5 * V_dn) * self.dt + np.sqrt(max(V_up, 0) * self.dt)
@@ -283,7 +294,7 @@ class HestonTreeFast:
         self.price_grid = np.zeros((self.n, self.mv, self.mz))
 
         # terminal payoff
-        self.price_grid[-1] = np.maximum(np.exp(self.VZ_grid[-1, :, :, 1]) - self.K, 0.0)
+        self.price_grid[-1] = self.payoff(np.exp(self.VZ_grid[-1, :, :, 1]))
 
         # Predefine stochastic branches
         y1 = np.array([-1, -1, +1, +1])[:, None, None]
@@ -308,9 +319,19 @@ class HestonTreeFast:
             z_next = z + z_drift + y2 * sqrt_v
 
             interp = self.interpolate_price(v_next, z_next, k+1)
-            self.price_grid[k] = discount * np.sum(prob * interp, axis=0)
+            continuation = discount * np.sum(prob * interp, axis=0)
 
-        self.tree_built = True
+            if exercise_type == "european":
+                self.price_grid[k] = continuation
+            elif exercise_type == "american":
+                exercise = self.payoff(self.VZ_grid[k, :, :, 1])
+                self.price_grid[k] = np.maximum(continuation, exercise)
+            else:
+                raise ValueError(f"Exercise type ({exercise_type}) is not valid.")
+
+        self.information['tree_built'] = True
+        self.information['exercise_type'] = exercise_type
+        self.information['payoff_type'] = payoff_type
 
     def price(self, V0, S0, k=0):
         """
@@ -320,7 +341,7 @@ class HestonTreeFast:
         Allows one of V0 and S0 to be a vector, enabling batch pricing. The other must be a scalar.
         """
 
-        if not self.tree_built:
+        if not self.information['tree_built']:
             raise RuntimeError("Tree not built")
 
         V0 = np.asarray(V0, dtype=float)
@@ -337,5 +358,13 @@ class HestonTreeFast:
         V0 = np.atleast_2d(V0)
         Z0 = np.atleast_2d(Z0)
 
-        price = self.interpolate_price(V0, Z0, k)
+        discount = np.exp(-self.r * self.dt)
+
+        continuation = discount * self.interpolate_price(V0, Z0, k)
+        if self.information['exercise_type'] == "european":
+            price = continuation
+        else:
+            exercise = self.payoff(np.exp(Z0))
+            price = np.maximum(continuation, exercise)
+
         return price.item() if price.size == 1 else price.flatten()
