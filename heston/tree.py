@@ -27,29 +27,20 @@ class HestonTree:
 
     def snap(self, points, value):
         """
-        Find the biggest point in points that is <= value by binary search and return the index.
-        Note by construction, value is always within the range of points
+        Find the biggest point in points that is <= value and return the index.
+        points: a 1D array of monotonically increasing points
+        value: the value to snap
         """
-        # Enforce bounds (disabled for performance)
-        # if value < points[0]:
-        #     raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too small).")
-        # if value > points[-1]:
-        #     raise ValueError(f"Value {value:.5f} is out of bounds ({points[0]:.5f} to {points[-1]:.5f}) (too large).")
+        min_val = points[0]
+        max_val = points[-1]
 
-        low = 0
-        high = len(points) - 1
-        while low < high:
-            mid = (low + high + 1) // 2
-            if points[mid] <= value:
-                low = mid
-            else:
-                high = mid - 1
+        # Base cases
+        if value < min_val:
+            return 0
+        if value >= max_val:
+            return len(points) - 2
 
-        # If it is the last point, move one back
-        if low == len(points) - 1:
-            low -= 1
-
-        return low
+        return int((value - min_val) / (max_val - min_val) * (len(points) - 1))
 
     def build_grid(self, V_min, V_max, mv, Z_min, Z_max, mz):
         """
@@ -103,12 +94,10 @@ class HestonTree:
         z_points = VZ_grid[k, 0, :, 1]
         expected_value = 0.0
 
-        # Store 16 possible states as a 4-bit number 0b[Y4][Y3][Y2][Y1]
-        for state in range(16):
-            y1 = 1 if (state & 0b0001) else -1
-            y2 = 1 if (state & 0b0010) else -1
-            y3 = 1 if (state & 0b0100) else 0
-            y4 = 1 if (state & 0b1000) else 0
+        # Encode y1 and y2 as 2-bit binary number
+        for state1 in range(4):
+            y1 = 1 if (state1 & 0b01) else -1
+            y2 = 1 if (state1 & 0b10) else -1
 
             v_ = self.v_next(y1, v, z)
             z_ = self.z_next(y2, v, z)
@@ -119,17 +108,16 @@ class HestonTree:
             v_tilde = (v_ - v_points[v_idx]) / (v_points[v_idx + 1] - v_points[v_idx])
             z_tilde = (z_ - z_points[z_idx]) / (z_points[z_idx + 1] - z_points[z_idx])
 
-            # Joint probability of y1, y2, y3, y4
-            c = 1
-            c *= v_tilde if y3 == 1 else (1 - v_tilde)
-            c *= z_tilde if y4 == 1 else (1 - z_tilde)
-            q = 0.25 * (1 + y1 * y2 * self.rho) * c
-
-            expected_value += q * price_grid[k, v_idx + y3, z_idx + y4]
+            # Sum over possible y3 and y4 in {0, 1}
+            expected_value += 0.25 * (1 + y1 * y2 * self.rho) * \
+                ((v_tilde * z_tilde) * price_grid[k, v_idx + 1, z_idx + 1] +
+                 ((1 - v_tilde) * z_tilde) * price_grid[k, v_idx, z_idx + 1] +
+                 (v_tilde * (1 - z_tilde)) * price_grid[k, v_idx + 1, z_idx] +
+                 ((1 - v_tilde) * (1 - z_tilde)) * price_grid[k, v_idx, z_idx])
 
         return expected_value
 
-    def build_tree(self, V0_min, V0_max, S0_min, S0_max):
+    def build_tree(self, V0_min, V0_max, S0_min, S0_max, verbose=False):
         """
         Builds the Heston tree within the specified bounds for initial variance and stock price.
         Constructs the price tree using backward induction.
@@ -177,6 +165,8 @@ class HestonTree:
 
         # Backward induction
         for k in range(self.n-2, -1, -1):
+            if verbose:
+                print(f"Building tree at step {k}")
             for i in range(self.mv):
                 for j in range(self.mz):
                     v, z = VZ_grid[k, i, j, :]
