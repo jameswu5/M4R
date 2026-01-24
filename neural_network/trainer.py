@@ -27,6 +27,11 @@ class NeuralNetworkTrainer(ABC):
         self.dimension = model_config.input_size - 1  # assuming first input is time
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=model_config.learning_rate)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(
+            self.optimizer,
+            step_size=500,
+            gamma=0.5
+        )
 
         self.sampler = Sampler(
             seed=seed
@@ -93,6 +98,7 @@ class GeneralTrainer(NeuralNetworkTrainer):
 
             loss.backward()
             self.optimizer.step()
+            self.scheduler.step()
 
             if i % 100 == 0:
                 print(f"Iteration {i}, Loss: {loss.item()}")
@@ -306,6 +312,7 @@ class HestonTrainer(NeuralNetworkTrainer):
 
             loss.backward()
             self.optimizer.step()
+            self.scheduler.step()
 
             if i % 100 == 0:
                 print(f"Iteration {i}, Loss: {loss.item()}")
