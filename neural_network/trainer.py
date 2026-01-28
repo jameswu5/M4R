@@ -348,7 +348,16 @@ class HestonTrainer(NeuralNetworkTrainer):
                                    sigma=self.market_params.sigma,
                                    rho=self.market_params.rho)
 
+        # European case
         pde_loss = torch.mean(residual**2)
+
+        # American
+        # ones = torch.ones_like(t)
+        # zeros = torch.zeros_like(t)
+        # pde_loss = torch.mean((
+        #     torch.minimum(residual, self.model(ones * self.market_params.T, S, V) - torch.maximum(S - self.market_params.K * ones, zeros))
+        # )**2)
+
         return pde_loss
 
     def get_boundary_loss(self, t, S, V):

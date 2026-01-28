@@ -321,11 +321,11 @@ class HestonTreeFast:
             interp = self.interpolate_price(v_next, z_next, k+1)
             continuation = discount * np.sum(prob * interp, axis=0)
 
-            if exercise_type == "european":
-                self.price_grid[k] = continuation
-            elif exercise_type == "american":
-                exercise = self.payoff(self.VZ_grid[k, :, :, 1])
+            if exercise_type == "american":
+                exercise = self.payoff(np.exp(self.VZ_grid[k, :, :, 1]))
                 self.price_grid[k] = np.maximum(continuation, exercise)
+            elif exercise_type == "european":
+                self.price_grid[k] = continuation
             else:
                 raise ValueError(f"Exercise type ({exercise_type}) is not valid.")
 
@@ -358,9 +358,7 @@ class HestonTreeFast:
         V0 = np.atleast_2d(V0)
         Z0 = np.atleast_2d(Z0)
 
-        discount = np.exp(-self.r * self.dt)
-
-        continuation = discount * self.interpolate_price(V0, Z0, k)
+        continuation = self.interpolate_price(V0, Z0, k)
         if self.information['exercise_type'] == "european":
             price = continuation
         else:
