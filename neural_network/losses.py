@@ -138,3 +138,83 @@ def heston_residual(model, t, S, V, **kwargs):
     residual = -f_t - Lf + r * f
 
     return residual
+
+
+def test_compute_derivatives_nd():
+    def simple_model(t, S):
+        return t**2 + torch.sum(S**2, dim=1, keepdim=True)  # shape (B,1)
+
+    B, N = 5, 3
+    t = torch.tensor([[1.0], [2.0], [3.0], [4.0], [5.0]])
+    S = torch.tensor([[1.0, 2.0, 3.0],
+                      [2.0, 3.0, 4.0],
+                      [3.0, 4.0, 5.0],
+                      [4.0, 5.0, 6.0],
+                      [5.0, 6.0, 7.0]])
+
+    v, v_t, v_S, H = compute_derivatives_nd(simple_model, t, S)
+
+    assert torch.allclose(v_t, 2*t)
+    assert torch.allclose(v_S, 2*S)
+    for i in range(N):
+        for j in range(N):
+            expected = 2.0 if i == j else 0.0
+            assert torch.allclose(H[:, i, j], torch.full((B,), expected))
+
+    print("test_compute_derivatives_nd passed")
+
+
+def test_pde_residual_nd():
+    # Test 1: single asset, linear payoff
+    B = 3
+    N = 1
+    S = torch.tensor([[1.0], [2.0], [3.0]])
+    v = S.clone()
+    v_t = torch.zeros_like(v)
+    v_S = torch.ones_like(S)
+    H = torch.zeros((B, N, N))
+    r = 0.05
+    Sigma = torch.tensor([0.0])  # no diffusion
+
+    residual = pde_residual_nd(v, v_t, v_S, H, S, r, Sigma)
+    expected = -v_t - r*S*v_S + r*v
+    assert torch.allclose(residual, expected, atol=1e-6), "Test 1 failed"
+
+    # Test 2: single asset, quadratic payoff
+    v = S**2
+    v_t = torch.zeros_like(v)
+    v_S = 2*S
+    H = 2*torch.ones((B, N, N))
+    Sigma = torch.tensor([0.2**2])
+    residual = pde_residual_nd(v, v_t, v_S, H, S, r, Sigma)
+
+    # Compute expected manually using same formulas
+    S_outer = S.unsqueeze(2) * S.unsqueeze(1)
+    Sigma_mat = torch.diag(Sigma).unsqueeze(0).expand(B, N, N)
+    diffusion = 0.5 * torch.sum(Sigma_mat * S_outer * H, dim=(1, 2), keepdim=True)
+    drift = r * torch.sum(S * v_S, dim=1, keepdim=True)
+    expected = -v_t - drift - diffusion + r*v
+    assert torch.allclose(residual, expected, atol=1e-6), "Test 2 failed"
+
+    # Test 3: two assets, linear payoff, diagonal Sigma
+    B = 2
+    N = 2
+    S = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    v = S.sum(dim=1, keepdim=True)  # v = S1 + S2
+    v_t = torch.zeros_like(v)
+    v_S = torch.ones_like(S)
+    H = torch.zeros((B, N, N))
+    r = 0.03
+    Sigma = torch.tensor([0.1**2, 0.2**2])
+    residual = pde_residual_nd(v, v_t, v_S, H, S, r, Sigma)
+    drift = r * (S*v_S).sum(dim=1, keepdim=True)
+    diffusion = torch.zeros_like(v)  # H = 0 => diffusion = 0
+    expected = -v_t - drift - diffusion + r*v
+    assert torch.allclose(residual, expected, atol=1e-6), "Test 3 failed"
+
+    print("test_pde_residual_nd passed")
+
+
+if __name__ == "__main__":
+    test_compute_derivatives_nd()
+    test_pde_residual_nd()
