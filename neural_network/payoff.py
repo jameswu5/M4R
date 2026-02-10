@@ -206,7 +206,59 @@ class Put(Payoff):
         return J2, J3, J4
 
     def heston_loss(self, model, t, S, V, **kwargs):
-        pass
+        market_params = kwargs.get('market_params', None)
+        if market_params is None:
+            raise ValueError("market_params must be provided for Heston loss calculation.")
+
+        # American boundary conditions
+        K = market_params.K
+        S_max = market_params.S_max
+        V_max = market_params.V_max
+        T = market_params.T
+
+        ones = torch.ones_like(t)
+        zeros = torch.zeros_like(t)
+
+        # J2
+        payoff_loss = torch.mean((
+            model(ones * T, S, V) - self(S, K)
+        )**2)
+
+        # J3
+        S_min_loss = torch.mean((
+            model(t, zeros, V) - K * ones
+        )**2)
+
+        # J4
+        S_max_loss = torch.mean((
+            model(t, ones * S_max, V)
+        ))
+
+        # J5
+        V_min = zeros.requires_grad_(True)
+        f_Vmin = model(t, S, V_min)
+        df_dt = torch.autograd.grad(
+            f_Vmin, t, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
+        )[0]
+        df_dS = torch.autograd.grad(
+            f_Vmin, S, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
+        )[0]
+        df_dV = torch.autograd.grad(
+            f_Vmin, V_min, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
+        )[0]
+        r = market_params.r
+        kappa = market_params.kappa
+        theta = market_params.theta
+
+        V_min_loss = torch.mean((
+            r * S * df_dS + kappa * theta * df_dV - r * f_Vmin + df_dt
+        )**2)
+
+        V_max_loss = torch.mean((
+            model(t, S, ones * V_max) - self(S, K)
+        )**2)
+
+        return payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss
 
 
 class PutProductMultipleAssets(Payoff):

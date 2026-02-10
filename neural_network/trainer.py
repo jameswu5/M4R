@@ -10,11 +10,11 @@ from .losses import compute_derivatives_nd, pde_residual_nd, heston_residual
 
 
 class NeuralNetworkTrainer(ABC):
-    def __init__(self, model_config, market_params, payoff, option_type, seed):
+    def __init__(self, model_config, market_params, payoff, exercise_type, seed):
         self.model_config = model_config
         self.market_params = market_params
         self.payoff = payoff
-        self.option_type = option_type
+        self.exercise_type = exercise_type
         self.set_seed(seed)
 
         self.model = BaseNetwork(
@@ -62,8 +62,8 @@ class NeuralNetworkTrainer(ABC):
 
 
 class GeneralTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, market_params, payoff, option_type, loss_weights=None, seed=None):
-        super().__init__(model_config, market_params, payoff, option_type, seed)
+    def __init__(self, model_config, market_params, payoff, exercise_type, loss_weights=None, seed=None):
+        super().__init__(model_config, market_params, payoff, exercise_type, seed)
 
         self.loss_weights = loss_weights if loss_weights is not None else {
             'pde': 1.0,
@@ -152,7 +152,7 @@ class GeneralTrainer(NeuralNetworkTrainer):
         r = self.market_params.r
         Sigma = self.market_params.sigma
         residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
-        if self.option_type == 'american':
+        if self.exercise_type == 'american':
             pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
             pde_loss = torch.mean(pde_loss**2)
         else:
@@ -257,7 +257,7 @@ class SobolevTrainer(NeuralNetworkTrainer):
         r = self.market_params.r
         Sigma = self.market_params.sigma
         residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
-        if self.option_type == 'american':
+        if self.exercise_type == 'american':
             pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
             pde_loss = torch.mean(pde_loss**2)
         else:
@@ -278,8 +278,8 @@ class SobolevTrainer(NeuralNetworkTrainer):
 
 
 class HestonTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, heston_params, payoff, option_type, loss_weights=None, seed=None):
-        super().__init__(model_config, heston_params, payoff, option_type, seed)
+    def __init__(self, model_config, heston_params, payoff, exercise_type, loss_weights=None, seed=None):
+        super().__init__(model_config, heston_params, payoff, exercise_type, seed)
 
         self.loss_weights = loss_weights if loss_weights is not None else {
             'pde': 1.0,
@@ -356,13 +356,12 @@ class HestonTrainer(NeuralNetworkTrainer):
                                    rho=self.market_params.rho)
 
         # European case
-        if self.option_type == "european":
+        if self.exercise_type == "european":
             pde_loss = torch.mean(residual**2)
         else:
             ones = torch.ones_like(t)
-            zeros = torch.zeros_like(t)
             pde_loss = torch.mean((
-                torch.minimum(residual, self.model(ones * self.market_params.T, S, V) - torch.maximum(S - self.market_params.K * ones, zeros))
+                torch.minimum(residual, self.model(ones * self.market_params.T, S, V) - self.payoff(S, self.market_params.K))
             )**2)
 
         return pde_loss
