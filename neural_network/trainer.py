@@ -369,62 +369,7 @@ class HestonTrainer(NeuralNetworkTrainer):
 
     def get_boundary_loss(self, t, S, V):
         # t, S, V are all interior points
-
-        # Hardcode the call option in for now
-        K = self.market_params.K
-        S_max = self.market_params.S_max
-        V_max = self.market_params.V_max
-        T = self.market_params.T
-
-        ones = torch.ones_like(t)
-        zeros = torch.zeros_like(t)
-
-        # J2
-        payoff_loss = torch.mean((
-            self.model(ones * T, S, V) - torch.maximum(S - K * ones, zeros)
-        )**2)
-
-        # J3
-        S_min_loss = torch.mean((
-            self.model(t, zeros, V)
-        )**2)
-
-        # J4
-        S_max_tensor = (ones * S_max).requires_grad_(True)
-        f_Smax = self.model(t, S_max_tensor, V)
-        df_Smax_dS = torch.autograd.grad(
-            f_Smax, S_max_tensor, grad_outputs=torch.ones_like(f_Smax), create_graph=True, retain_graph=True
-        )[0]
-
-        S_max_loss = torch.mean((
-            df_Smax_dS - ones
-        )**2)
-
-        # J5
-        V_min = zeros.requires_grad_(True)
-        f_Vmin = self.model(t, S, V_min)
-        df_dt = torch.autograd.grad(
-            f_Vmin, t, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
-        )[0]
-        df_dS = torch.autograd.grad(
-            f_Vmin, S, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
-        )[0]
-        df_dV = torch.autograd.grad(
-            f_Vmin, V_min, grad_outputs=torch.ones_like(f_Vmin), create_graph=True, retain_graph=True
-        )[0]
-        r = self.market_params.r
-        kappa = self.market_params.kappa
-        theta = self.market_params.theta
-
-        V_min_loss = torch.mean((
-            r * S * df_dS + kappa * theta * df_dV - r * f_Vmin + df_dt
-        )**2)
-
-        V_max_loss = torch.mean((
-            self.model(t, S, ones * V_max) - S
-        )**2)
-
-        return payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss
+        return self.payoff.heston_loss(self.model, t, S, V, market_params=self.market_params)
 
     def plot_losses_detailed(self):
         plt.plot(self.history['pde_loss'], label='PDE Loss')
