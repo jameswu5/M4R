@@ -232,7 +232,7 @@ class Put(Payoff):
         # J4
         S_max_loss = torch.mean((
             model(t, ones * S_max, V)
-        ))
+        )**2)
 
         # J5
         V_min = zeros.requires_grad_(True)
