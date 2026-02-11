@@ -102,6 +102,8 @@ class GeneralTrainer(NeuralNetworkTrainer):
         }
 
     def train(self, batch_size, epochs, tol=1e-3):
+        early_stopping = EarlyStopping(patience=200, min_delta=tol)
+
         for i in range(epochs):
             self.optimizer.zero_grad()
 
@@ -131,8 +133,8 @@ class GeneralTrainer(NeuralNetworkTrainer):
             self.history['boundary_Smax_loss'].append(boundary_Smax_loss.item())
             self.history['boundary_Smin_loss'].append(boundary_Smin_loss.item())
 
-            if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
-                print(f"Converged at epoch {i}")
+            if early_stopping.step(loss.item()):
+                print(f"Early stopping at epoch {i}")
                 break
 
     def sample_interior_points(self, num_samples):
@@ -200,8 +202,8 @@ class GeneralTrainer(NeuralNetworkTrainer):
 
 
 class SobolevTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, market_params, payoff, option_type, loss_weights=None, seed=None):
-        super().__init__(model_config, market_params, payoff, option_type, seed)
+    def __init__(self, model_config, market_params, payoff, exercise_type, loss_weights=None, seed=None):
+        super().__init__(model_config, market_params, payoff, exercise_type, seed)
 
         self.loss_weights = loss_weights if loss_weights is not None else {
             'pde': 1.0,
@@ -219,6 +221,7 @@ class SobolevTrainer(NeuralNetworkTrainer):
         }
 
     def train(self, batch_size, epochs, tol=1e-3):
+        early_stopping = EarlyStopping(patience=200, min_delta=tol)
 
         K = self.market_params.K
         S_min = self.market_params.S_min
@@ -269,8 +272,8 @@ class SobolevTrainer(NeuralNetworkTrainer):
             self.history['J3_loss'].append(J3.item())
             self.history['J4_loss'].append(J4.item())
 
-            if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
-                print(f"Converged at epoch {i}")
+            if early_stopping.step(loss.item()):
+                print(f"Early stopping at epoch {i}")
                 break
 
     def get_pde_loss(self, t_interior, S_interior):
@@ -358,10 +361,6 @@ class HestonTrainer(NeuralNetworkTrainer):
             if early_stopping.step(loss.item()):
                 print(f"Early stopping at epoch {i}")
                 break
-
-            # if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
-            #     print(f"Converged at epoch {i}")
-            #     break
 
     def sample_points(self, num_samples):
         t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
