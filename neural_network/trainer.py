@@ -9,6 +9,27 @@ from .sampler import Sampler
 from .losses import compute_derivatives_nd, pde_residual_nd, heston_residual
 
 
+class EarlyStopping:
+    def __init__(self, patience, min_delta):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = float('inf')
+
+    def reset(self):
+        self.counter = 0
+        self.best_loss = float('inf')
+
+    def step(self, loss):
+        if loss < self.best_loss - self.min_delta:
+            self.best_loss = loss
+            self.counter = 0
+        else:
+            self.counter += 1
+
+        return self.counter >= self.patience
+
+
 class NeuralNetworkTrainer(ABC):
     def __init__(self, model_config, market_params, payoff, exercise_type, seed):
         self.model_config = model_config
@@ -300,7 +321,9 @@ class HestonTrainer(NeuralNetworkTrainer):
             'V_max_loss': []
         }
 
-    def train(self, batch_size, epochs, tol=1e-5):
+    def train(self, batch_size, epochs, tol):
+        early_stopping = EarlyStopping(patience=200, min_delta=tol)
+
         for i in range(epochs):
             self.optimizer.zero_grad()
 
@@ -332,18 +355,26 @@ class HestonTrainer(NeuralNetworkTrainer):
             self.history['V_min_loss'].append(V_min_loss.item())
             self.history['V_max_loss'].append(V_max_loss.item())
 
-            if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
-                print(f"Converged at epoch {i}")
+            if early_stopping.step(loss.item()):
+                print(f"Early stopping at epoch {i}")
                 break
+
+            # if i > 0 and abs(self.history['loss'][-1] - self.history['loss'][-2]) < tol:
+            #     print(f"Converged at epoch {i}")
+            #     break
 
     def sample_points(self, num_samples):
         t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
         # S = self.sampler.uniform(0, self.market_params.S_max, (num_samples, 1))
+        # V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, 1))
         S = self.sampler.segmented_uniform_1d(
             0, self.market_params.S_max, self.market_params.S0, 0.1 * self.market_params.S0,
             0.5, (num_samples, 1)
         )
-        V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, 1))
+        V = self.sampler.segmented_uniform_1d(
+            0, self.market_params.V_max, self.market_params.v0, 0.1 * self.market_params.v0,
+            0.5, (num_samples, 1)
+        )
         return t, S, V
 
     def get_pde_loss(self, t, S, V):
