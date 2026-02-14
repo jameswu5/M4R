@@ -140,6 +140,67 @@ def heston_residual(model, t, S, V, **kwargs):
     return residual
 
 
+def heston_residual_nd(model, t, S, V, **kwargs):
+    r = kwargs["r"]
+    kappa = kwargs["kappa"]
+    theta = kwargs["theta"]
+    sigma = kwargs["sigma"]
+    rho_sv = kwargs["rho_sv"]
+    rho_ss = kwargs["rho_ss"]
+    rho_vv = kwargs["rho_vv"]
+
+    t.requires_grad_(True)
+    S.requires_grad_(True)
+    V.requires_grad_(True)
+
+    X = torch.cat([t, S, V], dim=1)
+    u = model(X)
+
+    # First derivatives
+    u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+    u_S = torch.autograd.grad(u, S, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+    u_V = torch.autograd.grad(u, V, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+
+    N, d = S.shape
+
+    # Second derivatives
+    u_SS = torch.zeros((N, d, d), dtype=u.dtype, device=u.device)
+    u_VV = torch.zeros((N, d, d), dtype=u.dtype, device=u.device)
+    u_SV = torch.zeros((N, d, d), dtype=u.dtype, device=u.device)
+
+    for i in range(d):
+        # S_i S_j
+        grad_Si = torch.autograd.grad(u_S[:, i], S, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0]
+        u_SS[:, i, :] = grad_Si
+
+        # V_i V_j
+        grad_Vi = torch.autograd.grad(u_V[:, i], V, grad_outputs=torch.ones_like(u_V[:, i]), create_graph=True)[0]
+        u_VV[:, i, :] = grad_Vi
+
+        # S_i V_j
+        grad_Si_V = torch.autograd.grad(u_S[:, i], V, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0]
+        u_SV[:, i, :] = grad_Si_V
+
+    # Operator
+    L = torch.zeros_like(u)
+
+    L += torch.sum(r * S * u_S, dim=1, keepdim=True)
+    L += torch.sum(kappa * (theta - V) * u_V, dim=1, keepdim=True)
+
+    for i in range(d):
+        for j in range(d):
+            # Spot-spot diffusion
+            L += 0.5 * rho_ss[i, j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * S[:, i:i+1] * S[:, j:j+1] * u_SS[:, i, j:j+1]
+            # Variance-variance diffusion
+            L += 0.5 * rho_vv[i, j] * sigma[i] * sigma[j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * u_VV[:, i, j:j+1]
+        # Mixed spot-variance diffusion
+        L += rho_sv[i] * sigma[i] * V[:, i:i+1] * S[:, i:i+1] * u_SV[:, i, i:i+1]
+
+    residual = -u_t - L + r * u
+
+    return residual
+
+
 def test_compute_derivatives_nd():
     def simple_model(t, S):
         return t**2 + torch.sum(S**2, dim=1, keepdim=True)  # shape (B,1)

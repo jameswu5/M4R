@@ -254,6 +254,7 @@ class Put(Payoff):
             r * S * df_dS + kappa * theta * df_dV - r * f_Vmin + df_dt
         )**2)
 
+        # J6
         V_max_loss = torch.mean((
             model(t, S, ones * V_max) - self(S, K)
         )**2)
@@ -439,3 +440,34 @@ class PutProductMultipleAssets(Payoff):
         J4 = J4_L2 + J4_time + J4_space
 
         return J2, J3, J4
+
+    def heston_loss(self, model, t, S, V, **kwargs):
+        K = kwargs['K']
+
+        # J2
+        payoff_loss = torch.mean((
+            model(t, S, V) - self(S, K)
+        )**2)
+
+        # J3
+        S_min_loss = torch.mean((
+            0
+        )**2)
+
+        # J4
+        S_max_loss = torch.mean((
+            0
+        )**2)
+
+        # J5
+
+        V_min_loss = torch.mean((
+            0
+        )**2)
+
+        # J6
+        V_max_loss = torch.mean((
+            0
+        )**2)
+
+        return payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss

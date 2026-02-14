@@ -69,3 +69,37 @@ class HestonParams:
 
         self.S_max = S_max
         self.V_max = V_max
+
+
+class HestonParamsMulti:
+    def __init__(self, n_assets, S0, v0, r, kappa, theta, sigma, rho_sv, rho_ss, rho_vv, K, T, S_min, S_max, V_min, V_max):
+        self.n_assets = n_assets
+        self.S0 = self.process(S0)
+        self.v0 = self.process(v0)
+        self.r = r
+        self.kappa = self.process(kappa)
+        self.theta = self.process(theta)
+        self.sigma = self.process(sigma)
+        self.rho_sv = rho_sv
+        self.rho_ss = rho_ss
+        self.rho_vv = rho_vv
+        self.K = K
+        self.T = T
+
+        self.S_min = self.process(S_min)
+        self.S_max = self.process(S_max)
+        self.V_min = self.process(V_min)
+        self.V_max = self.process(V_max)
+
+    def process(self, parameter):
+        if parameter is None:
+            return None
+        elif isinstance(parameter, Number):
+            return np.full(self.n_assets, parameter)
+        elif isinstance(parameter, (list, np.ndarray)):
+            parameter = np.array(parameter)
+            if parameter.shape[0] != self.n_assets:
+                raise ValueError(f"Parameter length {parameter.shape[0]} does not match number of assets {self.n_assets}.")
+            return parameter
+        else:
+            raise TypeError("Parameter must be a number or a list/array of numbers.")

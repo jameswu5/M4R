@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 from .model import BaseNetwork
 from .sampler import Sampler
-from .losses import compute_derivatives_nd, pde_residual_nd, heston_residual
+from .losses import compute_derivatives_nd, pde_residual_nd, heston_residual, heston_residual_nd
 
 
 class EarlyStopping:
@@ -363,27 +363,43 @@ class HestonTrainer(NeuralNetworkTrainer):
                 break
 
     def sample_points(self, num_samples):
-        t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
-        # S = self.sampler.uniform(0, self.market_params.S_max, (num_samples, 1))
-        # V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, 1))
-        S = self.sampler.segmented_uniform_1d(
-            0, self.market_params.S_max, self.market_params.S0, 0.1 * self.market_params.S0,
-            0.5, (num_samples, 1)
-        )
-        V = self.sampler.segmented_uniform_1d(
-            0, self.market_params.V_max, self.market_params.v0, 0.1 * self.market_params.v0,
-            0.5, (num_samples, 1)
-        )
+        n_assets = self.market_params.n_assets
+        if n_assets == 1:
+            t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
+            # S = self.sampler.uniform(0, self.market_params.S_max, (num_samples, 1))
+            # V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, 1))
+            S = self.sampler.segmented_uniform_1d(
+                0, self.market_params.S_max, self.market_params.S0, 0.1 * self.market_params.S0,
+                0.5, (num_samples, 1)
+            )
+            V = self.sampler.segmented_uniform_1d(
+                0, self.market_params.V_max, self.market_params.v0, 0.1 * self.market_params.v0,
+                0.5, (num_samples, 1)
+            )
+        else:
+            t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
+            S = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, n_assets))
+            V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, n_assets))
         return t, S, V
 
     def get_pde_loss(self, t, S, V):
         # t, S, V are all interior points
-        residual = heston_residual(self.model, t, S, V,
-                                   r=self.market_params.r,
-                                   kappa=self.market_params.kappa,
-                                   theta=self.market_params.theta,
-                                   sigma=self.market_params.sigma,
-                                   rho=self.market_params.rho)
+        if self.market_params.n_assets == 1:
+            residual = heston_residual(self.model, t, S, V,
+                                       r=self.market_params.r,
+                                       kappa=self.market_params.kappa,
+                                       theta=self.market_params.theta,
+                                       sigma=self.market_params.sigma,
+                                       rho=self.market_params.rho)
+        else:
+            residual = heston_residual_nd(self.model, t, S, V,
+                                          r=self.market_params.r,
+                                          kappa=self.market_params.kappa,
+                                          theta=self.market_params.theta,
+                                          sigma=self.market_params.sigma,
+                                          rho_sv=self.market_params.rho_sv,
+                                          rho_ss=self.market_params.rho_ss,
+                                          rho_vv=self.market_params.rho_vv)
 
         # European case
         if self.exercise_type == "european":
