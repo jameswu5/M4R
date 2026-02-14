@@ -353,10 +353,10 @@ class HestonTrainer(NeuralNetworkTrainer):
             self.history['loss'].append(loss.item())
             self.history['pde_loss'].append(pde_loss.item())
             self.history['payoff_loss'].append(payoff_loss.item())
-            self.history['S_min_loss'].append(S_min_loss.item())
-            self.history['S_max_loss'].append(S_max_loss.item())
-            self.history['V_min_loss'].append(V_min_loss.item())
-            self.history['V_max_loss'].append(V_max_loss.item())
+            # self.history['S_min_loss'].append(S_min_loss.item())
+            # self.history['S_max_loss'].append(S_max_loss.item())
+            # self.history['V_min_loss'].append(V_min_loss.item())
+            # self.history['V_max_loss'].append(V_max_loss.item())
 
             if early_stopping.step(loss.item()):
                 print(f"Early stopping at epoch {i}")

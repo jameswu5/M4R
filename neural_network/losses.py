@@ -141,20 +141,24 @@ def heston_residual(model, t, S, V, **kwargs):
 
 
 def heston_residual_nd(model, t, S, V, **kwargs):
-    r = kwargs["r"]
-    kappa = kwargs["kappa"]
-    theta = kwargs["theta"]
-    sigma = kwargs["sigma"]
-    rho_sv = kwargs["rho_sv"]
-    rho_ss = kwargs["rho_ss"]
-    rho_vv = kwargs["rho_vv"]
+    device = S.device
+    dtype = S.dtype
+    r = torch.as_tensor(kwargs["r"], device=device, dtype=dtype)
+    kappa = torch.as_tensor(kwargs["kappa"], device=device, dtype=dtype)
+    theta = torch.as_tensor(kwargs["theta"], device=device, dtype=dtype)
+    sigma = torch.as_tensor(kwargs["sigma"], device=device, dtype=dtype)
+    rho_sv = torch.as_tensor(kwargs["rho_sv"], device=device, dtype=dtype)
+    rho_ss = torch.as_tensor(kwargs["rho_ss"], device=device, dtype=dtype)
+    rho_vv = torch.as_tensor(kwargs["rho_vv"], device=device, dtype=dtype)
 
     t.requires_grad_(True)
     S.requires_grad_(True)
     V.requires_grad_(True)
 
-    X = torch.cat([t, S, V], dim=1)
-    u = model(X)
+    S_list = [S[:, i].unsqueeze(1) for i in range(S.shape[1])]
+    V_list = [V[:, i].unsqueeze(1) for i in range(V.shape[1])]
+
+    u = model(t, *S_list, *V_list)
 
     # First derivatives
     u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
@@ -187,14 +191,29 @@ def heston_residual_nd(model, t, S, V, **kwargs):
     L += torch.sum(r * S * u_S, dim=1, keepdim=True)
     L += torch.sum(kappa * (theta - V) * u_V, dim=1, keepdim=True)
 
+    # for i in range(d):
+    #     for j in range(d):
+    #         # Spot-spot diffusion
+    #         L += 0.5 * rho_ss[i, j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * S[:, i:i+1] * S[:, j:j+1] * u_SS[:, i, j:j+1]
+    #         # Variance-variance diffusion
+    #         L += 0.5 * rho_vv[i, j] * sigma[i] * sigma[j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * u_VV[:, i, j:j+1]
+    #     # Mixed spot-variance diffusion
+    #     L += rho_sv[i] * sigma[i] * V[:, i:i+1] * S[:, i:i+1] * u_SV[:, i, i:i+1]
+
     for i in range(d):
         for j in range(d):
-            # Spot-spot diffusion
-            L += 0.5 * rho_ss[i, j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * S[:, i:i+1] * S[:, j:j+1] * u_SS[:, i, j:j+1]
-            # Variance-variance diffusion
-            L += 0.5 * rho_vv[i, j] * sigma[i] * sigma[j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * u_VV[:, i, j:j+1]
-        # Mixed spot-variance diffusion
-        L += rho_sv[i] * sigma[i] * V[:, i:i+1] * S[:, i:i+1] * u_SV[:, i, i:i+1]
+            L += 0.5 * rho_ss[i, j] \
+                * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) \
+                * S[:, i:i+1] * S[:, j:j+1] \
+                * u_SS[:, i, j].unsqueeze(1)
+
+            L += 0.5 * rho_vv[i, j] * sigma[i] * sigma[j] \
+                * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) \
+                * u_VV[:, i, j].unsqueeze(1)
+
+        L += rho_sv[i] * sigma[i] \
+            * V[:, i:i+1] * S[:, i:i+1] \
+            * u_SV[:, i, i].unsqueeze(1)
 
     residual = -u_t - L + r * u
 

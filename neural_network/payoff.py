@@ -442,32 +442,35 @@ class PutProductMultipleAssets(Payoff):
         return J2, J3, J4
 
     def heston_loss(self, model, t, S, V, **kwargs):
-        K = kwargs['K']
+        n_assets = S.shape[1]
+
+        market_params = kwargs.get('market_params', None)
+        if market_params is None:
+            raise ValueError("market_params must be provided for Heston loss calculation.")
+
+        K = market_params.K
+        T = market_params.T
+
+        S_list = [S[:, i].unsqueeze(1) for i in range(n_assets)]
+        V_list = [V[:, i].unsqueeze(1) for i in range(n_assets)]
+
+        ones = torch.ones_like(t)
 
         # J2
         payoff_loss = torch.mean((
-            model(t, S, V) - self(S, K)
+            model(ones * T, *S_list, *V_list) - self(S, K)
         )**2)
 
         # J3
-        S_min_loss = torch.mean((
-            0
-        )**2)
+        S_min_loss = 0
 
         # J4
-        S_max_loss = torch.mean((
-            0
-        )**2)
+        S_max_loss = 0
 
         # J5
-
-        V_min_loss = torch.mean((
-            0
-        )**2)
+        V_min_loss = 0
 
         # J6
-        V_max_loss = torch.mean((
-            0
-        )**2)
+        V_max_loss = 0
 
         return payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss
