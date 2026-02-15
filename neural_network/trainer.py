@@ -366,20 +366,18 @@ class HestonTrainer(NeuralNetworkTrainer):
         n_assets = self.market_params.n_assets
         if n_assets == 1:
             t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
-            # S = self.sampler.uniform(0, self.market_params.S_max, (num_samples, 1))
-            # V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, 1))
             S = self.sampler.segmented_uniform_1d(
                 0, self.market_params.S_max, self.market_params.S0, 0.1 * self.market_params.S0,
-                0.5, (num_samples, 1)
+                0.6, (num_samples, 1)
             )
             V = self.sampler.segmented_uniform_1d(
-                0, self.market_params.V_max, self.market_params.v0, 0.1 * self.market_params.v0,
-                0.5, (num_samples, 1)
+                0, self.market_params.v0, self.market_params.v0, 0.1 * self.market_params.v0,
+                0.6, (num_samples, 1)
             )
         else:
             t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
             S = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, n_assets))
-            V = self.sampler.uniform(0, self.market_params.V_max, (num_samples, n_assets))
+            V = self.sampler.uniform(0, self.market_params.v0, (num_samples, n_assets))
         return t, S, V
 
     def get_pde_loss(self, t, S, V):

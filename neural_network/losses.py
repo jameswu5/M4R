@@ -168,54 +168,34 @@ def heston_residual_nd(model, t, S, V, **kwargs):
     N, d = S.shape
 
     # Second derivatives
-    u_SS = torch.zeros((N, d, d), dtype=u.dtype, device=u.device)
-    u_VV = torch.zeros((N, d, d), dtype=u.dtype, device=u.device)
-    u_SV = torch.zeros((N, d, d), dtype=u.dtype, device=u.device)
+    u_SS = torch.stack([torch.autograd.grad(u_S[:, i], S, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0] for i in range(d)], dim=1)
+    u_VV = torch.stack([torch.autograd.grad(u_V[:, i], V, grad_outputs=torch.ones_like(u_V[:, i]), create_graph=True)[0] for i in range(d)], dim=1)
+    u_SV = torch.stack([torch.autograd.grad(u_S[:, i], V, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0] for i in range(d)], dim=1)
 
-    for i in range(d):
-        # S_i S_j
-        grad_Si = torch.autograd.grad(u_S[:, i], S, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0]
-        u_SS[:, i, :] = grad_Si
+    # Compute Operator L
+    # Drift
+    L_drift = torch.sum(r * S * u_S, dim=1, keepdim=True) + torch.sum(kappa * (theta - V) * u_V, dim=1, keepdim=True)
 
-        # V_i V_j
-        grad_Vi = torch.autograd.grad(u_V[:, i], V, grad_outputs=torch.ones_like(u_V[:, i]), create_graph=True)[0]
-        u_VV[:, i, :] = grad_Vi
+    # Diffusion
+    sqrtV = torch.sqrt(V)
+    vol_matrix = sqrtV.unsqueeze(2) * sqrtV.unsqueeze(1)
 
-        # S_i V_j
-        grad_Si_V = torch.autograd.grad(u_S[:, i], V, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0]
-        u_SV[:, i, :] = grad_Si_V
+    # Asset-Asset Diffusion
+    S_ij = S.unsqueeze(2) * S.unsqueeze(1)
+    L_ss = 0.5 * rho_ss * vol_matrix * S_ij * u_SS
 
-    # Operator
-    L = torch.zeros_like(u)
+    # Vol-Vol Diffusion
+    sig_ij = sigma.unsqueeze(1) * sigma.unsqueeze(0)
+    L_vv = 0.5 * rho_vv * sig_ij * vol_matrix * u_VV
 
-    L += torch.sum(r * S * u_S, dim=1, keepdim=True)
-    L += torch.sum(kappa * (theta - V) * u_V, dim=1, keepdim=True)
+    # Mixed Spot-Vol (diagonal)
+    u_SV_diag = torch.diagonal(u_SV, dim1=1, dim2=2)
+    L_sv = rho_sv * sigma * V * S * u_SV_diag
 
-    # for i in range(d):
-    #     for j in range(d):
-    #         # Spot-spot diffusion
-    #         L += 0.5 * rho_ss[i, j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * S[:, i:i+1] * S[:, j:j+1] * u_SS[:, i, j:j+1]
-    #         # Variance-variance diffusion
-    #         L += 0.5 * rho_vv[i, j] * sigma[i] * sigma[j] * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) * u_VV[:, i, j:j+1]
-    #     # Mixed spot-variance diffusion
-    #     L += rho_sv[i] * sigma[i] * V[:, i:i+1] * S[:, i:i+1] * u_SV[:, i, i:i+1]
+    # Sum all second-order components
+    L_diffusion = L_ss.view(N, -1).sum(dim=1, keepdim=True) + L_vv.view(N, -1).sum(dim=1, keepdim=True) + L_sv.sum(dim=1, keepdim=True)
 
-    for i in range(d):
-        for j in range(d):
-            L += 0.5 * rho_ss[i, j] \
-                * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) \
-                * S[:, i:i+1] * S[:, j:j+1] \
-                * u_SS[:, i, j].unsqueeze(1)
-
-            L += 0.5 * rho_vv[i, j] * sigma[i] * sigma[j] \
-                * torch.sqrt(V[:, i] * V[:, j]).unsqueeze(1) \
-                * u_VV[:, i, j].unsqueeze(1)
-
-        L += rho_sv[i] * sigma[i] \
-            * V[:, i:i+1] * S[:, i:i+1] \
-            * u_SV[:, i, i].unsqueeze(1)
-
-    residual = -u_t - L + r * u
+    residual = -u_t - (L_drift + L_diffusion) + r * u
 
     return residual
 
