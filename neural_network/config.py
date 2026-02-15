@@ -57,6 +57,7 @@ class MarketParams:
 
 class HestonParams:
     def __init__(self, S0, v0, r, kappa, theta, sigma, rho, K, T, S_max, V_max):
+        self.n_assets = 1
         self.S0 = S0
         self.v0 = v0
         self.r = r

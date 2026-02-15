@@ -353,10 +353,10 @@ class HestonTrainer(NeuralNetworkTrainer):
             self.history['loss'].append(loss.item())
             self.history['pde_loss'].append(pde_loss.item())
             self.history['payoff_loss'].append(payoff_loss.item())
-            # self.history['S_min_loss'].append(S_min_loss.item())
-            # self.history['S_max_loss'].append(S_max_loss.item())
-            # self.history['V_min_loss'].append(V_min_loss.item())
-            # self.history['V_max_loss'].append(V_max_loss.item())
+            self.history['S_min_loss'].append(S_min_loss.item())
+            self.history['S_max_loss'].append(S_max_loss.item())
+            self.history['V_min_loss'].append(V_min_loss.item())
+            self.history['V_max_loss'].append(V_max_loss.item())
 
             if early_stopping.step(loss.item()):
                 print(f"Early stopping at epoch {i}")
@@ -416,13 +416,15 @@ class HestonTrainer(NeuralNetworkTrainer):
         # t, S, V are all interior points
         return self.payoff.heston_loss(self.model, t, S, V, market_params=self.market_params)
 
-    def plot_losses_detailed(self):
-        plt.plot(self.history['pde_loss'], label='PDE Loss')
-        plt.plot(self.history['payoff_loss'], label='Payoff Loss')
-        plt.plot(self.history['S_min_loss'], label='S min Loss')
-        plt.plot(self.history['S_max_loss'], label='S max Loss')
-        plt.plot(self.history['V_min_loss'], label='V min Loss')
-        plt.plot(self.history['V_max_loss'], label='V max Loss')
+    def plot_losses_detailed(self, start_epoch=0):
+        x = range(start_epoch, len(self.history['loss']))
+
+        plt.plot(x, self.history['pde_loss'][start_epoch:], label='PDE Loss')
+        plt.plot(x, self.history['payoff_loss'][start_epoch:], label='Payoff Loss')
+        plt.plot(x, self.history['S_min_loss'][start_epoch:], label='S min Loss')
+        plt.plot(x, self.history['S_max_loss'][start_epoch:], label='S max Loss')
+        plt.plot(x, self.history['V_min_loss'][start_epoch:], label='V min Loss')
+        plt.plot(x, self.history['V_max_loss'][start_epoch:], label='V max Loss')
         plt.xlabel('Iteration')
         plt.ylabel('Loss')
         plt.title('Training Loss Components over Iterations')
