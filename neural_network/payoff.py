@@ -95,7 +95,7 @@ class Put(Payoff):
         return torch.relu(K - S)
 
     def smoothed(self, S, K, beta=50):
-        return nn.functional.softplus(K - S, beta = beta)
+        return nn.functional.softplus(K - S, beta=beta)
 
     def boundary_loss(self, model, t_boundary, S_boundary, **kwargs):
         K = kwargs.get('K', None)
@@ -457,13 +457,12 @@ class PutProductMultipleAssets(Payoff):
         T = market_params.T
 
         S_list = [S[:, i].unsqueeze(1) for i in range(n_assets)]
-        V_list = [V[:, i].unsqueeze(1) for i in range(n_assets)]
 
         ones = torch.ones_like(t)
 
         # J2
         payoff_loss = torch.mean((
-            model(ones * T, *S_list, *V_list) - self(S, K)
+            model(ones * T, *S_list, V) - self(S, K)
         )**2)
 
         # J3
@@ -473,7 +472,7 @@ class PutProductMultipleAssets(Payoff):
             S_boundary[:, i] = 0
             S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(n_assets)]
             S_min_loss += torch.mean((
-                model(t, *S_boundary_list, *V_list) - K
+                model(t, *S_boundary_list, V) - K
             )**2)
 
         # J4
@@ -483,7 +482,7 @@ class PutProductMultipleAssets(Payoff):
             S_boundary[:, i] = market_params.S_max[i]
             S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(n_assets)]
             S_max_loss += torch.mean((
-                model(t, *S_boundary_list, *V_list) - K
+                model(t, *S_boundary_list, V) - K
             )**2)
 
         # J5

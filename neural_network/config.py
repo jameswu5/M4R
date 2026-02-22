@@ -57,6 +57,20 @@ class MarketParams:
 
 class HestonParams:
     def __init__(self, S0, v0, r, kappa, theta, sigma, rho, K, T, S_max, V_max):
+        """
+        Parameters for single-asset Heston model:
+        - S0: initial stock price
+        - v0: initial variance
+        - r: risk-free rate
+        - kappa: mean reversion speed of variance
+        - theta: long-term mean of variance
+        - sigma: volatility of variance
+        - rho: correlation between stock and variance
+        - K: strike price
+        - T: time to maturity
+        - S_max: max stock price for grid
+        - V_max: max variance for grid
+        """
         self.n_assets = 1
         self.S0 = S0
         self.v0 = v0
@@ -73,24 +87,42 @@ class HestonParams:
 
 
 class HestonParamsMulti:
-    def __init__(self, n_assets, S0, v0, r, kappa, theta, sigma, rho_sv, rho_ss, rho_vv, K, T, S_min, S_max, V_min, V_max):
+    def __init__(self, n_assets, S0, v0, r, kappa, theta, sigma_bar, sigma, Sigma, rho, K, T, S_min, S_max, V_min, V_max):
+        """
+        Parameters for multi-asset Heston model:
+        - n_assets: number of assets
+        - S0: initial stock prices (scalar or array of length n_assets)
+        - v0: initial variance (scalar)
+        - r: risk-free rate (scalar)
+        - kappa: mean reversion speed of variance (scalar)
+        - theta: long-term mean of variance (scalar)
+        - sigma_bar: volatility of variance (scalar)
+        - sigma: volatility of each asset (scalar or array of length n_assets)
+        - Sigma: correlation matrix of asset returns (n_assets x n_assets)
+        - rho: correlation between stock price and variance for each asset (array of length n_assets)
+        - K: strike price (scalar)
+        - T: time to maturity (scalar)
+        - S_min, S_max: min and max stock price for grid (scalar or array of length n_assets)
+        - V_min, V_max: min and max variance for grid (scalar)
+
+        """
         self.n_assets = n_assets
         self.S0 = self.process(S0)
-        self.v0 = self.process(v0)
+        self.v0 = v0
         self.r = r
-        self.kappa = self.process(kappa)
-        self.theta = self.process(theta)
+        self.kappa = kappa
+        self.theta = theta
+        self.sigma_bar = sigma_bar
         self.sigma = self.process(sigma)
-        self.rho_sv = rho_sv
-        self.rho_ss = rho_ss
-        self.rho_vv = rho_vv
+        self.Sigma = Sigma
+        self.rho = self.process(rho)
         self.K = K
         self.T = T
 
         self.S_min = self.process(S_min)
         self.S_max = self.process(S_max)
-        self.V_min = self.process(V_min)
-        self.V_max = self.process(V_max)
+        self.V_min = V_min
+        self.V_max = V_max
 
     def process(self, parameter):
         if parameter is None:

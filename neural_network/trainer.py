@@ -355,8 +355,8 @@ class HestonTrainer(NeuralNetworkTrainer):
             self.history['payoff_loss'].append(payoff_loss.item())
             self.history['S_min_loss'].append(S_min_loss.item())
             self.history['S_max_loss'].append(S_max_loss.item())
-            self.history['V_min_loss'].append(V_min_loss.item())
-            self.history['V_max_loss'].append(V_max_loss.item())
+            # self.history['V_min_loss'].append(V_min_loss.item())
+            # self.history['V_max_loss'].append(V_max_loss.item())
 
             if early_stopping.step(loss.item()):
                 print(f"Early stopping at epoch {i}")
@@ -377,7 +377,7 @@ class HestonTrainer(NeuralNetworkTrainer):
         else:
             t = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
             S = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, n_assets))
-            V = self.sampler.uniform(0, self.market_params.v0, (num_samples, n_assets))
+            V = self.sampler.uniform(self.market_params.V_min, self.market_params.V_max, (num_samples, 1))
         return t, S, V
 
     def get_pde_loss(self, t, S, V):
@@ -394,10 +394,10 @@ class HestonTrainer(NeuralNetworkTrainer):
                                           r=self.market_params.r,
                                           kappa=self.market_params.kappa,
                                           theta=self.market_params.theta,
+                                          sigma_bar=self.market_params.sigma_bar,
                                           sigma=self.market_params.sigma,
-                                          rho_sv=self.market_params.rho_sv,
-                                          rho_ss=self.market_params.rho_ss,
-                                          rho_vv=self.market_params.rho_vv)
+                                          Sigma=self.market_params.Sigma,
+                                          rho=self.market_params.rho)
 
         # European case
         if self.exercise_type == "european":
@@ -421,8 +421,8 @@ class HestonTrainer(NeuralNetworkTrainer):
         plt.plot(x, self.history['payoff_loss'][start_epoch:], label='Payoff Loss')
         plt.plot(x, self.history['S_min_loss'][start_epoch:], label='S min Loss')
         plt.plot(x, self.history['S_max_loss'][start_epoch:], label='S max Loss')
-        plt.plot(x, self.history['V_min_loss'][start_epoch:], label='V min Loss')
-        plt.plot(x, self.history['V_max_loss'][start_epoch:], label='V max Loss')
+        # plt.plot(x, self.history['V_min_loss'][start_epoch:], label='V min Loss')
+        # plt.plot(x, self.history['V_max_loss'][start_epoch:], label='V max Loss')
         plt.xlabel('Iteration')
         plt.ylabel('Loss')
         plt.title('Training Loss Components over Iterations')

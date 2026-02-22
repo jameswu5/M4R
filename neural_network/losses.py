@@ -141,61 +141,113 @@ def heston_residual(model, t, S, V, **kwargs):
 
 
 def heston_residual_nd(model, t, S, V, **kwargs):
-    device = S.device
-    dtype = S.dtype
-    r = torch.as_tensor(kwargs["r"], device=device, dtype=dtype)
-    kappa = torch.as_tensor(kwargs["kappa"], device=device, dtype=dtype)
-    theta = torch.as_tensor(kwargs["theta"], device=device, dtype=dtype)
-    sigma = torch.as_tensor(kwargs["sigma"], device=device, dtype=dtype)
-    rho_sv = torch.as_tensor(kwargs["rho_sv"], device=device, dtype=dtype)
-    rho_ss = torch.as_tensor(kwargs["rho_ss"], device=device, dtype=dtype)
-    rho_vv = torch.as_tensor(kwargs["rho_vv"], device=device, dtype=dtype)
+    """
+    Computes PDE residual for multi-asset Heston with common variance factor.
+    """
 
+    r = kwargs["r"]
+    kappa = kwargs["kappa"]
+    theta = kwargs["theta"]
+    sigma_bar = kwargs["sigma_bar"]        # vol of variance
+    sigma = kwargs["sigma"]                # (n,), vol of each asset
+    Sigma = kwargs["Sigma"]                # (n,n), correlation matrix
+    rho = kwargs["rho"]                    # (n,) correlation S_i - V
+
+    # Enable autograd
     t.requires_grad_(True)
     S.requires_grad_(True)
     V.requires_grad_(True)
 
-    S_list = [S[:, i].unsqueeze(1) for i in range(S.shape[1])]
-    V_list = [V[:, i].unsqueeze(1) for i in range(V.shape[1])]
-
-    u = model(t, *S_list, *V_list)
+    # Forward pass
+    u = model(t, S, V)
 
     # First derivatives
-    u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-    u_S = torch.autograd.grad(u, S, grad_outputs=torch.ones_like(u), create_graph=True)[0]
-    u_V = torch.autograd.grad(u, V, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+    u_t = torch.autograd.grad(
+        u, t, torch.ones_like(u),
+        create_graph=True
+    )[0]
 
-    N, d = S.shape
+    u_S = torch.autograd.grad(
+        u, S, torch.ones_like(u),
+        create_graph=True
+    )[0]                      # (N,n)
 
-    # Second derivatives
-    u_SS = torch.stack([torch.autograd.grad(u_S[:, i], S, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0] for i in range(d)], dim=1)
-    u_VV = torch.stack([torch.autograd.grad(u_V[:, i], V, grad_outputs=torch.ones_like(u_V[:, i]), create_graph=True)[0] for i in range(d)], dim=1)
-    u_SV = torch.stack([torch.autograd.grad(u_S[:, i], V, grad_outputs=torch.ones_like(u_S[:, i]), create_graph=True)[0] for i in range(d)], dim=1)
+    u_V = torch.autograd.grad(
+        u, V, torch.ones_like(u),
+        create_graph=True
+    )[0]
 
-    # Compute Operator L
-    # Drift
-    L_drift = torch.sum(r * S * u_S, dim=1, keepdim=True) + torch.sum(kappa * (theta - V) * u_V, dim=1, keepdim=True)
+    N, n = S.shape
 
-    # Diffusion
-    sqrtV = torch.sqrt(V)
-    vol_matrix = sqrtV.unsqueeze(2) * sqrtV.unsqueeze(1)
+    # Second derivatives S_i S_k
+    u_SS = []
+    for i in range(n):
+        grad_i = torch.autograd.grad(
+            u_S[:, i:i+1], S,
+            torch.ones_like(u_S[:, i:i+1]),
+            create_graph=True
+        )[0]
+        u_SS.append(grad_i.unsqueeze(1))
 
-    # Asset-Asset Diffusion
-    S_ij = S.unsqueeze(2) * S.unsqueeze(1)
-    L_ss = 0.5 * rho_ss * vol_matrix * S_ij * u_SS
+    u_SS = torch.cat(u_SS, dim=1)   # (N,n,n)
 
-    # Vol-Vol Diffusion
-    sig_ij = sigma.unsqueeze(1) * sigma.unsqueeze(0)
-    L_vv = 0.5 * rho_vv * sig_ij * vol_matrix * u_VV
+    # Second derivative V V
+    u_VV = torch.autograd.grad(
+        u_V, V, torch.ones_like(u_V),
+        create_graph=True
+    )[0]
 
-    # Mixed Spot-Vol (diagonal)
-    u_SV_diag = torch.diagonal(u_SV, dim1=1, dim2=2)
-    L_sv = rho_sv * sigma * V * S * u_SV_diag
+    # Cross derivatives S_i V
+    u_SV = []
+    for i in range(n):
+        grad_i = torch.autograd.grad(
+            u_S[:, i:i+1], V,
+            torch.ones_like(u_S[:, i:i+1]),
+            create_graph=True
+        )[0]
+        u_SV.append(grad_i)
 
-    # Sum all second-order components
-    L_diffusion = L_ss.view(N, -1).sum(dim=1, keepdim=True) + L_vv.view(N, -1).sum(dim=1, keepdim=True) + L_sv.sum(dim=1, keepdim=True)
+    u_SV = torch.cat(u_SV, dim=1)   # (N,n)
 
-    residual = -u_t - (L_drift + L_diffusion) + r * u
+    # Generator Lu
+
+    # Drift terms
+    L = r * torch.sum(S * u_S, dim=1, keepdim=True)
+    L += kappa * (theta - V) * u_V
+
+    # Asset-asset diffusion
+    diffusion_SS = 0
+    for i in range(n):
+        for k in range(n):
+            coeff = (
+                V
+                * sigma[i] * sigma[k]
+                * Sigma[i, k]
+                * S[:, i:i+1] * S[:, k:k+1]
+            )
+            diffusion_SS += coeff * u_SS[:, i, k:k+1]
+
+    L += 0.5 * diffusion_SS
+
+    # Variance diffusion
+    L += 0.5 * sigma_bar**2 * V * u_VV
+
+    # Cross S-V terms
+    cross = 0
+    for i in range(n):
+        coeff = (
+            V
+            * sigma[i]
+            * sigma_bar
+            * rho[i]
+            * S[:, i:i+1]
+        )
+        cross += coeff * u_SV[:, i:i+1]
+
+    L += cross
+
+    # PDE residual
+    residual = -u_t - L + r * u
 
     return residual
 
