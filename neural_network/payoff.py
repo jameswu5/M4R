@@ -255,7 +255,7 @@ class Put(Payoff):
         )**2)
 
         # J6
-        V_inf = ones * V_max * 100
+        V_inf = ones * V_max * 300
         V_max_loss = torch.mean((
             model(t, S, ones * V_inf) - K
         )**2)
