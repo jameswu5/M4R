@@ -94,6 +94,9 @@ class Put(Payoff):
     def __call__(self, S, K):
         return torch.relu(K - S)
 
+    def smoothed(self, S, K, beta=50):
+        return nn.functional.softplus(K - S, beta = beta)
+
     def boundary_loss(self, model, t_boundary, S_boundary, **kwargs):
         K = kwargs.get('K', None)
         S_max = kwargs.get('S_max', None)[0]
@@ -107,7 +110,8 @@ class Put(Payoff):
 
         # exercise loss: f(T, S) = payoff(S)
         v_1 = model(ones, S_boundary)
-        payoff = self(S_boundary, K)
+        # payoff = self(S_boundary, K)
+        payoff = self.smoothed(S_boundary, K)
         exercise_loss = nn.MSELoss()(v_1, payoff)
 
         # S_max loss: f(t, S_max) = 0
