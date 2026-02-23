@@ -480,7 +480,7 @@ class PutProductMultipleAssets(Payoff):
         S_max_loss = 0
         for i in range(n_assets):
             S_boundary = S.clone()
-            S_boundary[:, i] = market_params.S_max[i]
+            S_boundary[:, i] = market_params.S_max[i] * 10
             S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(n_assets)]
             S_max_loss += torch.mean((
                 model(t, *S_boundary_list, V)
