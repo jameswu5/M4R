@@ -455,6 +455,7 @@ class PutProductMultipleAssets(Payoff):
 
         K = market_params.K
         T = market_params.T
+        V_max = market_params.V_max
 
         S_list = [S[:, i].unsqueeze(1) for i in range(n_assets)]
 
@@ -482,13 +483,16 @@ class PutProductMultipleAssets(Payoff):
             S_boundary[:, i] = market_params.S_max[i]
             S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(n_assets)]
             S_max_loss += torch.mean((
-                model(t, *S_boundary_list, V) - K
+                model(t, *S_boundary_list, V)
             )**2)
 
         # J5
         V_min_loss = 0
 
         # J6
-        V_max_loss = 0
+        V_inf = ones * V_max * 300
+        V_max_loss = torch.mean((
+            model(t, *S_list, ones * V_inf) - K
+        )**2)
 
         return payoff_loss, S_min_loss, S_max_loss, V_min_loss, V_max_loss

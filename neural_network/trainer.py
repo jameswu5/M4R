@@ -356,7 +356,7 @@ class HestonTrainer(NeuralNetworkTrainer):
             self.history['S_min_loss'].append(S_min_loss.item())
             self.history['S_max_loss'].append(S_max_loss.item())
             # self.history['V_min_loss'].append(V_min_loss.item())
-            # self.history['V_max_loss'].append(V_max_loss.item())
+            self.history['V_max_loss'].append(V_max_loss.item())
 
             if early_stopping.step(loss.item()):
                 print(f"Early stopping at epoch {i}")
@@ -422,7 +422,7 @@ class HestonTrainer(NeuralNetworkTrainer):
         plt.plot(x, self.history['S_min_loss'][start_epoch:], label='S min Loss')
         plt.plot(x, self.history['S_max_loss'][start_epoch:], label='S max Loss')
         # plt.plot(x, self.history['V_min_loss'][start_epoch:], label='V min Loss')
-        # plt.plot(x, self.history['V_max_loss'][start_epoch:], label='V max Loss')
+        plt.plot(x, self.history['V_max_loss'][start_epoch:], label='V max Loss')
         plt.xlabel('Iteration')
         plt.ylabel('Loss')
         plt.title('Training Loss Components over Iterations')
