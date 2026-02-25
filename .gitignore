@@ -209,3 +209,19 @@ __marimo__/
 M4R_venv/
 .DS_Store
 resources/
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.log
+*.out
+*.toc
+*.run.xml
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+%OUTDIR%/

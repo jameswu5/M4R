@@ -1,0 +1,467 @@
+\chapter{The Heston Model}
+
+The classic Black Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black Scholes formula does not depend on the mean, so allowing the mean to vary does not help us to generalise the model. But if we allow volatility to vary according to a stochastic process, we obtain a more generalised model. Heston \cite{heston1993closed} proposes a model that is not based on the Black Scholes formula that provides a closed-form solution for European call options. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system
+\begin{align*}
+\mathrm dS_t &= rS_t\mathrm dt + \sqrt {V_t} \mathrm dW_t^1 \\
+\mathrm d V_t &= \kappa (\theta - V_t) \mathrm dt + \sigma \sqrt {V_t} \mathrm dW_t^2
+\end{align*}
+where we have initial conditions $S_0  = s>0$ and $V_0 = v \ge 0$, and the two Brownian motions are correlated with
+$$
+\mathrm d\langle W^1, W^2\rangle _t = \rho \mathrm dt \qquad \rho \in (-1, 1)
+$$
+The dynamics of the variance $V$ follow a CIR process with mean reversion rate $\kappa > 0$, long run state $\theta > 0$ and volatility of the volatility $\sigma > 0$. We can enforce the Feller condition $2\kappa\theta \ge \sigma^2$ so that the volatility process stays positive.
+
+\section{Closed-form solution}
+
+There exists a closed-form solution derived by Heston \cite{heston1993closed} to the price of the European call option. This is done by using an Ansatz inspired by the Black-Scholes formula, and determining the elements of our guess by substituting it into the PDE we know the solution must satisfy along with the boundary conditions (derived in [reference]). We will include this here to serve as a benchmark for our other techniques. Of course, the other techniques will provide more flexibility such as early stopping for American options for which there does not exist a closed-form solution even for the Black Scholes model let alone the Heston model, but should the European prices coincide between the closed form solution and our other techniques, we can have more confidence that the American option prices are accurate.
+
+For expiry $T > 0$, the solution takes the form
+$$C(S, V, t) = SP_1 - Ke^{-r(T-t)}P_2$$
+where
+$$P_j = \frac 12  + \frac 1\pi \int_0^\infty \Re\left(\frac{e^{-iu \ln K} \phi_j(u)}{iu}\right)\,\mathrm du$$
+for $j=1, 2$. The characteristic equations $\phi_j(\cdot)$ have the solution
+$$\phi_j(u) = \exp\left( C(T-t;u) + D(T-t; u)V + iu\ln S_0  \right)$$
+where
+\begin{align*}
+    C(\tau; u) &= rui\tau + \frac a {\sigma^2} \left\{(b_j - \rho \sigma ui + d)\tau - 2\ln \left(\frac{1-ge^{d\tau}}{1-g}\right)\right\} \\
+    D(\tau; u) &= \frac{b_j - \rho \sigma ui + d}{\sigma^2}\left(\frac{1-e^{d\tau}}{1-ge^{d\tau}}\right)
+\end{align*}
+and the quantities
+\begin{align*}
+    g &= \frac{b_j - \rho \sigma u i + d}{b_j - \rho \sigma ui - d} \\
+    d &= \sqrt{(\rho \sigma ui - b_j)^2 - \sigma^2 \big((3 - 2j)ui - u^2\big)} \\
+    a &= \kappa \theta \\
+    b_1 &= \kappa - \rho \sigma \\
+    b_2 &= \kappa 
+\end{align*}
+These quantities are derived using Fourier Transforms and complex integration, refer to \cite{gatheral2011volatility} for more details.
+
+We can plot the call option prices against the stock price $S_0$. We expect it to be close to the Black Scholes formula and for it to collapse to the call option payoff at expiry as the option loses its time value. We see in Figure \ref{fig:heston_closed_call} that this behaviour is indeed exhibited.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/heston/heston_closed_call.png}
+    \caption{Call option values on different maturities}
+    \label{fig:heston_closed_call}
+\end{figure}
+
+For European options, we can also use put call parity, which is model independent, to obtain the put prices:
+
+$$\text{Call} - \text{Put} = S - Ke^{-rT}$$
+
+where we can get the graphs with the same parameters as shown in Figure \ref{fig:heston_closed_put}. As expected, we also get convergence towards the payoff at smaller time to maturities, and for greater time to maturities, we see that the value of the option is actually lower than the payoff, which is due to the interest rate.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/heston/heston_closed_put.png}
+    \caption{Put option values on different maturities}
+    \label{fig:heston_closed_put}
+\end{figure}
+
+\section{Tree Solution}
+
+Since the closed-form solution is limited to European options, we would like to find ways to approximate solutions to the pricing problem so that we can eventually extend the case to American options, which has no closed-form solution. The first method we will explore is the tree method, where it is easy to modify to the American case by adding an additional comparison to the intrinsic value at each node. We will use the closed-form formula as a benchmark for the tree method for European options, to give us confidence in the solution the tree model provides for American options as it is a simple modification in the algorithm, which we can use as a benchmark for the neural networks we will explore later.
+
+The idea will be similar to the binomial tree we explored earlier in the paper, but we now have two correlated stochastic processes in the Heston model: the asset price process and the variance process. As this tree is not recombinant, generating paths for these processes and computing the option prices by backwards induction naively would lead to an exponential time complexity, which is not computationally feasible. Therefore, we will use a grid interpolation approach as in \cite{vellekoop2009tree} so that the number of nodes grows quadratically in the number of time steps instead.
+
+\subsection{Algorithm}
+
+For the algorithm, we will work under the variance process $V$ and log stock price process $Z$ (which is a simple transformation from $S$ using Itô's formula):
+\begin{align*}
+    \mathrm dV_t &= \kappa(\theta - V_t)\mathrm dt + \sigma \sqrt{V_t} \mathrm dW_t^1 \\
+    \mathrm d Z_t &= (r-\tfrac 12 V_t)\mathrm dt + \sqrt {V_t} \mathrm dW_t^2
+\end{align*}
+where $\mathrm d\langle W^1, W^2\rangle_t = \rho$ under the risk-neutral measure $\mathbb Q$ and $\kappa, \sigma, \theta, r > 0$ as before. Of course, the value $C$ of the European option with maturity $T$ and payoff function in terms of stock and volatility values $g:\mathbb R^+ \times \mathbb R^+ \to \mathbb R$ will be
+$$C(t, V_t, Z_t) = e^{-r(T-t)}\mathbb E^\mathbb Q [g(e^{Z_t}, \sqrt {V_t})\mid \mathcal F_t]$$
+
+\subsubsection{Euler Scheme}
+To construct the tree, we need to discretise the process. Suppose we have $n$ steps, then $\Delta t = \frac Tn$. Using the standard Euler scheme, we can have
+\begin{align*}
+    V_{k+1} &= V_k + \kappa (\theta - V_k^+)\Delta t + Y^1_{k+1} \sigma \sqrt{V_k^+ \Delta t} \\
+    Z_{k+1} &= Z_k + (r - \tfrac 12 V_k)\Delta t + Y^2_{k+1} \sqrt{V_k^+ \Delta t}
+\end{align*}
+where the increment variables $(Y_k^1, Y_k^2)$ are iid in $k$ with probabilities
+$$\mathbb Q^n(Y_k^1 = i, Y_k^2 = j) = \frac 14 (1 + ij\rho) \qquad i, j \in \{-1, 1\}$$
+We use a different measure $\mathbb Q^n$ as it is not the same as the risk-neutral measure in the Heston model. To ensure positivity of the process, we have taken the positive part of the variance process $V_k^+ :=\max(0, V_k)$.
+
+\subsubsection{Interpolation optimisation}
+
+The problem with the naïve Euler scheme is that the tree is not recombining, and hence the number of nodes scales exponentially with increasing time steps, which is not feasible computationally. We will hence, for each time step $k$, construct a grid of option prices at time $k$ and the backward induction would be a bilinear interpolation of the four nearest points.
+
+To set this up, we need the boundaries of the grid at each time step $k$, which is given by the minimum and maximum values of $V_k$ and $Z_k$ in the support. In other words, we have
+\begin{align*}
+    z_k^\text{max} &= \max \{z : \mathbb Q^n (Z_k = z) > 0\} \\
+    z_k^\text{min} &= \min \{z : \mathbb Q^n (Z_k = z) > 0\} \\
+    v_k^\text{max} &= \max \{v : \mathbb Q^n (V_k = v) > 0\} \\
+    v_k^\text{min} &= \min \{v : \mathbb Q^n (V_k = v) > 0\} \\
+\end{align*}
+With these boundaries, we have the grid spacing given our mesh sizes $m_z, m_v \in \mathbb N^+$:
+\begin{align*}
+    \Delta z_k &= (z_k^\text{max} - z_k^\text{min}) / m_z \\
+    \Delta v_k &= (v_k^\text{max} - v_k^\text{min}) / m_v
+\end{align*}
+and the gridpoints:
+$$
+    \hat{\mathcal S}_k = \left\{\left(
+    v_k^\text{min} + i\Delta v_k, z_k^\text{min} + j\Delta z_k \right) \mid i \in \{0, \dots, m_v\}, j \in \{0, \dots, m_z\}\right\}
+$$
+
+We will now define the discretised process $(\tilde V, \tilde Z)$ on the grid space $\hat {\mathcal S}_k$. This will involve the Euler scheme functions
+\begin{align*}
+    \nu(y, v, z) &= v + \kappa (\theta - v^+) \Delta t + y \sigma \sqrt{v^+ \Delta t} \\
+    \zeta(y, v, z) &= z + (r - \tfrac 12 v)\Delta t + y \sqrt{v^+\Delta t}
+\end{align*}
+
+Then using these functions, we can retrieve the next step. We can evolve our process to the next step with
+$$(\tilde V_{k+1}, \tilde Z_{k+1}) = \text{snap}_{Y^3_{k+1}, Y^4_{k+1}}^{\hat {\mathcal S}_{k+1}}\big(\nu (Y_{k+1}^1, \tilde V_k, \tilde Z_k), \zeta (Y_{k+1}^1, \tilde V_k, \tilde Z_k)\big)$$
+Where $\text{snap}_{i_3, i_4}^{\mathcal S} : \mathbb R^2 \to \mathcal S \subset \mathbb R^2$ is a function mapping $(v, z) \in \mathbb R^2$ to one of the grid points in $\mathcal S := \mathcal S_v \times \mathcal S_z$. $i_3, i_4 \in \{0, 1\}$ are additional parameters that determine the corner in which $(v, z)$ is mapped.
+
+To do this, we define the 1D snapping functions $\phi^{\mathcal T}_i: \mathbb R \to \mathcal T$ where we have the one-dimensional grid points $\mathcal T \subset \mathbb R$ and the snap-right indicator $i \in \{0, 1\}$. The function is defined mathematically as
+\begin{align*}
+    \phi_0^{\mathcal T}(u) &= \max\{u' \in \mathcal T : u' \le u\} \\
+    \phi_1^{\mathcal T}(u) &= \min\{u' \in \mathcal T : u' \ge u\}
+\end{align*}
+Our 2D snapping function $\text{snap}^{\mathcal S}_{i_3, i_4}: \mathbb R^2 \to \mathcal S$ where $ \mathcal S = \mathcal S_v \times \mathcal S_z \subset \mathbb R^2$ is thus
+$$(v, z) \mapsto \big(\phi^{\mathcal S_v}_{i_3}(v), \phi^{\mathcal S_z}_{i_4}(z)\big)$$
+
+The joint probabilities \cite{vellekoop2009tree} for $Y_{k+1}$ is given by, for $i_1, i_2 \in \{-1, 1\}, i_3, i_4 \in \{0, 1\}$:
+\begin{align*}
+    q_{i_1, i_2, i_3, i_4}(\tilde V_k, \tilde Z_k)&:=\tilde {\mathbb Q}(Y_{k+1}^1 = i_1, Y_{k+1}^2 = i_2, Y_{k+1}^3=i_3, Y_{k+1}^4=i_4 \mid (\tilde V_k, \tilde Z_k)) \\
+    &= \frac 14 \left(1 + i_1i_2\rho\right)\times c_{i_3i_4}^{\hat{\mathcal S}_{k+1}} \left(\nu (i_1, \tilde V_k, \tilde Z_k), \zeta (i_2, \tilde V_k, \tilde Z_k)\right)
+\end{align*}
+Here we have used the interpolation quantity \cite{press2007numerical}, where on a general grid set $\mathcal S=S_v \times S_z \subset \mathbb R^2$ we have 
+$$c_{i_3i_4}^{\mathcal S}(v, z) = \begin{cases}
+    (1-\tilde v)(1-\tilde z) & (i_3, i_4) = (0, 0) \\
+    \tilde v(1-\tilde z) & (i_3, i_4) = (1, 0) \\
+    (1-\tilde v)\tilde z & (i_3, i_4) = (0, 1) \\
+    \tilde v \tilde z & (i_3, i_4) = (1, 1) \\
+\end{cases}$$
+where we have the difference terms
+\begin{align*}
+    \tilde v &= \frac{v - \phi_{0}^{\mathcal S_v}(v)}{\phi_{1}^{\mathcal S_v}(v) - \phi_{0}^{\mathcal S_v}(v)} = \frac{v - \phi_{0}^{\mathcal S_v}(v)}{\Delta v_k}\\
+    \tilde z &= \frac{z - \phi_{0}^{\mathcal S_z}(z)}{\phi_{1}^{\mathcal S_z}(z) - \phi_{0}^{\mathcal S_z}(z)} = \frac{z - \phi_{0}^{\mathcal S_z}(z)}{\Delta z_k}
+\end{align*}
+
+because our grid is evenly spaced at all time steps $k$.
+
+\subsubsection{Backwards induction}
+
+We can now work backwards on the tree, having constructed the grids. Our base case is the final grid, where the price is just the payoff as we are at maturity. For a general time $t_k$ at step $k$ and node $(v, z) \in \hat{\mathcal S}_{k}$, we will generate the four possible steps determined by $y_1, y_2$ each taking values in $\{-1, 1\}$, and evolve our node with
+$$(v, z) \mapsto \big(\nu (y_1, v, z), \zeta (y_2, v, z)\big) =:(v', z')$$
+Which will be in between four points on the grid $\hat{\mathcal S}_{k+1}$. These can be found by performing the $\text{snap}$ function on our evolved node: for $y_3, y_4 \in \{0, 1\}$ we can encapsulate $y = (y_1, y_2, y_3, y_4)$ and we have
+$$(v_y, z_y) = \text{snap}^{\hat{\mathcal S}_{k+1}}_{y_3, y_4}(v', z')$$
+Each of these will have a known option price. Therefore, we can just compute the discounted expectation of these sixteen nodes (two choices for each of $y_1, \dots, y_4$) for the option price at the original node:
+$$C(t_k, v, z) = e^{-r\Delta t} \sum_{y \in \mathcal Y} q_{y_1, y_2, y_3, y_4}(v, z)\times C(t_{k+1}, v_y, z_y)$$
+where $\mathcal Y = \{-1, 1\}^2 \times \{0, 1\}^2$.
+
+\subsubsection{Implementation techniques}
+
+If we implemented this method naively, it would be very difficult for us to use the binomial tree as a benchmark because it would need to construct a new tree from scratch for every single value of $S_0$, $V_0$ and $T$. Thus any heatmaps or plots we create would require hundreds of trees which is not feasible, considering each tree requires many time steps and large mesh sizes to be accurate. 
+
+Thus in addition to vectorising our code for each tree, we will instead consider an initial range $[S_0^\text{min}, S_0^\text{max}]$ and $[V_0^\text{min}, V_0^\text{max}]$ which we will use to construct our grid bounds. More specifically, $z_k^\text{max}$ and $v_k^\text{max}$ will be the up-most path starting with $(S_0^\text{max}, V_0^\text{max})$ instead of simply some individual value $(S_0, V_0)$, and similar for the down paths. In this way, when we use the binomial tree as a benchmark, we can use any initial value of $(S_0, V_0)$ as long as it's in the original range and compute the price with an interpolation as described above. With this method, we can evaluate across different initial values while constructing just one tree. We sacrifice a little accuracy in doing so because the grids would be more widely spaced, which we can combat by increasing the mesh sizes. Thus, we effectively construct one more complex tree instead of hundreds of simpler ones, which is much more computationally efficient.
+
+
+\subsection{Numerical Results}
+
+It can be shown that if we have
+
+$$\lim _{n \to \infty} \Delta t = 0, \qquad \lim _{n \to \infty}\max_{k=1, \dots, n-1} \frac{\Delta v^n_k}{\Delta t_k} = 0, \qquad \lim _{n \to \infty}\max_{k=1, \dots, n-1} \frac{\Delta z^n_k}{\Delta t_k} = 0$$
+then the process represented in our Heston tree converges weakly to the original process $(V, Z)$ \cite{vellekoop2009tree}. Note here we denote $\Delta v_k$ from before as $\Delta v_k^n$ to emphasize we have split our maturity $T$ into $n$ steps, and similarly for $\Delta z_k^n$.
+
+Taking this into account, we choose our parameters to be $n=100, m_v=300, m_z=600$ which allows our tree to faithfully reproduce the closed form solution while keeping runtime low (after I optimised the algorithm with Python vectorisation). Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $v_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/heston_tree.png}
+    \caption{Call option prices by the Heston Tree}
+    \label{fig:heston_tree}
+\end{figure}
+
+We can see that the Heston tree does indeed replicate the closed form solution very closely to very small error. This gives us confidence in our implementation, and with an easy modification we can compute the American option prices which we will use as a benchmark.
+
+To compute the American option price with the tree model, all we need to do is to introduce early stopping at every node: we evaluate the intrinsic value the option has at a node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/heston/put_eu_vs_am.png}
+    \caption{American vs European option prices for the put}
+    \label{fig:heston_put_eu_vs_am}
+\end{figure}
+
+In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option price indeed bounds the American prices from below, as we would expect. We have confidence that our American prices are accurate since our binomial tree faithfully approximates the closed-form solution for European options. We will now use this as a benchmark for neural network approximations.
+
+\section{Neural Network Solution}
+\subsection{Variational Equation}
+
+We would now like to derive the variational equation for options on assets under the Heston model. Note that for a general process $X_t \in \mathbb R^d$ solving the Itô SDE
+$$
+\mathrm dX_t = b(X_t) \mathrm dt + \sigma(X_t)\mathrm dW_t
+$$
+where we have the drift $b:\mathbb R^d \to \mathbb R^d$, the volatility $\sigma:\mathbb R^d \to \mathbb R^{d \times m}$ and the $m$-dimensional Brownian motion $W_t$. On second-order smooth functions $f \in C^2(\mathbb R^d)$, the infinitesimal generator $\mathcal L$ is defined as \cite{bressloff2025sde}
+$$
+\mathcal{L}f(x) := \lim_{t \to 0}
+\frac{\mathbb{E}[f(X_t) \mid X_0=x] - f(x)}{t}
+$$
+which exists and can be derived with Itô’s formula (or Taylor’s expansion) to be \cite{pham2009continuous}
+$$
+\mathcal{L}f(x)
+= \sum_{i=1}^d b_i(x)\frac{\partial f}{\partial x_i}
++ \frac12 \sum_{i=1}^d\sum_{j=1}^d
+\left(\sigma\sigma^\top\right)_{ij}(x) \frac{\partial ^2 f}{\partial x_i\partial x_j}
+$$
+Let’s apply this to our Heston model. The drift vector is
+$$
+b(S, V) = \begin{pmatrix} rS \\ \kappa (\theta - V)\end{pmatrix}
+$$
+To compute $\sigma\sigma^\top$, we need to represent our correlated Brownian motions in terms of independent ones. Suppose we have independent Brownian motions $B^1$ and $B^2$, we can define
+\begin{align*}
+W^1 &= B^1 \\
+W^2 &= \rho B^1 + \sqrt {1-\rho^2}B^2
+\end{align*}
+which has the quadratic variation $\mathrm d\langle W^1, W^2\rangle_t = \rho \mathrm dt$ as required. Using these new Brownian motions, we can rewrite the SDE as
+$$
+\mathrm d \begin{pmatrix}
+S_t \\ V_t
+\end{pmatrix} = \underbrace{
+\begin{pmatrix}
+rS_t \\ \kappa(\theta - V_t)
+\end{pmatrix}}_{b(S_t, V_t)}\mathrm dt +
+\underbrace{\begin{pmatrix}
+S_t \sqrt{V_t} & 0 \\
+\rho\sigma\sqrt{V_t} & \sigma \sqrt{V_t}\sqrt{1 - \rho^2}
+\end{pmatrix}
+}_{\sigma(S_t, V_t)}
+\begin{pmatrix}
+\mathrm dB_t^{1} \\
+\mathrm dB_t^{2}
+\end{pmatrix}
+$$
+which means that our covariance matrix is now
+$$
+\sigma(S, V) = \begin{pmatrix}
+S\sqrt{V} & 0 \\
+\rho\sigma\sqrt{V} & \sigma\sqrt{V}\sqrt{1-\rho^2}
+\end{pmatrix}.
+$$
+which means
+$$
+\sigma\sigma^\top = \begin{pmatrix}
+S^2 V & \rho \sigma SV \\ \rho \sigma SV & \sigma^2 V \end{pmatrix}
+$$
+We now have everything we need for the formula. For any function $f = f(S, V) \in C^2(\mathbb R^d)$, we have
+$$
+\mathcal Lf = rS\frac{\partial f}{\partial S} + \kappa(\theta - V_t)\frac{\partial f}{\partial V} + \frac 12\left(S^2V \frac{\partial ^2f}{\partial S^2} + 2\rho\sigma SV \frac{\partial ^2f}{\partial S\partial V} + \sigma^2V\frac{\partial ^2f}{\partial V^2} \right)
+$$
+This is our infinitesimal generator $\mathcal L$ acting on smooth functions $f$. Suppose we have a European option with payoff $g : \mathbb R^+ \to \mathbb R^+$, then our price function $u(t, S, V)$, the value of the call option with expiry $T$ at time $t$ with $S_t = S$ and $V_t = V$ satisfies
+$$
+\mathcal G[u] := ru - \frac{\partial u}{\partial t} + \mathcal Lu = 0
+$$
+with terminal condition $u(T, S, V) = g(S)$.
+
+As a check, we can set $\kappa = 0$ and $\sigma = 0$ so that $\mathrm dV = 0$ and volatility becomes a constant, and our model collapses to what we have been working with before. Our generator becomes
+$$
+\mathcal L f=rS\frac{\partial f}{\partial S} + \frac 12 S^2 v_0\frac{\partial ^2f}{\partial S^2}
+$$
+which matches our expression from before, since $v_0$ is the initial variance.
+
+We have derived the variational equation for the European option for simplicity, but it can be easily extended for the American case. With the same argument as \ref{nn_variational}, the value of the American option must satisfy the PDE
+
+$$\min\big(\mathcal G[u], v(t, S, V) - g(S) \big) = 0$$
+
+\subsection{Loss Function}
+
+To use a neural network to approximate the function $u(t, S, V)$, we need to establish the relevant boundary conditions. This will help us ensure regularity in all parts of the domain, and we will also incorporate the first derivative to ensure that our neural network approximation also captures the behaviour of the delta (derivative of option price with respect to stock price). The boundary conditions for the call option are provided in \cite{heston1993closed}, but we will adapt them for put options in our study, as they exhibit different behaviour for American options:
+\begin{enumerate}
+    \item $t \to T$: the value at expiry is just the intrinsic value, or the payoff of the put option:
+    $$u(T, S, V) = \max (0, K-S)$$
+    \item $S\to 0$: the option value is the strike when the stock is worthless, because we can exercise immediately (for European options we would require a discounting term):
+    $$u(t, 0, V) = K$$
+    \item $S\to \infty$: the value of a very far out of the money option is 0, as it is very unlikely for it to expire in of the money:
+    $$u(t, \infty, V) = 0$$
+    \item $V \to 0$: when the volatility is $0$, our PDE collapses to
+    $$rS \frac{\partial u}{\partial S}(t, S, 0) + \kappa\theta \frac{\partial u}{\partial V}(t, S, 0) - ru(t, S, 0) + \frac{\partial u}{\partial t}(t, S, 0) = 0$$
+    \item $V \to \infty$: when the volatility is very high, it is almost sure that the product of assets would be zero at some point before expiry, so the value of the option is the strike:
+    $$u(t, S, \infty) = K$$
+\end{enumerate}
+
+In practice, as we clearly cannot represent infinity, we will settle for large constants for the asset price $S_\text{inf}$ and variance $V_\text{inf}$. The minimum for both of these will be taken to be zero. The loss components for our neural network can thus be directly translated. Again, for each epoch, we will take a batch of size $B$ samples for $(t, S, V)$ from our domain
+$$\Omega = (0, T) \times (0, S_\text{max}) \times (0, V_\text{max})$$
+and compute the mean squared error like before, where $S_\text{max}$ and $V_\text{max}$ are chosen constants for our pricing range. Mathematically, let the function represented by the neural network be $f$. For epoch $i$, we have the samples $\left(t_1^{(i)}, \dots, t_B^{(i)}\right)$, $\left(S_1^{(i)}, \dots, S_B^{(i)}\right)$ and $\left(V_1^{(i)}, \dots, V_B^{(i)}\right)$, for which we can compute the loss components
+\begin{align*}
+    J_1^{(i)} &= \frac 1B \sum_{j=1}^B\left \|\min \left\{ \mathcal G\left[f\left (t_j^{(i)}, S_j^{(i)}, V_j^{(j)}\right)\right] , f\left(t_j^{(i)}, S_j^{(i)}, V_j^{(j)}\right) - \max \left(0, K - S_j^{(i)}\right)\right\}\right\|^2_2
+    \\
+    J_2^{(i)} &= \frac 1B \sum_{j=1}^B\left \| f\left(T, S_j^{(i)}, V_j^{(i)}\right) - \max \left(0, K - S_j^{(i)}\right)\right\|^2_2
+    \\
+    J_3^{(i)} &= \frac 1B \sum_{j=1}^B\left \| f\left (t_j^{(i)} , 0, V_j^{(i)}\right) - K\right\|^2_2
+    \\
+    J_4^{(i)} &= \frac 1B \sum_{j=1}^B\left \| f\left (t_j^{(i)} , S_\text{inf}, V_j^{(i)}\right)\right\|^2_2
+    \\
+    J_5^{(i)} &= \frac 1B \sum_{j=1}^B\left \| rS_j^{(i)} \frac{\partial f}{\partial S}(t_j^{(i)}, S_j^{(i)}, 0) + \kappa\theta \frac{\partial f}{\partial V}(t_j^{(i)}, S_j^{(i)}, 0) - rf(t_j^{(i)}, S_j^{(i)}, 0) + \frac{\partial f}{\partial t}(t_j^{(i)}, S_j^{(i)}, 0)\right\|^2_2 \\
+    J_6^{(i)} &= \frac 1B \sum_{j=1}^B\left \| f\left (t_j^{(i)},S_j^{(i)}, V_\text{inf} \right)\right\|^2_2
+\end{align*}
+where our final loss will be, again, a convex combination of the six loss components. In other words, for $\bm \lambda \in \Delta_6$, the final loss is
+$$J^{(i)} = \bm \lambda ^\top \bm J^{(i)} = \sum_{m=1}^6 \lambda_m J^{(i)}_m$$
+
+\subsection{Numerical Results}
+
+We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and the Mish activation function. By using parameters $S_0 = 1, K=1, T=1, r = 0.05, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_american_put} for the American put.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/heston/heston_american_put.png}
+    \caption{American put option prices}
+    \label{fig:heston_american_put}
+\end{figure}
+
+We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at greater volatilities. This can also be easily shown by fixing a volatility and plotting the approximated option value against the underlying, as shown in in Figure \ref{fig:heston_american_put_fixed_vol}.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/heston/heston_american_put_fixed_vol.png}
+    \caption{American put option prices with volatility fixed}
+    \label{fig:heston_american_put_fixed_vol}
+\end{figure}
+
+We can see that the tree prices are indeed well approximated by the Neural network, but the at-the-money options are underpriced for higher volatilities. This is due to the lack of a strict high initial variance boundary condition. We can plot the option prices with respect to initial variance in Figure \ref{fig:heston_american_put_vary_vol}. Our price does indeed increase with increasing initial variance, but not at the same rate.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{figures/heston/heston_american_put_vary_vol.png}
+    \caption{At-the-money price with varying initial variance}
+    \label{fig:heston_american_put_vary_vol}
+\end{figure}
+
+\section{Multiple assets}
+
+With the neural network established, we are now ready to move on to pricing options on multiple assets. As with the Black-Scholes case, we will price the put on the product of multiple assets because we can find a one-dimensional reduction. Here, we will consider a simplified model. Suppose we have $n$ assets and our assets $S = (S_1, \dots, S_n)^\top$ are governed by the stochastic differential equations:
+\begin{align*}
+    \dd S = \text{diag}(S)(r \,\dd t + \sqrt V \sigma \Sigma \,\dd W_1) \\
+    \dd V = \kappa(\theta - V)\,\dd t + \bar \sigma \sqrt V \,\dd W_2
+\end{align*}
+
+where we have the vector of iid Brownian motions $W_1 = (W_{1, 1}, \dots, W_{1, n})^\top$, variance vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the covariance matrix $\Sigma$, where for simplicity we will assume all cross-correlations $\Sigma_{ij} = \rho$ for $i \ne j$. Assume additionally that each asset is correlated with the variance process: $\dd W_{1, j} \dd W_2 =\rho_j \dd t$. Note that this means the asset $S_i$ satisfies
+
+$$\dd S_i = S_i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n \Sigma_{ij}\,\dd W_{1, j}\right)$$
+
+To guarantee positiveness of the variance process, we will enforce the Feller condition on the parameters
+
+$$2\kappa\theta \ge \bar\sigma^2$$
+
+We make these assumptions to allow a one-dimensional reduction for the Heston model, which would provide us a comparable benchmark for our results with the tree method. This would in turn give us confidence for our approximated solutions, should we wish to relax assumptions or to change the payoff.
+
+\subsection{One-dimensional reduction}
+
+Since we would like to find an equivalent formulation of the product of assets $X:= \prod_{i=1}^n S_i$, it would be easier to work in the log domain. That is, find the governing SDE for the log process $Y = \log X = \sum_{i=1}^n \log S_i$ and then exponentiate with Itô's lemma to recover the desired result.
+
+Let $Y_i = \log S_i$. Then by Itô's lemma, we have
+\begin{align*}
+    \dd Y_i &= \frac 1{S_i} \,\dd S_i - \frac 1{2S_i} \,\dd S_i\,\dd S_i \\
+    &= r\,\dd t + \sqrt V\sigma_i \sum_{j=1}^n \Sigma_{ij}\,\dd W_{1, j} - \frac 12 V \sigma_i^2 \,\dd t
+\end{align*}
+because cross-correlations are zero within $W_1$. We can collect terms to get
+$$\dd Y = \left (nr - \frac 12 V \sum_{i=1}^n \sigma_i^2\right) \,\dd t + \sqrt V \sum_{j=1}^n\sum_{i=1}^n \sigma_i\Sigma_{ij} \,\dd W_{1, j}$$
+
+For ease of notation, let $A=\sum_{i=1}^n \sigma_i^2$ and $b_j = \sum_{i=1}^n\sigma_i\Sigma_{ij}$. Then we have
+$$\dd Y = \left(nr - \frac 12 VA\right) \,\dd t + \sqrt V \sum_{j=1}^n b_j \,\dd W_{1, j}$$
+
+Now $Y$ has variance
+$$\dd Y\dd Y = V\sum_{j=1}^n b_j^2 \,\dd t =: VB\,\dd t$$
+where we let $B := \sum_{j=1}^n b_j^2$ for convenience, we can rewrite $\dd Y$ with a new Brownian motion:
+$$\dd Y = \left(nr - \frac 12 VA\right)\,\dd t + \sqrt {VB} \,\dd W_X$$
+where we have
+$$ \dd W_X = \frac{\sum_{j=1}^n b_j \,\dd W_{1, j}}{\sqrt B}$$
+Using our correlation structure, we have
+$$b_j = \sigma_j + \rho \sum_{i \ne j} \sigma_i = (1-\rho)\sigma_j + \rho \underbrace{\sum_{i=1}^n \sigma_i}_{=: S_\sigma}$$
+So the sum of squares $B$ is just
+\begin{align*}
+    B = \sum_{j=1}^n b_j^2 &= \sum_{j=1}^n \left((1-\rho)\sigma_j + \rho S_\sigma \right)^2 \\
+    &= (1-\rho)^2 A + S_\sigma^2(2\rho(1-\rho) + n\rho^2)
+\end{align*}
+
+We now have all components to exponentiate to recover $X = e^Y$. Using Itô's lemma again, we have
+\begin{align*}
+    \dd X &= X\,\dd Y + \frac 12 X \,\dd Y\,\dd Y \\
+    &= X\left( nr + \frac 12 V(B-A)\right)\,\dd t + X\sqrt{VB}\,\dd W_X
+\end{align*}
+
+This is close to the Heston model, with the diffusion $\tilde V = VB$ which gives us
+\begin{align*}
+    \dd\tilde V &= B\,\dd V \\
+    &= \kappa(B\theta - \tilde V)\,\dd t + \bar\sigma \sqrt B \sqrt{\tilde V} \,\dd W_2
+\end{align*}
+
+which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, $\tilde \theta = B\theta$ and $\tilde \sigma = \bar \sigma \sqrt B$. The product of assets nearly gives a direct reduction to a one-dimensional Heston process, but the drift of $X$ contains $V$ which is a stochastic process itself. For our implementations, we will model this to be the constant $V_0$ for simplicity.
+
+\subsection{Variational Equation}
+Recall for a process $X_t \in \mathbb R^d$ solving $\mathrm dX_t = b(X_t)\mathrm dt + \sigma(X_t)\mathrm dW_t$, the infinitesimal generator $\mathcal L$ can be derived with Itô's formula \cite{pham2009continuous} on $f(x)$ to be
+$$
+\mathcal{L}f(x)
+= \sum_{i=1}^d b_i(x)\frac{\partial f}{\partial x_i}
++ \frac12 \sum_{i=1}^d\sum_{j=1}^d
+\left(\sigma\sigma^\top\right)_{ij}(x) \frac{\partial ^2 f}{\partial x_i\partial x_j}
+$$
+In our case, we have a function $f = f(S_1, \dots, S_d, V)$, and we can derive the infinitesimal generator much like the 1D case, but this time we need to sum over our different asset and variance processes. Mathematically, our generator can be expressed to be
+\begin{align*}
+    \mathcal Lf &= \sum_{i=1}^d rS_i \frac{\partial f}{\partial S_i} +  \kappa(\theta - V)\frac{\partial f}{\partial V} + \frac 12 \sum_{i=1}^d\sum_{j=1}^d \Sigma_{ij} VS_iS_j \frac{\partial^2f}{\partial S_i\partial S_j} \\
+    &+ \frac 12  \bar\sigma^2V \frac{\partial^2f}{\partial V^2} + \sum_{i=1}^d \rho_i \sigma_i \bar\sigma V_iS_i \frac{\partial^2f}{\partial S_i\partial V}
+\end{align*}
+
+For any payoff $g(\cdot)$, we have, as before, the variational equation for an European option being
+$$
+\mathcal G[f] := rf - \frac{\partial f}{\partial t} + \mathcal Lu = 0
+$$
+
+and for an American option, we can introduce the early stopping criterion and the variation equation becomes
+
+$$
+\min (\mathcal G[f], f - g) = 0
+$$
+
+\subsection{Loss function}
+
+Similar to what we did in the Black-Scholes model, at each epoch we will sample $B$ points to approximate the loss components in each epoch. We would sample for the variance process, asset prices and time elapsed. Introduce our samples, for $\bm S = (S_1, \dots, S_n)$:
+
+\begin{align*}
+t_1, \dots, t_B &\in [0, T]^B \\
+V_1, \dots, V_B &\in (V_\text{min}, V_\text{max}) \\
+\bm S_1, \dots, \bm S_B &\in (S_\text{min}^1, S_\text{max}^1)\times \dots \times (S_\text{min}^n, S_\text{max}^n)
+\end{align*}
+
+where $S_\text{min}^k, S_\text{max}^k$ is the modelled minimum and maximum prices asset $k$ could reach, similar for $V_\text{min}$ and $V_\text{max}$. Of course the variational loss for the American put needs to be included: in epoch $i$, we have
+
+$$
+J_1^{(i)} = \frac 1B \sum_{j=1}^B\left \|\min \left\{ \mathcal G\left[f\left (t_j^{(i)}, \bm S_j^{(i)}, V_j^{(j)}\right)\right] , f\left(t_j^{(i)}, \bm S_j^{(i)}, V_j^{(j)}\right) - \max \left(0, K - \bm S_j^{(i)}\right)\right\}\right\|^2_2
+$$
+
+We will use the same principle ideas for the boundary conditions as the one-dimensional case:
+
+\begin{enumerate}
+    \item $t \to T$: the value at expiry is just the intrinsic value which is the payoff:
+    $$u(T, S_1, \dots, S_n, V) = \max \left(0, K - \prod_{k=1}^n S_k\right)$$
+    which means that the loss would be
+    $$
+    J_2^{(i)} = \frac 1B \sum_{j=1}^B\left \| f\left(T, \bm S_j^{(i)}, V_j^{(i)}\right) - \max \left(0, K - \bm S_j^{(i)}\right)\right\|^2_2
+    $$
+    \item $S \to 0$: if one of the assets reaches zero, then the product of assets is consequently zero and we should exercise immediately. Thus the value is the strike. To implement this, let $\tilde {\bm S}^{(i)}_j$ be $\bm S^{(i)}_j$ with one of the assets modified manually to $0$. Then this loss component is
+    $$
+    J_3^{(i)} = \frac 1B \sum_{j=1}^B\left \| f\left(t^{(i)}_j, \tilde{\bm S_j}^{(i)}, V_j^{(i)}\right) - K\right\|^2_2
+    $$
+    \item $S \to \infty$: if one of the assets has a very high price, then the product of assets would also be very high meaning the option would expire worthless out of the money. To implement this, let $\bar{\bm S}^{(i)}_j$ be $\bm S^{(i)}_j$ with one of the assets modified manually to $S_\text{inf}$, a large constant. Then this loss component is
+    $$
+    J_4^{(i)} = \frac 1B \sum_{j=1}^B\left \| f\left(t^{(i)}_j, \bar{\bm S_j}^{(i)}, V_j^{(i)}\right)\right\|^2_2
+    $$
+    \item $V \to 0$: [not done yet]
+    \item $V \to \infty$: with infinite volatility, it is almost sure that the intrinsic value of the option would reach the strike at some time before expiry, and thus the value of the option is the strike for the put. To implement this, set $V_\text{inf}$ a large constant, and we have
+    $$
+    J_4^{(i)} = \frac 1B \sum_{j=1}^B\left \| f\left(t^{(i)}_j,{\bm S_j}^{(i)}, V_\text{inf}\right) - K\right\|^2_2
+    $$
+\end{enumerate}
+
+\subsection{Numerical results}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/heston/heston_multi_vs.png}
+    \caption{Neural network vs 1D reduction tree prices}
+    \label{fig:heston_multi_vs}
+\end{figure}
