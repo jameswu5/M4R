@@ -44,9 +44,9 @@ These quantities are derived using Fourier Transforms and complex integration, r
 
 We can plot the call option prices against the stock price $S_0$. We expect it to be close to the Black Scholes formula and for it to collapse to the call option payoff at expiry as the option loses its time value. We see in Figure \ref{fig:heston_closed_call} that this behaviour is indeed exhibited.
 
-\begin{figure}[ht!]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{figures/heston/heston_closed_call.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_closed_call.png}
     \caption{Call option values on different maturities}
     \label{fig:heston_closed_call}
 \end{figure}
@@ -57,9 +57,9 @@ For European options, we can also use put call parity, which is model independen
 
 where we can get the graphs with the same parameters as shown in Figure \ref{fig:heston_closed_put}. As expected, we also get convergence towards the payoff at smaller time to maturities, and for greater time to maturities, we see that the value of the option is actually lower than the payoff, which is due to the interest rate.
 
-\begin{figure}[ht!]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{figures/heston/heston_closed_put.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_closed_put.png}
     \caption{Put option values on different maturities}
     \label{fig:heston_closed_put}
 \end{figure}
@@ -176,9 +176,9 @@ then the process represented in our Heston tree converges weakly to the original
 
 Taking this into account, we choose our parameters to be $n=100, m_v=300, m_z=600$ which allows our tree to faithfully reproduce the closed form solution while keeping runtime low (after I optimised the algorithm with Python vectorisation). Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $v_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
 
-\begin{figure}[ht!]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{figures/heston_tree.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_tree.png}
     \caption{Call option prices by the Heston Tree}
     \label{fig:heston_tree}
 \end{figure}
@@ -187,9 +187,9 @@ We can see that the Heston tree does indeed replicate the closed form solution v
 
 To compute the American option price with the tree model, all we need to do is to introduce early stopping at every node: we evaluate the intrinsic value the option has at a node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
 
-\begin{figure}[ht!]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{figures/heston/put_eu_vs_am.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_tree_put_eu_vs_am.png}
     \caption{American vs European option prices for the put}
     \label{fig:heston_put_eu_vs_am}
 \end{figure}
@@ -312,27 +312,27 @@ where our final loss will be, again, a convex combination of the six loss compon
 
 We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and the Mish activation function. By using parameters $S_0 = 1, K=1, T=1, r = 0.05, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_american_put} for the American put.
 
-\begin{figure}[ht!]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{figures/heston/heston_american_put.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put.png}
     \caption{American put option prices}
     \label{fig:heston_american_put}
 \end{figure}
 
 We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at greater volatilities. This can also be easily shown by fixing a volatility and plotting the approximated option value against the underlying, as shown in in Figure \ref{fig:heston_american_put_fixed_vol}.
 
-\begin{figure}[ht!]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=\textwidth]{figures/heston/heston_american_put_fixed_vol.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put_fixed_vol.png}
     \caption{American put option prices with volatility fixed}
     \label{fig:heston_american_put_fixed_vol}
 \end{figure}
 
 We can see that the tree prices are indeed well approximated by the Neural network, but the at-the-money options are underpriced for higher volatilities. This is due to the lack of a strict high initial variance boundary condition. We can plot the option prices with respect to initial variance in Figure \ref{fig:heston_american_put_vary_vol}. Our price does indeed increase with increasing initial variance, but not at the same rate.
 
-\begin{figure}[ht!]
+\begin{figure}[h]
     \centering
-    \includegraphics[width=0.5\textwidth]{figures/heston/heston_american_put_vary_vol.png}
+    \includegraphics[width=0.5\textwidth]{../plots/heston/heston_american_put_vary_vol.png}
     \caption{At-the-money price with varying initial variance}
     \label{fig:heston_american_put_vary_vol}
 \end{figure}
@@ -459,7 +459,7 @@ We will use the same principle ideas for the boundary conditions as the one-dime
     \item $V \to 0$: [not done yet]
     \item $V \to \infty$: with infinite volatility, it is almost sure that the intrinsic value of the option would reach the strike at some time before expiry, and thus the value of the option is the strike for the put. To implement this, set $V_\text{inf}$ a large constant, and we have
     \[
-    J_4^{(i)} = \frac 1B \sum_{j=1}^B\left \| f\left(t^{(i)}_j,{\bm S_j}^{(i)}, V_\text{inf}\right) - K\right\|^2_2
+    J_6^{(i)} = \frac 1B \sum_{j=1}^B\left \| f\left(t^{(i)}_j,{\bm S_j}^{(i)}, V_\text{inf}\right) - K\right\|^2_2
     \]
 \end{enumerate}
 
@@ -467,7 +467,7 @@ We will use the same principle ideas for the boundary conditions as the one-dime
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=\textwidth]{figures/heston/heston_multi_vs.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_multi_vs.png}
     \caption{Neural network vs 1D reduction tree prices}
     \label{fig:heston_multi_vs}
 \end{figure}
