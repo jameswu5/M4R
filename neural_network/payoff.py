@@ -102,6 +102,8 @@ class Put(Payoff):
         S_max = kwargs.get('S_max', None)[0]
         S_min = kwargs.get('S_min', None)[0]
 
+        S_inf = S_max * 20
+
         if K is None or S_max is None or S_min is None:
             raise ValueError("K, S_max, and S_min must be provided for boundary loss calculation.")
 
@@ -110,12 +112,12 @@ class Put(Payoff):
 
         # exercise loss: f(T, S) = payoff(S)
         v_1 = model(ones, S_boundary)
-        # payoff = self(S_boundary, K)
-        payoff = self.smoothed(S_boundary, K)
+        payoff = self(S_boundary, K)
+        # payoff = self.smoothed(S_boundary, K)
         exercise_loss = nn.MSELoss()(v_1, payoff)
 
-        # S_max loss: f(t, S_max) = 0
-        v_Smax = model(t_boundary, ones * S_max)
+        # S_inf loss: f(t, S_inf) = 0
+        v_Smax = model(t_boundary, ones * S_inf)
         boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros((length, 1)))
 
         # S_min loss: f(t, S_min) = K - S_min
@@ -272,46 +274,45 @@ class PutProductMultipleAssets(Payoff):
         product = torch.prod(S, dim=1, keepdim=True)
         return torch.relu(K - product)
 
-    def boundary_loss(self, model, t_boundary, S_boundary, **kwargs):
+    def boundary_loss(self, model, t, S, **kwargs):
         K = kwargs.get('K', None)
-        S_max = kwargs.get('S_max', None)
-        S_min = kwargs.get('S_min', None)
+        S_max = kwargs.get('S_max', None)  # (n_assets,)
+        S_min = kwargs.get('S_min', None)  # (n_assets,)
 
-        # S_max shape: (n_assets,)
-        # S_min shape: (n_assets,)
+        S_inf = S_max * 20
+
+        n_assets = S.shape[1]
 
         if K is None or S_max is None or S_min is None:
             raise ValueError("K, S_max, and S_min must be provided for boundary loss calculation.")
 
-        length = t_boundary.shape[0]
+        length = t.shape[0]
         ones = torch.ones((length, 1))
         T = kwargs.get('T', 1.0)
 
-        v_1 = model(ones * T, S_boundary)
-        payoff = self(S_boundary, K)
+        v_1 = model(ones * T, S)
+        payoff = self(S, K)
         exercise_loss = nn.MSELoss()(v_1, payoff)
 
-        # Max boundary loss: if prod of assets greater than threshold, set to 0
-        max_threshold = np.prod(S_max) * 0.8
-        max_mask = torch.prod(S_boundary, dim=1) >= max_threshold
-        if max_mask.any():
-            v_max_boundary = model(t_boundary[max_mask], S_boundary[max_mask])
-            boundary_max_loss = nn.MSELoss()(v_max_boundary, torch.zeros_like(v_max_boundary))
-        else:
-            boundary_max_loss = 0.0
-
-        # f(t, S1, ..., SN) where any Si = Si_min = max(K - prod(S_min), 0)
-        n_assets = S_boundary.shape[1]
-        boundary_min_losses = []
+        # S_min loss: if any Si = 0, then f(t, S) = K
+        S_min_loss = 0
         for i in range(n_assets):
-            S_boundary_min = S_boundary.clone()
-            S_boundary_min[:, i] = S_min[i]
-            v_Si_min = model(t_boundary, S_boundary_min)
-            boundary_loss_Si_min = nn.MSELoss()(v_Si_min, ones * torch.relu(K - torch.prod(S_boundary_min[0])))
-            boundary_min_losses.append(boundary_loss_Si_min)
+            S_ = S.clone()
+            S_[:, i] = 0
+            S_min_loss += torch.mean((
+                model(t, S_) - K
+            )**2)
 
-        # return exercise_loss, sum(boundary_max_losses), sum(boundary_min_losses)
-        return exercise_loss, boundary_max_loss, sum(boundary_min_losses)
+        # S_max loss: if any Sk is very large, then f(t, S) = 0
+        S_max_loss = 0
+        for i in range(n_assets):
+            S_ = S.clone()
+            S_[:, i] = S_inf[i]
+            S_max_loss += torch.mean((
+                model(t, S_)
+            )**2)
+
+        return exercise_loss, S_max_loss, S_min_loss
 
     def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
