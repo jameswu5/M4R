@@ -3,12 +3,13 @@ from numbers import Number
 
 
 class ModelConfig:
-    def __init__(self, input_size, hidden_sizes, output_size, activation, learning_rate):
+    def __init__(self, input_size, hidden_sizes, output_size, activation, learning_rate, dropout=0):
         self.input_size = input_size
         self.hidden_sizes = hidden_sizes
         self.output_size = output_size
         self.activation = activation  # needs to be a torch.nn activation function
         self.learning_rate = learning_rate
+        self.dropout = dropout
 
 
 class MarketParams:

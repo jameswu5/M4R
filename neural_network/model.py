@@ -3,15 +3,15 @@ import torch.nn as nn
 
 
 class BaseNetwork(nn.Module):
-    def __init__(self, act_fn, input_size, output_size, hidden_sizes):
+    def __init__(self, act_fn, input_size, output_size, hidden_sizes, dropout):
         super().__init__()
 
         layers = []
         layers += [nn.Linear(input_size, hidden_sizes[0]), act_fn]
         for layer_index in range(1, len(hidden_sizes)):
             layers += [nn.Linear(hidden_sizes[layer_index - 1], hidden_sizes[layer_index]), act_fn]
-            # Add dropout
-            layers += [nn.Dropout(p=0.2)]
+            if dropout > 0:
+                layers += [nn.Dropout(p=dropout)]
         layers += [nn.Linear(hidden_sizes[-1], output_size)]
         self.layers = nn.Sequential(*layers)
 

@@ -42,7 +42,8 @@ class NeuralNetworkTrainer(ABC):
             act_fn=model_config.activation,
             input_size=model_config.input_size,
             output_size=model_config.output_size,
-            hidden_sizes=model_config.hidden_sizes
+            hidden_sizes=model_config.hidden_sizes,
+            dropout=model_config.dropout
         )
 
         # Number of assets
