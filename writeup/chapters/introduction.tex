@@ -3,7 +3,7 @@
 The problem of correctly assigning the price of an option on a stock is a widely-researched field and is essential in minimising market inefficiencies. Black and Scholes have developed a closed-form solution to price the European put and call options \cite{black1973pricing}, but their theory can be extended to American options as well. American options allow holders of the contract to exercise the option at any time before expiry, which turns our pricing problem into an optimal stopping problem. 
 
 In this study, we will specifically focus on put options on stocks paying no dividends, as it's well-known that it is always optimal to wait until expiry to exercise a call option provided there are no dividends [need to cite], and hence the American and European prices coincide. For an asset $S$, the put option has the payoff at expiry
-$$g(S) = (K-S)^+$$
+\[g(S) = (K-S)^+\]
 where $K$ is the pre-determined strike price.
 
 [Talk about the structure of the paper here (to be completed after more writeup is done)]
@@ -12,7 +12,6 @@ where $K$ is the pre-determined strike price.
 \section{Probabilistic Setup}
 
 \subsection{Risk-neutral measure and arbitrage-free pricing}
-
 
 
 
@@ -28,29 +27,29 @@ The market in the real world is not arbitrage free, however, so there are implic
 
 \subsection{Black Scholes Model}
 
-As before, let $(\Omega, \mathcal F, (\mathcal F_t)_{t\in [0, T]}, (W_t)_{t \in [0, T]}$ be a Wiener space as before where $W_t$ is a Brownian motion, $\mathcal F_t$ is the natural filtration of $W_t$ and $\mathcal F = \mathcal F_T$. Our market will contain two underlying securities:
+As before, let $(\Omega, \mathcal F, \mathcal F_t)_{t\in [0, T]}, (W_t)_{t \in [0, T]}$ be a Wiener space as before where $W_t$ is a Brownian motion, $\mathcal F_t$ is the natural filtration of $W_t$ and $\mathcal F = \mathcal F_T$. Our market will contain two underlying securities:
 \begin{itemize}
     \item The risk-free asset, described by a deterministic function
-    $$\mathrm d B_t = rB_t \mathrm d t$$
+    \[\mathrm d B_t = rB_t \mathrm d t\]
     where for convenience, we set $B_0 = 1$ and $r$ is the constant risk-free interest rate with continuous compounding. This has the solution $B_t = e^{rt}$ for $t \ge 0$.
     \item The risky asset $S_t$, which has the price process of a geometric Brownian motion (GBM), which satisfies the stochastic differential equation
-    $$\mathrm dS_t = \mu S_t \mathrm dt + \sigma S_t \mathrm dW_t \qquad 0 \le t \le T$$
+    \[\mathrm dS_t = \mu S_t \mathrm dt + \sigma S_t \mathrm dW_t \qquad 0 \le t \le T\]
     for a given drift $\mu$ and volatility $\sigma$. We can solve this SDE to yield the unique solution
-    $$S_t = S_0 \exp \left(\left(\mu - \frac 12 \sigma^2\right) t + \sigma W_t\right)\qquad 0 \le t \le T$$
+    \[S_t = S_0 \exp \left(\left(\mu - \frac 12 \sigma^2\right) t + \sigma W_t\right)\qquad 0 \le t \le T\]
 \end{itemize}
 
 Consider the discounted stock price
-$$\tilde S_t := \frac {S_t}{B_t} = e^{-rt} S_t$$
+\[\tilde S_t := \frac {S_t}{B_t} = e^{-rt} S_t\]
 and apply Itô's lemma to get a new SDE in terms of the discounted stock price
-$$\mathrm d \tilde S_t = \tilde S_t[(\mu-r)\mathrm dt + \sigma \mathrm dW_t^\mathbb P]$$
+\[\mathrm d \tilde S_t = \tilde S_t[(\mu-r)\mathrm dt + \sigma \mathrm dW_t^\mathbb P]\]
 which means that under the physical measure $\mathbb P$, $\tilde S_t$ has nonzero drift unless $\mu = r$, and hence not a martingale. So to enforce no arbitrage in our pricing model, we need a new equivalent probability measure, name it $\mathbb Q$, under which $\tilde S_t$ is a martingale.
 
 Let's define the quantity
-$$c := \frac{\mu -r}{\sigma}$$
+\[c := \frac{\mu -r}{\sigma}\]
 which measures how much excess drift per unit volatility the stock earns under the physical measure $\mathbb P$. Then we can define the Radon-Nikodym derivative
-$$\frac{\mathrm d\mathbb Q}{\mathrm d \mathbb P}\bigg|_{\mathcal F_t} = Z_t := \exp \left(-cW_t^\mathbb P- \frac 12 c^2 t\right)$$
+\[\frac{\mathrm d\mathbb Q}{\mathrm d \mathbb P}\bigg|_{\mathcal F_t} = Z_t := \exp \left(-cW_t^\mathbb P- \frac 12 c^2 t\right)\]
 which satisfies Novikov's condition as $c$ is constant so $\mathbb Q$ is well defined. The new process
-$$W_t^\mathbb Q := W_t^\mathbb P + ct$$
+\[W_t^\mathbb Q := W_t^\mathbb P + ct\]
 is a Brownian motion under $\mathbb Q$ by Girsanov's theorem. If we substitute this into the original SDE, we obtain
 \begin{align*}
 \frac{\mathrm dS_t}{S_t} &= \mu \mathrm dt + \sigma(W_t^\mathbb Q - c\mathrm dt) \\
@@ -63,9 +62,9 @@ So now under $\mathbb Q$, we have $\mathrm d\tilde S_t = \sigma \tilde S_t \math
 Intuitively, this change of measure reweights possible stock paths so that there is no more risk premium, and all assets earn the risk-free rate in expectation after discounting.
 
 The stopping problem we would like to solve can now be mathematically formalised as
-$$
+\[
 \sup_{\tau \in [t, T]} \mathbb E[e^{-r(\tau - t)}g (S_\tau) \,|\, S_t=S]
-$$
+\]
 where $\tau$ is a stopping time, and $g(\cdot)$ is the payoff function.
 
 \subsection{Product of multiple assets}
@@ -74,58 +73,58 @@ As we would be pricing put options on multiple assets later, it would be useful 
 
 To set up our model, let each asset $S^i$ satisfy under the risk-free measure $\mathbb Q$, for $i = 1, \dots, k$,
 
-$$
+\[
 \mathrm dS_t^i = rS_t^i\mathrm dt + \sigma_i S^i_t \mathrm dW_t^i
-$$
+\]
 
 with $\langle W^i, W^j\rangle_t := \mathbb E\big[\mathrm dW_t^i \mathrm dW_t^j\big] = \rho_{ij}\mathrm dt$ for all $i, j$ pairs. The log representation is
 
-$$
+\[
 \ln S_t^i = \ln S_0^t + \int_0^t \left (r - \frac 12 \sigma^2_i\right) \,\mathrm ds + \int_0^t \sigma _i \,\mathrm dW_s^i
-$$
+\]
 
 Define our new asset $X$ to be
-$$X_t := \prod_{i=1}^k S^i_t$$
+\[X_t := \prod_{i=1}^k S^i_t\]
 and hence we have
-$$
+\[
 \ln X_t = \sum_{i=1}^k \ln S_t^i = \ln X_0 + \int_0^t \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 \right)\,\mathrm ds + \sum_{i=1}^k \int_0^t \sigma_i \,\mathrm dW_s^i
-$$
+\]
 take the differential:
 
-$$
+\[
 \mathrm d\ln X_t = \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 \right)\,\mathrm dt + \sum_{i=1}^k \sigma_i \,\mathrm dW_s^i
-$$
+\]
 
 The quadratic variation of the martingale term is
 
-$$
+\[
 \left\langle\sum_{i=1}^k \sigma_i W^i, \sum_{j=1}^k \sigma_j W^j\right\rangle_t = \sum_{i=1}^k\sum_{j=1}^k \sigma_i\sigma_j \rho_{ij} t =: \sigma^2_X t
-$$
+\]
 
 i.e. $\sigma_X^2 = \sum_{i=1}^k\sum_{j=1}^k \sigma_i\sigma_j\rho_{ij}$. So we can express the second term in terms of a new Brownian motion $\widetilde W$:
 
-$$
+\[
 \sum_{i=1}^k \sigma_i \,\mathrm dW_s^i =  \mathrm d\widetilde W_t
-$$
+\]
 
 Going back, we have
 
-$$
+\[
 \mathrm d \ln X_t = \left( kr - \frac 12 \sum_{i=1}^k \sigma_i^2\right)\,\mathrm dt + \sigma_X \mathrm d \widetilde W_t
-$$
+\]
 
 Exponentiating using Ito’s formula gets us
 
-$$
+\[
 \mathrm dX_t = X_t\left[\left(kr -\frac12\sum_{i=1}^k\sigma_i^2\right)\mathrm dt + \sigma_X\mathrm d\widetilde W_t\right]
 + \frac12 X_t\sigma_X^2 \mathrm dt
-$$
+\]
 
 which we can rearrange to get
 
-$$
+\[
 \mathrm d X_t = \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 + \frac 12 \sigma_X^2\right) X_t \mathrm dt + \sigma _X X_t \,\mathrm d\widetilde W_t
-$$
+\]
 
 which is a geometric Brownian motion with volatility $\sigma_X$ and drift $r_X$ where
 \begin{align*}
@@ -134,11 +133,11 @@ which is a geometric Brownian motion with volatility $\sigma_X$ and drift $r_X$ 
 \end{align*}
 
 by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values
-$$
+\[
 r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qquad \mathrm R = \begin{pmatrix}
     1 & 0.6 & -0.2 \\ 0.6 & 1 & 0.4 \\-0.2 & 0.4 & 1
 \end{pmatrix}
-$$
+\]
 where $\mathrm R$ is the correlation matrix, we can plot the histogram of final prices in Figure [\ref{fig:gbm_histogram}].
 
 \begin{figure}[ht!]
