@@ -138,6 +138,43 @@ class GeneralTrainer(NeuralNetworkTrainer):
                 print(f"Early stopping at epoch {i}")
                 break
 
+    def fine_tune(self, batch_size, epochs, tol=1e-6):
+        """
+        Fine tune at the money after training on the whole sample space.
+        Only supports 1D at the moment.
+        """
+        early_stopping = EarlyStopping(patience=200, min_delta=tol)
+
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.model_config.learning_rate)
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=500,
+            gamma=0.5
+        )
+
+        S0 = self.market_params.S0
+        width = 0.1
+
+        for i in range(epochs):
+            optimizer.zero_grad()
+
+            # Wrap these samples in a function maybe
+            t = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
+            S = self.sampler.uniform(S0 * (1 - width), S0 * (1 + width), (batch_size, 1))
+
+            loss = self.get_pde_loss(t, S)
+
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+
+            if i % 100 == 0:
+                print(f"Iteration {i}, Loss: {loss.item()}")
+
+            if early_stopping.step(loss.item()):
+                print(f"Early stopping at epoch {i}")
+                break
+
     def sample_interior_points(self, num_samples):
         t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
 
