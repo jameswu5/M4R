@@ -36,6 +36,28 @@ def heston_closed_price(S0, K, T, r, kappa, theta, sigma, rho, v0, option_type='
         raise ValueError(f"Payoff type ({option_type}) is not valid")
 
 
+class HestonClosed:
+    def __init__(self, K, T, r, kappa, theta, sigma, rho):
+        self.K = K
+        self.T = T
+        self.r = r
+        self.kappa = kappa
+        self.theta = theta
+        self.sigma = sigma
+        self.rho = rho
+
+    def price(self, V, S, t=0, option_type='put'):
+        """
+        Prices a European option under the Heston model using the closed-form solution.
+
+        V: variance at time t
+        S: underlying price at time t
+        t: time elapsed since time 0 (default 0)
+        """
+        T = self.T - t
+        return heston_closed_price(S, self.K, T, self.r, self.kappa, self.theta, self.sigma, self.rho, V, option_type)
+
+
 if __name__ == "__main__":
     S0 = 100.0    # Initial stock price
     K = 100.0     # Strike price
