@@ -53,3 +53,31 @@ def plot_price_heatmaps(prices1, prices2, **kwargs):
 
     plt.tight_layout()
     plt.show()
+
+
+def plot_free_boundary(prices, K, Ss, Ts, **kwargs):
+    """
+    Plots the free boundary for an American option.
+
+    prices: 2D array of shape (len(Ts), len(Ss))
+    K: strike price
+    Ss: array of underlying prices
+    Ts: array of time points
+    """
+
+    xlabel = kwargs.get("xlabel", None)
+    ylabel = kwargs.get("ylabel", None)
+    title = kwargs.get("title", None)
+
+    free_boundary = np.zeros_like(prices)
+
+    for j in range(len(Ss)):
+        free_boundary[:, j] = np.where(prices[:, j] == max(K - Ss[j], 0), 1, 0)
+
+    plt.figure(figsize=(8, 6))
+    im = plt.imshow(free_boundary, extent=[Ss[0], Ss[-1], Ts[0], Ts[-1]], aspect='auto', origin='lower', cmap='Greys')
+    plt.colorbar(im, label='Free boundary (1 if early exercise is optimal)')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.show()
