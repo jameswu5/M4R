@@ -8,6 +8,9 @@ from .model import BaseNetwork
 from .sampler import Sampler
 from .losses import compute_derivatives_nd, pde_residual_nd, heston_residual, heston_residual_nd
 
+import optuna
+from optuna.samplers import TPESampler
+
 
 class EarlyStopping:
     def __init__(self, patience, min_delta):
@@ -33,28 +36,12 @@ class EarlyStopping:
 class NeuralNetworkTrainer(ABC):
     def __init__(self, model_config, market_params, payoff, exercise_type, seed):
         self.model_config = model_config
+        self.dimension = model_config.input_size - 1  # assuming first input is time
         self.market_params = market_params
         self.payoff = payoff
         self.exercise_type = exercise_type
         self.set_seed(seed)
-
-        self.model = BaseNetwork(
-            act_fn=model_config.activation,
-            input_size=model_config.input_size,
-            output_size=model_config.output_size,
-            hidden_sizes=model_config.hidden_sizes,
-            dropout=model_config.dropout
-        )
-
-        # Number of assets
-        self.dimension = model_config.input_size - 1  # assuming first input is time
-
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=model_config.learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.optimizer,
-            step_size=500,
-            gamma=0.5
-        )
+        self.reset()
 
         self.sampler = Sampler(
             seed=seed
@@ -64,9 +51,87 @@ class NeuralNetworkTrainer(ABC):
             'loss': []
         }
 
+    def reset(self):
+        """
+        Reset model, optimiser and scheduler
+        """
+
+        self.model = BaseNetwork(
+            act_fn=self.model_config.activation,
+            input_size=self.model_config.input_size,
+            output_size=self.model_config.output_size,
+            hidden_sizes=self.model_config.hidden_sizes,
+            dropout=self.model_config.dropout
+        )
+
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(),
+            lr=self.model_config.learning_rate
+        )
+        self.scheduler = torch.optim.lr_scheduler.StepLR(
+            self.optimizer,
+            step_size=500,
+            gamma=0.5
+        )
+
     def set_seed(self, seed):
         np.random.seed(seed)
         torch.manual_seed(seed)
+
+    def set_loss_weights(self, loss_weights):
+        # Normalise loss weights to sum to 1
+        total_weight = sum(loss_weights.values())
+        self.loss_weights = {key: weight / total_weight for key, weight in loss_weights.items()}
+
+    def optimise_loss_weights(self, batch_size, n_trials=50, epochs_per_trial=500):
+        """
+        Generic Optuna loss weight optimiser. Trainers must implement:
+        - suggest_loss_weights(trial)
+        - trial_train_step(batch_size, weights)
+        """
+
+        def objective(trial):
+            weights = self.suggest_loss_weights(trial)
+            self.reset()
+
+            losses = []
+
+            for i in range(epochs_per_trial):
+                loss = self.trial_train_step(batch_size, weights)
+                losses.append(loss)
+
+                if i % 50 == 0:
+                    trial.report(
+                        np.mean(losses[-50:]) if len(losses) >= 50 else np.mean(losses),
+                        i
+                    )
+
+                    if trial.should_prune():
+                        raise optuna.TrialPruned()
+
+            return np.mean(losses[-100:]) if len(losses) >= 100 else np.mean(losses)
+
+        sampler = TPESampler(seed=self.sampler.rng.integers(0, 10000))
+        study = optuna.create_study(
+            direction='minimize',
+            sampler=sampler,
+            pruner=optuna.pruners.MedianPruner(
+                n_startup_trials=5,
+                n_warmup_steps=100
+            )
+        )
+        study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+
+        self.reset()
+        return study.best_params
+
+    @abstractmethod
+    def suggest_loss_weights(self, trial):
+        pass
+
+    @abstractmethod
+    def trial_train_step(self, batch_size, weights):
+        pass
 
     @abstractmethod
     def train(self, batch_size, epochs, tol=1e-3):
@@ -79,20 +144,24 @@ class NeuralNetworkTrainer(ABC):
         plt.title('Training Loss over Iterations')
         plt.show()
 
+    def plot_losses_detailed(self, start_epoch=0):
+        x = range(start_epoch, len(self.history['loss']))
+        for key in self.history:
+            if key != 'loss':
+                plt.plot(x, self.history[key][start_epoch:], label=key)
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        plt.title('Training Loss Components over Iterations')
+        plt.legend()
+        plt.show()
+
     def predict(self, t, *S):
         return self.model(t, *S)
 
 
 class GeneralTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, market_params, payoff, exercise_type, loss_weights=None, seed=None):
+    def __init__(self, model_config, market_params, payoff, exercise_type, seed=None):
         super().__init__(model_config, market_params, payoff, exercise_type, seed)
-
-        self.loss_weights = loss_weights if loss_weights is not None else {
-            'pde': 1.0,
-            'exercise': 1.0,
-            'boundary_Smax': 1.0,
-            'boundary_Smin': 1.0
-        }
 
         self.history = {
             'loss': [],
@@ -140,7 +209,8 @@ class GeneralTrainer(NeuralNetworkTrainer):
 
     def fine_tune(self, batch_size, epochs, tol=1e-6):
         """
-        Fine tune at the money after training on the whole sample space.
+        Fine tune near the free boundary after training on the whole sample space.
+        For American options, focuses on the free boundary region.
         Only supports 1D at the moment.
         """
         early_stopping = EarlyStopping(patience=200, min_delta=tol)
@@ -152,15 +222,25 @@ class GeneralTrainer(NeuralNetworkTrainer):
             gamma=0.5
         )
 
-        S0 = self.market_params.S0
-        width = 0.1
-
         for i in range(epochs):
             optimizer.zero_grad()
 
-            # Wrap these samples in a function maybe
-            t = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
-            S = self.sampler.uniform(S0 * (1 - width), S0 * (1 + width), (batch_size, 1))
+            if self.exercise_type == 'american':
+                # Sample near the free boundary for American options
+                t = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
+                S = self.sampler.sample_near_free_boundary_put(
+                    K=self.market_params.K,
+                    r=self.market_params.r,
+                    T=self.market_params.T,
+                    t_samples=t,
+                    width_fraction=0.1  # Narrower band for fine-tuning
+                )
+            else:
+                # Original: sample near the money for European options
+                S0 = self.market_params.S0
+                width = 0.1
+                t = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
+                S = self.sampler.uniform(S0 * (1 - width), S0 * (1 + width), (batch_size, 1))
 
             loss = self.get_pde_loss(t, S)
 
@@ -169,13 +249,74 @@ class GeneralTrainer(NeuralNetworkTrainer):
             scheduler.step()
 
             if i % 100 == 0:
-                print(f"Iteration {i}, Loss: {loss.item()}")
+                print(f"Fine-tuning iteration {i}, Loss: {loss.item()}")
 
             if early_stopping.step(loss.item()):
                 print(f"Early stopping at epoch {i}")
                 break
 
+    def suggest_loss_weights(self, trial):
+        return {
+            "pde": trial.suggest_float("pde", 0.01, 100.0, log=True),
+            "exercise": trial.suggest_float("exercise", 0.01, 100.0, log=True),
+            "boundary_Smax": trial.suggest_float("boundary_Smax", 0.001, 10.0, log=True),
+            "boundary_Smin": trial.suggest_float("boundary_Smin", 0.001, 10.0, log=True),
+        }
+
+    def trial_train_step(self, batch_size, weights):
+        self.optimizer.zero_grad()
+
+        t_interior, S_interior = self.sample_interior_points(batch_size)
+        pde_loss = self.get_pde_loss(t_interior, S_interior)
+
+        t_boundary, S_boundary = self.sample_boundary_points(batch_size)
+        boundary_loss, Smax_loss, Smin_loss = self.get_boundary_loss(
+            t_boundary, S_boundary
+        )
+
+        loss = (
+            pde_loss * weights["pde"]
+            + boundary_loss * weights["exercise"]
+            + Smax_loss * weights["boundary_Smax"]
+            + Smin_loss * weights["boundary_Smin"]
+        )
+
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
+
+        return loss.item()
+
     def sample_interior_points(self, num_samples):
+        # For American options, use adaptive sampling near free boundary
+        if self.exercise_type == 'american' and self.dimension == 1:
+            # 60% regular samples (concentrated around strike)
+            n_regular = int(0.6 * num_samples)
+            t_regular = self.sampler.uniform(0, self.market_params.T, (n_regular, 1))
+            S_regular = self.sampler.segmented_uniform_1d(
+                self.market_params.S_min, self.market_params.S_max,
+                centre=self.market_params.S0, radius=0.1 * self.market_params.S0,
+                weight=0.8, shape=(n_regular, self.dimension),
+            )
+
+            # 40% samples near estimated free boundary
+            n_boundary = num_samples - n_regular
+            t_boundary = self.sampler.uniform(0, self.market_params.T, (n_boundary, 1))
+            S_boundary = self.sampler.sample_near_free_boundary_put(
+                K=self.market_params.K,
+                r=self.market_params.r,
+                T=self.market_params.T,
+                t_samples=t_boundary,
+                width_fraction=0.2
+            )
+
+            # Combine samples
+            t_interior = torch.cat([t_regular, t_boundary], dim=0)
+            S_interior = torch.cat([S_regular, S_boundary], dim=0)
+
+            return t_interior, S_interior
+
+        # Original sampling for European or multi-dimensional
         t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
 
         if self.dimension == 1:
@@ -214,11 +355,18 @@ class GeneralTrainer(NeuralNetworkTrainer):
         Sigma = self.market_params.sigma
         residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
         if self.exercise_type == 'american':
-            pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
-            pde_loss = torch.mean(pde_loss**2)
+            # Correct American option formulation:
+            # Complementarity: min(residual, v - payoff) ≤ 0
+            # We penalize when this minimum is positive
+            payoff = self.payoff(S_interior, self.market_params.K)
+            complementarity = torch.min(residual, v - payoff)
+            pde_loss = torch.mean(torch.relu(complementarity)**2)
+            # Also enforce v ≥ payoff everywhere (inequality constraint)
+            constraint_loss = torch.mean(torch.relu(payoff - v)**2)
+            return pde_loss + 10.0 * constraint_loss  # Higher weight on constraint
         else:
             pde_loss = torch.mean(residual**2)
-        return pde_loss
+            return pde_loss
 
     def get_boundary_loss(self, t_boundary, S_boundary):
         return self.payoff.boundary_loss(self.model, t_boundary, S_boundary,
@@ -226,29 +374,10 @@ class GeneralTrainer(NeuralNetworkTrainer):
                                          S_max=self.market_params.S_max,
                                          S_min=self.market_params.S_min)
 
-    def plot_losses_detailed(self):
-        # plt.plot(self.history['loss'], label='Total Loss')
-        plt.plot(self.history['pde_loss'], label='PDE Loss')
-        plt.plot(self.history['exercise_loss'], label='Exercise Loss')
-        plt.plot(self.history['boundary_Smax_loss'], label='Boundary Smax Loss')
-        plt.plot(self.history['boundary_Smin_loss'], label='Boundary Smin Loss')
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.title('Training Loss Components over Iterations')
-        plt.legend()
-        plt.show()
-
 
 class SobolevTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, market_params, payoff, exercise_type, loss_weights=None, seed=None):
+    def __init__(self, model_config, market_params, payoff, exercise_type, seed=None):
         super().__init__(model_config, market_params, payoff, exercise_type, seed)
-
-        self.loss_weights = loss_weights if loss_weights is not None else {
-            'pde': 1.0,
-            'J2': 1.0,
-            'J3': 1.0,
-            'J4': 1.0
-        }
 
         self.history = {
             'loss': [],
@@ -257,6 +386,52 @@ class SobolevTrainer(NeuralNetworkTrainer):
             'J3_loss': [],
             'J4_loss': []
         }
+
+    def suggest_loss_weights(self, trial):
+        return {
+            "pde": trial.suggest_float("pde", 0.01, 100.0, log=True),
+            "J2": trial.suggest_float("J2", 0.01, 100.0, log=True),
+            "J3": trial.suggest_float("J3", 0.01, 100.0, log=True),
+            "J4": trial.suggest_float("J4", 0.01, 100.0, log=True),
+        }
+
+    def trial_train_step(self, batch_size, weights):
+        self.optimizer.zero_grad()
+
+        t1, t2, _, _ = self.sampler.uniform_pair(
+            0, self.market_params.T, batch_size, 1,
+            epsilon=0.01, boundary=False
+        )
+
+        S = self.sampler.uniform(
+            self.market_params.S_min,
+            self.market_params.S_max,
+            (batch_size, self.market_params.n_assets)
+        )
+
+        J2, J3, J4 = self.payoff.sobolev_loss(
+            self.model,
+            t1_interior=t1,
+            t2_interior=t2,
+            S_interior=S,
+            S_min=self.market_params.S_min,
+            S_max=self.market_params.S_max,
+            K=self.market_params.K
+        )
+
+        pde_loss = self.get_pde_loss(t1, S)
+
+        loss = (
+            pde_loss * weights["pde"]
+            + J2 * weights["J2"]
+            + J3 * weights["J3"]
+            + J4 * weights["J4"]
+        )
+
+        loss.backward()
+        self.optimizer.step()
+
+        return loss.item()
 
     def train(self, batch_size, epochs, tol=1e-3):
         early_stopping = EarlyStopping(patience=200, min_delta=tol)
@@ -320,37 +495,23 @@ class SobolevTrainer(NeuralNetworkTrainer):
         Sigma = self.market_params.sigma
         residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
         if self.exercise_type == 'american':
-            pde_loss = torch.min(residual, v - self.payoff(S_interior, self.market_params.K))
-            pde_loss = torch.mean(pde_loss**2)
+            # Correct American option formulation:
+            # Complementarity: min(residual, v - payoff) ≤ 0
+            # We penalize when this minimum is positive
+            payoff = self.payoff(S_interior, self.market_params.K)
+            complementarity = torch.min(residual, v - payoff)
+            pde_loss = torch.mean(torch.relu(complementarity)**2)
+            # Also enforce v ≥ payoff everywhere (inequality constraint)
+            constraint_loss = torch.mean(torch.relu(payoff - v)**2)
+            return pde_loss + 10.0 * constraint_loss  # Higher weight on constraint
         else:
             pde_loss = torch.mean(residual**2)
-        return pde_loss
-
-    def plot_losses_detailed(self):
-        # plt.plot(self.history['loss'], label='Total Loss')
-        plt.plot(self.history['pde_loss'], label='PDE Loss')
-        plt.plot(self.history['J2_loss'], label='J2 Loss')
-        plt.plot(self.history['J3_loss'], label='J3 Loss')
-        plt.plot(self.history['J4_loss'], label='J4 Loss')
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.title('Training Loss Components over Iterations')
-        plt.legend()
-        plt.show()
+            return pde_loss
 
 
 class HestonTrainer(NeuralNetworkTrainer):
-    def __init__(self, model_config, heston_params, payoff, exercise_type, loss_weights=None, seed=None):
+    def __init__(self, model_config, heston_params, payoff, exercise_type, seed=None):
         super().__init__(model_config, heston_params, payoff, exercise_type, seed)
-
-        self.loss_weights = loss_weights if loss_weights is not None else {
-            'pde': 1.0,
-            'payoff': 1.0,
-            'S_min': 1.0,
-            'S_max': 1.0,
-            'V_min': 1.0,
-            'V_max': 1.0
-        }
 
         self.history = {
             'loss': [],
@@ -361,6 +522,39 @@ class HestonTrainer(NeuralNetworkTrainer):
             'V_min_loss': [],
             'V_max_loss': []
         }
+
+    def suggest_loss_weights(self, trial):
+        return {
+            "pde": trial.suggest_float("pde", 0.01, 100.0, log=True),
+            "payoff": trial.suggest_float("payoff", 0.01, 100.0, log=True),
+            "S_min": trial.suggest_float("S_min", 0.001, 10.0, log=True),
+            "S_max": trial.suggest_float("S_max", 0.001, 10.0, log=True),
+            "V_min": trial.suggest_float("V_min", 0.001, 10.0, log=True),
+            "V_max": trial.suggest_float("V_max", 0.001, 10.0, log=True),
+        }
+
+    def trial_train_step(self, batch_size, weights):
+        self.optimizer.zero_grad()
+
+        t, S, V = self.sample_points(batch_size)
+
+        pde_loss = self.get_pde_loss(t, S, V)
+        payoff_loss, Smin, Smax, Vmin, Vmax = self.get_boundary_loss(t, S, V)
+
+        loss = (
+            pde_loss * weights["pde"]
+            + payoff_loss * weights["payoff"]
+            + Smin * weights["S_min"]
+            + Smax * weights["S_max"]
+            + Vmin * weights["V_min"]
+            + Vmax * weights["V_max"]
+        )
+
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
+
+        return loss.item()
 
     def train(self, batch_size, epochs, tol):
         early_stopping = EarlyStopping(patience=200, min_delta=tol)
@@ -441,28 +635,17 @@ class HestonTrainer(NeuralNetworkTrainer):
         if self.exercise_type == "european":
             pde_loss = torch.mean(residual**2)
         else:
-            ones = torch.ones_like(t)
-            pde_loss = torch.mean((
-                torch.minimum(residual, self.model(ones * self.market_params.T, S, V) - self.payoff(S, self.market_params.K))
-            )**2)
+            # Correct American option formulation for Heston
+            v = self.model(t, S, V)
+            payoff = self.payoff(S, self.market_params.K)
+            complementarity = torch.min(residual, v - payoff)
+            pde_loss = torch.mean(torch.relu(complementarity)**2)
+            # Enforce v ≥ payoff everywhere
+            constraint_loss = torch.mean(torch.relu(payoff - v)**2)
+            pde_loss = pde_loss + 10.0 * constraint_loss
 
         return pde_loss
 
     def get_boundary_loss(self, t, S, V):
         # t, S, V are all interior points
         return self.payoff.heston_loss(self.model, t, S, V, market_params=self.market_params)
-
-    def plot_losses_detailed(self, start_epoch=0):
-        x = range(start_epoch, len(self.history['loss']))
-
-        plt.plot(x, self.history['pde_loss'][start_epoch:], label='PDE Loss')
-        plt.plot(x, self.history['payoff_loss'][start_epoch:], label='Payoff Loss')
-        plt.plot(x, self.history['S_min_loss'][start_epoch:], label='S min Loss')
-        plt.plot(x, self.history['S_max_loss'][start_epoch:], label='S max Loss')
-        # plt.plot(x, self.history['V_min_loss'][start_epoch:], label='V min Loss')
-        plt.plot(x, self.history['V_max_loss'][start_epoch:], label='V max Loss')
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.title('Training Loss Components over Iterations')
-        plt.legend()
-        plt.show()
