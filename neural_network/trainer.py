@@ -194,8 +194,18 @@ class GeneralTrainer(NeuralNetworkTrainer):
             self.optimizer.step()
             self.scheduler.step()
 
+            # Validation loss
+            t_val_interior, S_val_interior = self.sample_interior_points(batch_size)
+            val_pde_loss = self.get_pde_loss(t_val_interior, S_val_interior)
+            t_val_boundary, S_val_boundary = self.sample_boundary_points(batch_size)
+            val_boundary_loss, val_boundary_Smax_loss, val_boundary_Smin_loss = self.get_boundary_loss(t_val_boundary, S_val_boundary)
+            val_loss = val_pde_loss * self.loss_weights['pde'] \
+                + val_boundary_loss * self.loss_weights['exercise'] \
+                + val_boundary_Smax_loss * self.loss_weights['boundary_Smax'] \
+                + val_boundary_Smin_loss * self.loss_weights['boundary_Smin']
+
             if i % 100 == 0:
-                print(f"Iteration {i}, Loss: {loss.item()}")
+                print(f"Iteration {i}\tTraining Loss: {loss.item()}\tValidation Loss: {val_loss.item()}")
 
             self.history['loss'].append(loss.item())
             self.history['pde_loss'].append(pde_loss.item())
@@ -203,7 +213,7 @@ class GeneralTrainer(NeuralNetworkTrainer):
             self.history['boundary_Smax_loss'].append(boundary_Smax_loss.item())
             self.history['boundary_Smin_loss'].append(boundary_Smin_loss.item())
 
-            if early_stopping.step(loss.item()):
+            if early_stopping.step(val_loss.item()):
                 print(f"Early stopping at epoch {i}")
                 break
 
