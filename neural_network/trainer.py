@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
 from abc import ABC, abstractmethod
 
 from .model import BaseNetwork
@@ -157,6 +158,10 @@ class NeuralNetworkTrainer(ABC):
 
     def predict(self, t, *S):
         return self.model(t, *S)
+
+    def save(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
 
 
 class GeneralTrainer(NeuralNetworkTrainer):

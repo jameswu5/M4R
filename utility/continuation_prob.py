@@ -6,12 +6,12 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
-def p_cont(x, tau1, tau2):
-    tau = np.where(x < 0, tau1, tau2)
-    return sigmoid(x / tau)
+def p_cont(d, tau1, tau2):
+    tau = np.where(d < 0, tau1, tau2)
+    return sigmoid(d / tau)
 
 
-def compute_continuation_probs(prices, intrinsics, eps1, eps2, one=0.99):
+def compute_continuation_probs(prices, intrinsics, eps1, eps2, one=0.99, shift=0):
     """
     Compute continuation probabilities for a set of prices and intrinsic values.
 
@@ -19,6 +19,9 @@ def compute_continuation_probs(prices, intrinsics, eps1, eps2, one=0.99):
 
     We have eps1 and eps2 as parameters that control the shape of the continuation probability function, such that
     sigmoid(-eps1 / tau1) = 1 - one and sigmoid(eps2 / tau2) = one
+
+    `shift` is added to prices to adjust the probabilities, defaulted to 0. This is useful for tree / closed form
+    prices where we necessarily have price >= intrinsic, for neural networks this may not be the case
     """
 
     assert prices.shape == intrinsics.shape, "Prices and intrinsics must have the same shape."
@@ -27,7 +30,7 @@ def compute_continuation_probs(prices, intrinsics, eps1, eps2, one=0.99):
     tau1 = eps1 / np.log(one / (1 - one))
     tau2 = eps2 / np.log(one / (1 - one))
 
-    d = prices - intrinsics
+    d = prices - intrinsics + shift
 
     cont_probs = p_cont(d, tau1, tau2)
     cont_probs = np.where(intrinsics <= 0, 1.0, cont_probs)  # If the option is out of the money, we always continue
