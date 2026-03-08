@@ -225,3 +225,5 @@ resources/
 *.snm
 *.vrb
 %OUTDIR%/
+
+*.pkl
