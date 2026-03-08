@@ -396,7 +396,7 @@ This is close to the Heston model, with the diffusion $\tilde V = VB$ which give
     &= \kappa(B\theta - \tilde V)\,\dd t + \bar\sigma \sqrt B \sqrt{\tilde V} \,\dd W_2
 \end{align*}
 
-which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, $\tilde \theta = B\theta$ and $\tilde \sigma = \bar \sigma \sqrt B$. The product of assets nearly gives a direct reduction to a one-dimensional Heston process, but the drift of $X$ contains $V$ which is a stochastic process itself. For our implementations, we will model this to be the constant $V_0$ for simplicity.
+which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, $\tilde \theta = B\theta$ and $\tilde \sigma = \bar \sigma \sqrt B$. The product of assets nearly gives a direct reduction to a one-dimensional Heston process, but the drift of $X$ contains $V$ which is a stochastic process itself. Thus for simplicity and for our benchmark, we will set $\rho = 0$ which means $B = A$ and the drift term becomes deterministic. As such, we are able to recover a one-dimensional Heston model for the product of assets $X$ with variance $\tilde V$ and drift $nr$.
 
 \subsection{Variational Equation}
 Recall for a process $X_t \in \mathbb R^d$ solving $\mathrm dX_t = b(X_t)\mathrm dt + \sigma(X_t)\mathrm dW_t$, the infinitesimal generator $\mathcal L$ can be derived with Itô's formula \cite{pham2009continuous} on $f(x)$ to be
