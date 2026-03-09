@@ -13,7 +13,8 @@ def p_cont(d, tau1, tau2):
 
 def compute_continuation_probs(prices, intrinsics, eps1, eps2, one=0.99, shift=0):
     """
-    Compute continuation probabilities for a set of prices and intrinsic values.
+    Compute continuation probabilities for a set of prices and intrinsic values. These are performed on the
+    relative difference between them.
 
     Prices and intrinsics must be numpy arrays of the same shape.
 
@@ -30,7 +31,7 @@ def compute_continuation_probs(prices, intrinsics, eps1, eps2, one=0.99, shift=0
     tau1 = eps1 / np.log(one / (1 - one))
     tau2 = eps2 / np.log(one / (1 - one))
 
-    d = prices - intrinsics + shift
+    d = (prices - intrinsics + shift) / intrinsics
 
     cont_probs = p_cont(d, tau1, tau2)
     cont_probs = np.where(intrinsics <= 0, 1.0, cont_probs)  # If the option is out of the money, we always continue
