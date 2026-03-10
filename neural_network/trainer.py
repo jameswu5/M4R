@@ -303,36 +303,13 @@ class GeneralTrainer(NeuralNetworkTrainer):
         return loss.item()
 
     def sample_interior_points(self, num_samples):
-        # For American options, use adaptive sampling near free boundary
-        if self.exercise_type == 'american' and self.dimension == 1:
-            # 60% regular samples (concentrated around strike)
-            n_regular = int(0.6 * num_samples)
-            t_regular = self.sampler.uniform(0, self.market_params.T, (n_regular, 1))
-            S_regular = self.sampler.segmented_uniform_1d(
-                self.market_params.S_min, self.market_params.S_max,
-                centre=self.market_params.S0, radius=0.1 * self.market_params.S0,
-                weight=0.8, shape=(n_regular, self.dimension),
-            )
-
-            # 40% samples near estimated free boundary
-            n_boundary = num_samples - n_regular
-            t_boundary = self.sampler.uniform(0, self.market_params.T, (n_boundary, 1))
-            S_boundary = self.sampler.sample_near_free_boundary_put(
-                K=self.market_params.K,
-                r=self.market_params.r,
-                T=self.market_params.T,
-                t_samples=t_boundary,
-                width_fraction=0.2
-            )
-
-            # Combine samples
-            t_interior = torch.cat([t_regular, t_boundary], dim=0)
-            S_interior = torch.cat([S_regular, S_boundary], dim=0)
-
-            return t_interior, S_interior
-
-        # Original sampling for European or multi-dimensional
         t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
+
+        # Sample closer to expiry
+        t_interior = self.sampler.segmented_uniform_1d(
+            0, self.market_params.T, centre=self.market_params.T, radius=0.1 * self.market_params.T,
+            weight=0.3, shape=(num_samples, 1)
+        )
 
         if self.dimension == 1:
             S_interior = self.sampler.segmented_uniform_1d(
@@ -369,6 +346,10 @@ class GeneralTrainer(NeuralNetworkTrainer):
         r = self.market_params.r
         Sigma = self.market_params.sigma
         residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
+
+        # Clamp the residual to prevent extreme values from destabilizing training, especially in early stages
+        # residual = torch.clamp(residual, -0.1, 0.1)
+
         if self.exercise_type == 'american':
             # Correct American option formulation:
             # Complementarity: min(residual, v - payoff) ≤ 0

@@ -97,32 +97,33 @@ class Put(Payoff):
     def smoothed(self, S, K, beta=50):
         return nn.functional.softplus(K - S, beta=beta)
 
-    def boundary_loss(self, model, t_boundary, S_boundary, **kwargs):
+    def boundary_loss(self, model, t, S, **kwargs):
         K = kwargs.get('K', None)
         S_max = kwargs.get('S_max', None)[0]
         S_min = kwargs.get('S_min', None)[0]
 
-        S_inf = S_max * 20
+        S_inf = S_max * 10
 
         if K is None or S_max is None or S_min is None:
             raise ValueError("K, S_max, and S_min must be provided for boundary loss calculation.")
 
-        length = t_boundary.shape[0]
+        length = t.shape[0]
         ones = torch.ones((length, 1))
+        zeros = torch.zeros((length, 1))
 
         # exercise loss: f(T, S) = payoff(S)
-        v_1 = model(ones, S_boundary)
-        payoff = self(S_boundary, K)
+        v_1 = model(ones, S)
+        payoff = self(S, K)
         # payoff = self.smoothed(S_boundary, K)
         exercise_loss = nn.MSELoss()(v_1, payoff)
 
         # S_inf loss: f(t, S_inf) = 0
-        v_Smax = model(t_boundary, ones * S_inf)
-        boundary_Smax_loss = nn.MSELoss()(v_Smax, torch.zeros((length, 1)))
+        v_Smax = model(t, ones * S_inf)
+        boundary_Smax_loss = nn.MSELoss()(v_Smax, zeros)
 
-        # S_min loss: f(t, S_min) = K - S_min
-        v_Smin = model(t_boundary, ones * S_min)
-        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * (K - S_min))
+        # S_min loss: f(t, 0) = K
+        v_Smin = model(t, zeros)
+        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * K)
 
         return exercise_loss, boundary_Smax_loss, boundary_Smin_loss
 
