@@ -180,3 +180,31 @@ Again, our total loss for the epoch is the weighted sum of these four components
 
 \section{Numerical Results}
 
+\section{Free Boundary}
+
+We are now interested in finding the free boundary of the American put option, which is the boundary separating the exercise region and the continuation region. Due to the irregularity of our neural network solution, we will perform a soft classification instead of the classic hard classification for more intuitive visualisation. For hard classification, we would define the continuation region $A$ to be such that
+
+\[A = \{(t, S) : u(t, S) > g(S)\} \cup \{(t, S) : g(S) = 0\}\]
+
+where the first term indicates that we still have time value, and the second term immediately assigns at-the-money and out-of-the-money options in the continuation region as they are worthless under immediate exercise.
+
+As there is a level of error in the neural network solution, we will extend the definition of the continuation region to a soft classification by considering the sigmoid function
+
+\[ s(x) = \frac{1}{1 + e^{-x}}\]
+
+and introducing two softness parameters $\tau_1, \tau_2 > 0$ to yield our continuation probability function on the relative difference from the payoff $d := \frac{u(t, S) - g(S)}{g(S)}$ as
+
+\[ P_\text{cont}(d) = \begin{cases}
+    s \left(\frac{d}{\tau_1}\right) & d \le 0 \\
+    s \left(\frac{d}{\tau_2}\right) & d > 0
+\end{cases}\]
+
+We introduce different softness paramaters depending on the sign of $d$ because we would like different leniencies for when the value function is above or below the payoff. Value functions below the payoff arise under errors in the neural network solution and thus our continuation probability should be steeper.
+
+These softness parameters can be determined by defining thresholds $\epsilon_1, \epsilon_2 > 0$ such that for $I \in (0.5, 1)$ we have
+
+\[P_\text{cont}(-\epsilon_1) = 1-I, \qquad P_\text{cont}(\epsilon_2) = I\]
+
+which we could solve with some simple algebraic manipulation to get
+
+\[ \tau_1 = \frac{\epsilon_1}{\ln\left(\frac{I}{1 - I}\right)}, \qquad \tau_2 = \frac{\epsilon_2}{\ln\left(\frac{I}{1 - I}\right)}\]
