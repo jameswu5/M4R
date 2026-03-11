@@ -5,6 +5,34 @@ import matplotlib.pyplot as plt
 from scipy.stats import ks_2samp
 
 
+def simulate_gbm(S0, r, sigma, T, N, n_paths=1, seed=None):
+    """
+    Simulate a single asset price path using Geometric Brownian Motion (GBM).
+
+    Parameters:
+    - S0: Initial asset price (scalar).
+    - r: Risk-free interest rate (scalar).
+    - sigma: Volatility of the asset (scalar).
+    - T: Time horizon (scalar).
+    - N: Number of time steps (scalar).
+    - n_paths: Number of paths to simulate (scalar).
+    - seed: Random seed for reproducibility (scalar or None).
+    """
+    rng = np.random.default_rng(seed)
+
+    dt = T / N
+    Z = rng.standard_normal(size=(n_paths, N))
+    dW = np.sqrt(dt) * Z
+    S = np.zeros((n_paths, N + 1))
+    S[:, 0] = S0
+    drift = (r - 0.5 * sigma**2) * dt
+
+    for t in range(N):
+        S[:, t+1] = S[:, t] * np.exp(drift + sigma * dW[:, t])
+
+    return S
+
+
 def correlated_brownian_increments(T, N, corr, n_paths, seed=None):
     rng = np.random.default_rng(seed)
 
