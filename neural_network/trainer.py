@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 from .model import BaseNetwork
 from .sampler import Sampler
-from .losses import compute_derivatives_nd, pde_residual_nd, heston_residual, heston_residual_nd
+from .losses import bs_residual, compute_derivatives_nd, pde_residual_nd, heston_residual, heston_residual_nd
 
 import optuna
 from optuna.samplers import TPESampler
@@ -341,32 +341,27 @@ class GeneralTrainer(NeuralNetworkTrainer):
         S_boundary = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
         return t_boundary, S_boundary
 
-    def get_pde_loss(self, t_interior, S_interior):
-        v, v_t, v_S, H = compute_derivatives_nd(self.model, t_interior, S_interior)
-        r = self.market_params.r
-        Sigma = self.market_params.sigma
-        residual = pde_residual_nd(v, v_t, v_S, H, S_interior, r, Sigma)
+    def get_pde_loss(self, t, S):
+        f = self.model(t, S)
 
-        # Clamp the residual to prevent extreme values from destabilizing training, especially in early stages
-        # residual = torch.clamp(residual, -0.1, 0.1)
-
-        if self.exercise_type == 'american':
-            # Correct American option formulation:
-            # Complementarity: min(residual, v - payoff) ≤ 0
-            # We penalize when this minimum is positive
-            payoff = self.payoff(S_interior, self.market_params.K)
-            complementarity = torch.min(residual, v - payoff)
-            pde_loss = torch.mean(torch.relu(complementarity)**2)
-            # Also enforce v ≥ payoff everywhere (inequality constraint)
-            constraint_loss = torch.mean(torch.relu(payoff - v)**2)
-            return pde_loss + 10.0 * constraint_loss  # Higher weight on constraint
+        if self.market_params.n_assets == 1:
+            residual = bs_residual(self.model, t, S, r=self.market_params.r, sigma=self.market_params.sigma[0, 0])
         else:
-            pde_loss = torch.mean(residual**2)
-            return pde_loss
+            v, v_t, v_S, H = compute_derivatives_nd(self.model, t, S)
+            r = self.market_params.r
+            Sigma = self.market_params.sigma
+            residual = pde_residual_nd(v, v_t, v_S, H, S, r, Sigma)
+
+        g = self.payoff(S, self.market_params.K)
+
+        res = torch.minimum(residual, f - g)
+        pde_loss = torch.mean(res**2)
+        return pde_loss
 
     def get_boundary_loss(self, t_boundary, S_boundary):
         return self.payoff.boundary_loss(self.model, t_boundary, S_boundary,
                                          K=self.market_params.K,
+                                         T=self.market_params.T,
                                          S_max=self.market_params.S_max,
                                          S_min=self.market_params.S_min)
 

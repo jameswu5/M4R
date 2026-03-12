@@ -227,3 +227,4 @@ resources/
 %OUTDIR%/
 
 *.pkl
+fresh/

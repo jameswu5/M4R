@@ -1,6 +1,21 @@
 import torch
 
 
+def bs_residual(model, t, S, r, sigma):
+    t = t.requires_grad_(True)
+    S = S.requires_grad_(True)
+
+    f = model(t, S)
+    f_t, f_S = torch.autograd.grad(
+        f, (t, S), grad_outputs=torch.ones_like(f), create_graph=True
+    )
+    f_SS = torch.autograd.grad(
+        f_S, S, grad_outputs=torch.ones_like(f_S), create_graph=True
+    )[0]
+
+    return -f_t - r * S * f_S - 0.5 * sigma**2 * S**2 * f_SS + r * f
+
+
 def compute_derivatives_nd(model, t, S):
     t = t.requires_grad_(True)
     S = S.requires_grad_(True)
