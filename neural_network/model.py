@@ -2,6 +2,18 @@ import torch
 import torch.nn as nn
 
 
+class ModelConfig:
+    def __init__(self, input_size, hidden_sizes, output_size, activation, learning_rate, dropout=0, step_size=500, gamma=0.5):
+        self.input_size = input_size
+        self.hidden_sizes = hidden_sizes
+        self.output_size = output_size
+        self.activation = activation  # needs to be a torch.nn activation function
+        self.learning_rate = learning_rate
+        self.dropout = dropout
+        self.step_size = step_size
+        self.gamma = gamma
+
+
 class BaseNetwork(nn.Module):
     def __init__(self, act_fn, input_size, output_size, hidden_sizes, dropout):
         super().__init__()
@@ -12,7 +24,7 @@ class BaseNetwork(nn.Module):
             layers += [nn.Linear(hidden_sizes[layer_index - 1], hidden_sizes[layer_index]), act_fn]
             if dropout > 0:
                 layers += [nn.Dropout(p=dropout)]
-        layers += [nn.Linear(hidden_sizes[-1], output_size), act_fn]
+        layers += [nn.Linear(hidden_sizes[-1], output_size)]
         self.layers = nn.Sequential(*layers)
 
     def forward(self, t, *S_args):

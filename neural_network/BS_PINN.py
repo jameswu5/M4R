@@ -24,12 +24,12 @@ class BlackScholesPINN:
 
         self.optimizer = torch.optim.Adam(
             self.model.parameters(),
-            lr=self.model_config.learning_rate
+            lr=model_config.learning_rate
         )
         self.scheduler = torch.optim.lr_scheduler.StepLR(
             self.optimizer,
-            step_size=500,
-            gamma=0.5
+            step_size=model_config.step_size,
+            gamma=model_config.gamma
         )
 
         self.sampler = Sampler(seed=seed)
@@ -64,7 +64,13 @@ class BlackScholesPINN:
             epochs (int): Maximum number of training epochs.
             min_delta (float): Minimum change in loss to qualify as an improvement for early stopping.
         """
+        # Create held-out validation set for early stopping
+        val_t_interior, val_S_interior = self.__sample_interior(batch_size)
+        val_t_boundary, val_S_boundary = self.__sample_boundary(batch_size)
+
         for i in range(epochs):
+            self.optimizer.zero_grad()
+
             variational_loss = self.__interior_loss(batch_size)
             terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size)
 
@@ -75,11 +81,11 @@ class BlackScholesPINN:
             self.scheduler.step()
 
             # Compute validation loss for early stopping
-            variational_loss_val = self.__interior_loss(batch_size)
-            terminal_loss_val, Smin_loss_val, Smax_loss_val = self.__boundary_loss(batch_size)
+            variational_loss_val = self.__interior_loss(batch_size, t=val_t_interior, S=val_S_interior)
+            terminal_loss_val, Smin_loss_val, Smax_loss_val = self.__boundary_loss(batch_size, t=val_t_boundary, S=val_S_boundary)
             val_loss = self.__process_loss(variational_loss_val, terminal_loss_val, Smin_loss_val, Smax_loss_val, update_dict=False)
 
-            if i % 100 == 0:
+            if i % 500 == 0:
                 print(f"Iteration {i} | Training Loss: {loss.item()} | Validation Loss: {val_loss.item()}")
 
             if early_stopping.step(val_loss.item()):
@@ -103,6 +109,16 @@ class BlackScholesPINN:
 
         return loss
 
+    def __sample_interior(self, batch_size):
+        t = self.sampler.uniform(0, self.T, (batch_size, 1))
+        S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
+        return t, S
+
+    def __sample_boundary(self, batch_size):
+        t = self.sampler.uniform(0, self.T, (batch_size, 1))
+        S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
+        return t, S
+
     def __bs_residual(self, t, S):
         t = t.requires_grad_(True)
         S = S.requires_grad_(True)
@@ -117,26 +133,33 @@ class BlackScholesPINN:
 
         return -f_t - self.r * S * f_S - 0.5 * self.sigma**2 * S**2 * f_SS + self.r * f
 
-    def __interior_loss(self, batch_size):
-        t, S = self.__sample_interior(batch_size)
+    def __interior_loss(self, batch_size, t=None, S=None):
+        # If t and S are provided, use them instead of sampling new points
+        if t is None or S is None:
+            t, S = self.__sample_interior(batch_size)
+
+        zeros = torch.zeros((batch_size, 1))
 
         pde_residual = self.__bs_residual(t, S)
         f = self.model(t, S)
-        g = self.payoff(S, self.K)
+        g = torch.maximum(self.K - S, zeros)
 
-        if self.exercise_type == 'american':
-            variational_loss = torch.mean(
-                torch.minimum(pde_residual, f - g) ** 2
-            )
-        else:
-            variational_loss = torch.mean(pde_residual ** 2)
+        # variational_loss = torch.mean(torch.relu(-pde_residual)**2) \
+        #     + torch.mean(torch.relu(-(f - g))**2) \
+        #     + torch.mean((pde_residual * (f - g))**2)
+
+        variational_loss = torch.mean(
+            torch.minimum(pde_residual, f - g) ** 2
+        )
 
         return variational_loss
 
-    def __boundary_loss(self, batch_size):
-        t, S = self.__sample_boundary(batch_size)
+    def __boundary_loss(self, batch_size, t=None, S=None):
+        # If t and S are provided, use them instead of sampling new points
+        if t is None or S is None:
+            t, S = self.__sample_boundary(batch_size)
 
-        S_inf = self.S_max * 10
+        S_inf = self.K * 20
 
         zeros = torch.zeros((batch_size, 1))
         ones = torch.ones((batch_size, 1))
@@ -156,16 +179,6 @@ class BlackScholesPINN:
 
         return terminal_loss, Smin_loss, Smax_loss
 
-    def __sample_interior(self, batch_size):
-        t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
-        return t, S
-
-    def __sample_boundary(self, batch_size):
-        t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
-        return t, S
-
     def plot_losses(self, start_epoch=0, detailed=False):
         x = range(start_epoch, len(self.history['loss']))
         for key in self.history:
@@ -178,3 +191,8 @@ class BlackScholesPINN:
         plt.title(title)
         plt.legend()
         plt.show()
+
+    def predict(self, t, *S):
+        self.model.eval()
+        with torch.no_grad():
+            return self.model(t, *S)
