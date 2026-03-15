@@ -12,7 +12,7 @@ class BaseNetwork(nn.Module):
             layers += [nn.Linear(hidden_sizes[layer_index - 1], hidden_sizes[layer_index]), act_fn]
             if dropout > 0:
                 layers += [nn.Dropout(p=dropout)]
-        layers += [nn.Linear(hidden_sizes[-1], output_size)]
+        layers += [nn.Linear(hidden_sizes[-1], output_size), act_fn]
         self.layers = nn.Sequential(*layers)
 
     def forward(self, t, *S_args):

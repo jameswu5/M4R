@@ -9,9 +9,6 @@ from .model import BaseNetwork
 from .sampler import Sampler
 from .losses import bs_residual, compute_derivatives_nd, pde_residual_nd, heston_residual, heston_residual_nd
 
-import optuna
-from optuna.samplers import TPESampler
-
 
 class EarlyStopping:
     def __init__(self, patience, min_delta):
@@ -84,56 +81,6 @@ class NeuralNetworkTrainer(ABC):
         total_weight = sum(loss_weights.values())
         self.loss_weights = {key: weight / total_weight for key, weight in loss_weights.items()}
 
-    def optimise_loss_weights(self, batch_size, n_trials=50, epochs_per_trial=500):
-        """
-        Generic Optuna loss weight optimiser. Trainers must implement:
-        - suggest_loss_weights(trial)
-        - trial_train_step(batch_size, weights)
-        """
-
-        def objective(trial):
-            weights = self.suggest_loss_weights(trial)
-            self.reset()
-
-            losses = []
-
-            for i in range(epochs_per_trial):
-                loss = self.trial_train_step(batch_size, weights)
-                losses.append(loss)
-
-                if i % 50 == 0:
-                    trial.report(
-                        np.mean(losses[-50:]) if len(losses) >= 50 else np.mean(losses),
-                        i
-                    )
-
-                    if trial.should_prune():
-                        raise optuna.TrialPruned()
-
-            return np.mean(losses[-100:]) if len(losses) >= 100 else np.mean(losses)
-
-        sampler = TPESampler(seed=self.sampler.rng.integers(0, 10000))
-        study = optuna.create_study(
-            direction='minimize',
-            sampler=sampler,
-            pruner=optuna.pruners.MedianPruner(
-                n_startup_trials=5,
-                n_warmup_steps=100
-            )
-        )
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
-
-        self.reset()
-        return study.best_params
-
-    @abstractmethod
-    def suggest_loss_weights(self, trial):
-        pass
-
-    @abstractmethod
-    def trial_train_step(self, batch_size, weights):
-        pass
-
     @abstractmethod
     def train(self, batch_size, epochs, tol=1e-3):
         pass
@@ -157,7 +104,9 @@ class NeuralNetworkTrainer(ABC):
         plt.show()
 
     def predict(self, t, *S):
-        return self.model(t, *S)
+        self.model.eval()
+        with torch.no_grad():
+            return self.model(t, *S)
 
     def save(self, path):
         with open(path, "wb") as f:
@@ -177,6 +126,8 @@ class GeneralTrainer(NeuralNetworkTrainer):
         }
 
     def train(self, batch_size, epochs, tol=1e-3):
+        self.model.train()
+
         early_stopping = EarlyStopping(patience=200, min_delta=tol)
 
         for i in range(epochs):
@@ -222,117 +173,21 @@ class GeneralTrainer(NeuralNetworkTrainer):
                 print(f"Early stopping at epoch {i}")
                 break
 
-    def fine_tune(self, batch_size, epochs, tol=1e-6):
-        """
-        Fine tune near the free boundary after training on the whole sample space.
-        For American options, focuses on the free boundary region.
-        Only supports 1D at the moment.
-        """
-        early_stopping = EarlyStopping(patience=200, min_delta=tol)
-
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.model_config.learning_rate)
-        scheduler = torch.optim.lr_scheduler.StepLR(
-            optimizer,
-            step_size=500,
-            gamma=0.5
-        )
-
-        for i in range(epochs):
-            optimizer.zero_grad()
-
-            if self.exercise_type == 'american':
-                # Sample near the free boundary for American options
-                t = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
-                S = self.sampler.sample_near_free_boundary_put(
-                    K=self.market_params.K,
-                    r=self.market_params.r,
-                    T=self.market_params.T,
-                    t_samples=t,
-                    width_fraction=0.1  # Narrower band for fine-tuning
-                )
-            else:
-                # Original: sample near the money for European options
-                S0 = self.market_params.S0
-                width = 0.1
-                t = self.sampler.uniform(0, self.market_params.T, (batch_size, 1))
-                S = self.sampler.uniform(S0 * (1 - width), S0 * (1 + width), (batch_size, 1))
-
-            loss = self.get_pde_loss(t, S)
-
-            loss.backward()
-            optimizer.step()
-            scheduler.step()
-
-            if i % 100 == 0:
-                print(f"Fine-tuning iteration {i}, Loss: {loss.item()}")
-
-            if early_stopping.step(loss.item()):
-                print(f"Early stopping at epoch {i}")
-                break
-
-    def suggest_loss_weights(self, trial):
-        return {
-            "pde": trial.suggest_float("pde", 0.01, 100.0, log=True),
-            "exercise": trial.suggest_float("exercise", 0.01, 100.0, log=True),
-            "boundary_Smax": trial.suggest_float("boundary_Smax", 0.001, 10.0, log=True),
-            "boundary_Smin": trial.suggest_float("boundary_Smin", 0.001, 10.0, log=True),
-        }
-
-    def trial_train_step(self, batch_size, weights):
-        self.optimizer.zero_grad()
-
-        t_interior, S_interior = self.sample_interior_points(batch_size)
-        pde_loss = self.get_pde_loss(t_interior, S_interior)
-
-        t_boundary, S_boundary = self.sample_boundary_points(batch_size)
-        boundary_loss, Smax_loss, Smin_loss = self.get_boundary_loss(
-            t_boundary, S_boundary
-        )
-
-        loss = (
-            pde_loss * weights["pde"]
-            + boundary_loss * weights["exercise"]
-            + Smax_loss * weights["boundary_Smax"]
-            + Smin_loss * weights["boundary_Smin"]
-        )
-
-        loss.backward()
-        self.optimizer.step()
-        self.scheduler.step()
-
-        return loss.item()
-
     def sample_interior_points(self, num_samples):
         t_interior = self.sampler.uniform(0, self.market_params.T, (num_samples, 1))
-
-        # Sample closer to expiry
-        t_interior = self.sampler.segmented_uniform_1d(
-            0, self.market_params.T, centre=self.market_params.T, radius=0.1 * self.market_params.T,
-            weight=0.3, shape=(num_samples, 1)
-        )
 
         if self.dimension == 1:
             S_interior = self.sampler.segmented_uniform_1d(
                 self.market_params.S_min, self.market_params.S_max,
                 centre=self.market_params.S0, radius=0.1 * self.market_params.S0,
-                weight=0.8, shape=(num_samples, self.dimension),
+                weight=0.5, shape=(num_samples, self.dimension),
             )
 
-            # std = (self.market_params.S_max - self.market_params.S_min) / 3
-
-            # S_interior = self.sampler.truncated_normal_1d(
-            #     mean=self.market_params.S0, std=std,
-            #     left=self.market_params.S_min,
-            #     right=self.market_params.S_max,
-            #     batch_size=num_samples
-            # )
-
         else:
-            # S_interior = self.sampler.uniform(self.market_params.S_min, self.market_params.S_max, (num_samples, self.dimension))
             S_interior = self.sampler.segmented_uniform(
                 left=self.market_params.S_min, right=self.market_params.S_max,
                 centres=self.market_params.S0, radii=0.1 * self.market_params.S0,
-                weights=0.8, batch_size=num_samples
+                weights=0.5, batch_size=num_samples
             )
         return t_interior, S_interior
 
@@ -354,8 +209,9 @@ class GeneralTrainer(NeuralNetworkTrainer):
 
         g = self.payoff(S, self.market_params.K)
 
-        res = torch.minimum(residual, f - g)
-        pde_loss = torch.mean(res**2)
+        if self.exercise_type == 'american':
+            residual = torch.minimum(residual, f - g)
+        pde_loss = torch.mean(residual**2)
         return pde_loss
 
     def get_boundary_loss(self, t_boundary, S_boundary):
@@ -377,52 +233,6 @@ class SobolevTrainer(NeuralNetworkTrainer):
             'J3_loss': [],
             'J4_loss': []
         }
-
-    def suggest_loss_weights(self, trial):
-        return {
-            "pde": trial.suggest_float("pde", 0.01, 100.0, log=True),
-            "J2": trial.suggest_float("J2", 0.01, 100.0, log=True),
-            "J3": trial.suggest_float("J3", 0.01, 100.0, log=True),
-            "J4": trial.suggest_float("J4", 0.01, 100.0, log=True),
-        }
-
-    def trial_train_step(self, batch_size, weights):
-        self.optimizer.zero_grad()
-
-        t1, t2, _, _ = self.sampler.uniform_pair(
-            0, self.market_params.T, batch_size, 1,
-            epsilon=0.01, boundary=False
-        )
-
-        S = self.sampler.uniform(
-            self.market_params.S_min,
-            self.market_params.S_max,
-            (batch_size, self.market_params.n_assets)
-        )
-
-        J2, J3, J4 = self.payoff.sobolev_loss(
-            self.model,
-            t1_interior=t1,
-            t2_interior=t2,
-            S_interior=S,
-            S_min=self.market_params.S_min,
-            S_max=self.market_params.S_max,
-            K=self.market_params.K
-        )
-
-        pde_loss = self.get_pde_loss(t1, S)
-
-        loss = (
-            pde_loss * weights["pde"]
-            + J2 * weights["J2"]
-            + J3 * weights["J3"]
-            + J4 * weights["J4"]
-        )
-
-        loss.backward()
-        self.optimizer.step()
-
-        return loss.item()
 
     def train(self, batch_size, epochs, tol=1e-3):
         early_stopping = EarlyStopping(patience=200, min_delta=tol)
@@ -513,39 +323,6 @@ class HestonTrainer(NeuralNetworkTrainer):
             'V_min_loss': [],
             'V_max_loss': []
         }
-
-    def suggest_loss_weights(self, trial):
-        return {
-            "pde": trial.suggest_float("pde", 0.01, 100.0, log=True),
-            "payoff": trial.suggest_float("payoff", 0.01, 100.0, log=True),
-            "S_min": trial.suggest_float("S_min", 0.001, 10.0, log=True),
-            "S_max": trial.suggest_float("S_max", 0.001, 10.0, log=True),
-            "V_min": trial.suggest_float("V_min", 0.001, 10.0, log=True),
-            "V_max": trial.suggest_float("V_max", 0.001, 10.0, log=True),
-        }
-
-    def trial_train_step(self, batch_size, weights):
-        self.optimizer.zero_grad()
-
-        t, S, V = self.sample_points(batch_size)
-
-        pde_loss = self.get_pde_loss(t, S, V)
-        payoff_loss, Smin, Smax, Vmin, Vmax = self.get_boundary_loss(t, S, V)
-
-        loss = (
-            pde_loss * weights["pde"]
-            + payoff_loss * weights["payoff"]
-            + Smin * weights["S_min"]
-            + Smax * weights["S_max"]
-            + Vmin * weights["V_min"]
-            + Vmax * weights["V_max"]
-        )
-
-        loss.backward()
-        self.optimizer.step()
-        self.scheduler.step()
-
-        return loss.item()
 
     def train(self, batch_size, epochs, tol):
         early_stopping = EarlyStopping(patience=200, min_delta=tol)
