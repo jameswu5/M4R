@@ -111,7 +111,7 @@ class BlackScholesPINN:
 
     def __sample_interior(self, batch_size):
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
+        S = self.sampler.truncated_normal_1d(mean=self.K, std=self.K/4, left=self.S_min, right=self.S_max, batch_size=batch_size)
         return t, S
 
     def __sample_boundary(self, batch_size):
@@ -144,10 +144,6 @@ class BlackScholesPINN:
         f = self.model(t, S)
         g = torch.maximum(self.K - S, zeros)
 
-        # variational_loss = torch.mean(torch.relu(-pde_residual)**2) \
-        #     + torch.mean(torch.relu(-(f - g))**2) \
-        #     + torch.mean((pde_residual * (f - g))**2)
-
         variational_loss = torch.mean(
             torch.minimum(pde_residual, f - g) ** 2
         )
@@ -159,8 +155,6 @@ class BlackScholesPINN:
         if t is None or S is None:
             t, S = self.__sample_boundary(batch_size)
 
-        S_inf = self.K * 20
-
         zeros = torch.zeros((batch_size, 1))
         ones = torch.ones((batch_size, 1))
 
@@ -169,8 +163,8 @@ class BlackScholesPINN:
         g_T = torch.maximum(self.K - S, zeros)
         terminal_loss = torch.mean((f_T - g_T) ** 2)
 
-        # S_inf loss: f(t, S_inf) = 0
-        f_inf = self.model(t, ones * S_inf)
+        # S_max loss: f(t, S_max) = 0
+        f_inf = self.model(t, ones * self.S_max)
         Smax_loss = torch.mean(f_inf ** 2)
 
         # S_min loss: f(t, 0) = K
