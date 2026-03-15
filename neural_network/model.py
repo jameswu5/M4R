@@ -60,3 +60,24 @@ class BaseNetwork(nn.Module):
 
         x = torch.cat([t] + assets, dim=-1)
         return self.layers(x)
+
+
+class EarlyStopping:
+    def __init__(self, patience, min_delta):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = float('inf')
+
+    def reset(self):
+        self.counter = 0
+        self.best_loss = float('inf')
+
+    def step(self, loss):
+        if loss < self.best_loss - self.min_delta:
+            self.best_loss = loss
+            self.counter = 0
+        else:
+            self.counter += 1
+
+        return self.counter >= self.patience

@@ -6,28 +6,6 @@ import torch
 
 from .model import BaseNetwork
 from .sampler import Sampler
-from .losses import bs_residual
-
-
-class EarlyStopping:
-    def __init__(self, patience, min_delta):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.best_loss = float('inf')
-
-    def reset(self):
-        self.counter = 0
-        self.best_loss = float('inf')
-
-    def step(self, loss):
-        if loss < self.best_loss - self.min_delta:
-            self.best_loss = loss
-            self.counter = 0
-        else:
-            self.counter += 1
-
-        return self.counter >= self.patience
 
 
 class BlackScholesPINN:
@@ -125,10 +103,24 @@ class BlackScholesPINN:
 
         return loss
 
+    def __bs_residual(self, t, S):
+        t = t.requires_grad_(True)
+        S = S.requires_grad_(True)
+
+        f = self.model(t, S)
+        f_t, f_S = torch.autograd.grad(
+            f, (t, S), grad_outputs=torch.ones_like(f), create_graph=True
+        )
+        f_SS = torch.autograd.grad(
+            f_S, S, grad_outputs=torch.ones_like(f_S), create_graph=True
+        )[0]
+
+        return -f_t - self.r * S * f_S - 0.5 * self.sigma**2 * S**2 * f_SS + self.r * f
+
     def __interior_loss(self, batch_size):
         t, S = self.__sample_interior(batch_size)
 
-        pde_residual = bs_residual(self.model, t, S, self.K, self.r, self.sigma)
+        pde_residual = self.__bs_residual(t, S)
         f = self.model(t, S)
         g = self.payoff(S, self.K)
 
