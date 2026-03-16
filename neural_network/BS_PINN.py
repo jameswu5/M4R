@@ -69,13 +69,12 @@ class BlackScholesPINN:
         val_t_boundary, val_S_boundary = self.__sample_boundary(batch_size)
 
         for i in range(epochs):
-            self.optimizer.zero_grad()
-
             variational_loss = self.__interior_loss(batch_size)
             terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size)
 
             loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss)
 
+            self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             self.scheduler.step()
@@ -88,7 +87,7 @@ class BlackScholesPINN:
             if i % 500 == 0:
                 print(f"Iteration {i} | Training Loss: {loss.item()} | Validation Loss: {val_loss.item()}")
 
-            if early_stopping.step(val_loss.item()):
+            if early_stopping and early_stopping.step(val_loss.item()):
                 print(f"Early stopping at epoch {i}")
                 break
 
@@ -110,8 +109,12 @@ class BlackScholesPINN:
         return loss
 
     def __sample_interior(self, batch_size):
-        t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        S = self.sampler.truncated_normal_1d(mean=self.K, std=self.K/4, left=self.S_min, right=self.S_max, batch_size=batch_size)
+        # t = self.sampler.uniform(0, self.T, (batch_size, 1))
+        # S = self.sampler.truncated_normal_1d(mean=self.K, std=self.K, left=self.S_min, right=self.S_max, batch_size=batch_size)
+        t = self.sampler.segmented_uniform_1d(left=0, right=self.T, centre=self.T, radius=self.T / 4, weight=0.5, shape=(batch_size, 1)).requires_grad_(True)
+        S = self.sampler.segmented_uniform_1d(left=self.S_min, right=self.S_max,
+                                              centre=self.K, radius=self.K / 4, weight=0.5,
+                                              shape=(batch_size, 1)).requires_grad_(True)
         return t, S
 
     def __sample_boundary(self, batch_size):
@@ -120,9 +123,6 @@ class BlackScholesPINN:
         return t, S
 
     def __bs_residual(self, t, S):
-        t = t.requires_grad_(True)
-        S = S.requires_grad_(True)
-
         f = self.model(t, S)
         f_t, f_S = torch.autograd.grad(
             f, (t, S), grad_outputs=torch.ones_like(f), create_graph=True
@@ -131,7 +131,9 @@ class BlackScholesPINN:
             f_S, S, grad_outputs=torch.ones_like(f_S), create_graph=True
         )[0]
 
-        return -f_t - self.r * S * f_S - 0.5 * self.sigma**2 * S**2 * f_SS + self.r * f
+        residual = -f_t - self.r * S * f_S - 0.5 * self.sigma**2 * S**2 * f_SS + self.r * f
+
+        return residual, f
 
     def __interior_loss(self, batch_size, t=None, S=None):
         # If t and S are provided, use them instead of sampling new points
@@ -140,8 +142,7 @@ class BlackScholesPINN:
 
         zeros = torch.zeros((batch_size, 1))
 
-        pde_residual = self.__bs_residual(t, S)
-        f = self.model(t, S)
+        pde_residual, f = self.__bs_residual(t, S)
         g = torch.maximum(self.K - S, zeros)
 
         variational_loss = torch.mean(
@@ -167,7 +168,7 @@ class BlackScholesPINN:
         f_inf = self.model(t, ones * self.S_max)
         Smax_loss = torch.mean(f_inf ** 2)
 
-        # S_min loss: f(t, 0) = K
+        # S_min loss: f(t, 0) = K * exp(-r * (T - t))
         f_min = self.model(t, zeros)
         Smin_loss = torch.mean((f_min - self.K) ** 2)
 
