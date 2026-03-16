@@ -69,8 +69,11 @@ class BlackScholesPINN:
         val_t_boundary, val_S_boundary = self.__sample_boundary(batch_size)
 
         for i in range(epochs):
-            variational_loss = self.__interior_loss(batch_size)
-            terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size)
+
+            t_batch, S_batch = self.__sample_interior(batch_size)
+
+            variational_loss = self.__interior_loss(batch_size, t_batch, S_batch)
+            terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size, t_batch, S_batch)
 
             loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss)
 
@@ -109,12 +112,8 @@ class BlackScholesPINN:
         return loss
 
     def __sample_interior(self, batch_size):
-        # t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        # S = self.sampler.truncated_normal_1d(mean=self.K, std=self.K, left=self.S_min, right=self.S_max, batch_size=batch_size)
-        t = self.sampler.segmented_uniform_1d(left=0, right=self.T, centre=self.T, radius=self.T / 4, weight=0.5, shape=(batch_size, 1)).requires_grad_(True)
-        S = self.sampler.segmented_uniform_1d(left=self.S_min, right=self.S_max,
-                                              centre=self.K, radius=self.K / 4, weight=0.5,
-                                              shape=(batch_size, 1)).requires_grad_(True)
+        t = self.sampler.uniform(0, self.T, (batch_size, 1))
+        S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
         return t, S
 
     def __sample_boundary(self, batch_size):
@@ -139,6 +138,9 @@ class BlackScholesPINN:
         # If t and S are provided, use them instead of sampling new points
         if t is None or S is None:
             t, S = self.__sample_interior(batch_size)
+
+        t.requires_grad_(True)
+        S.requires_grad_(True)
 
         zeros = torch.zeros((batch_size, 1))
 
@@ -168,7 +170,7 @@ class BlackScholesPINN:
         f_inf = self.model(t, ones * self.S_max)
         Smax_loss = torch.mean(f_inf ** 2)
 
-        # S_min loss: f(t, 0) = K * exp(-r * (T - t))
+        # S_min loss: f(t, 0) = K
         f_min = self.model(t, zeros)
         Smin_loss = torch.mean((f_min - self.K) ** 2)
 
