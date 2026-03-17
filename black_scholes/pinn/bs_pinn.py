@@ -3,8 +3,8 @@
 import matplotlib.pyplot as plt
 import torch
 
-from ...utility.model import BaseNetwork
-from ...utility.sampler import Sampler
+from utility.model import BaseNetwork
+from utility.sampler import Sampler
 
 
 class BlackScholesPINN:
@@ -195,4 +195,3 @@ class BlackScholesPINN:
 
     def load(self, path):
         self.model.load_state_dict(torch.load(path))
- 
