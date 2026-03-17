@@ -1,6 +1,5 @@
-"""New training script, old one was too complicated"""
+"""PINN for solving the 1D Black-Scholes PDE for American put options."""
 
-import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
@@ -10,9 +9,7 @@ from .sampler import Sampler
 
 class BlackScholesPINN:
     def __init__(self, model_config, seed):
-        """
-        PINN for solving the 1D Black-Scholes PDE for American put options.
-        """
+        torch.manual_seed(seed)
 
         self.model = BaseNetwork(
             act_fn=model_config.activation,
@@ -33,7 +30,6 @@ class BlackScholesPINN:
         )
 
         self.sampler = Sampler(seed=seed)
-
         self.history = {
             'loss': [],
             'variational_loss': [],
@@ -62,7 +58,7 @@ class BlackScholesPINN:
         Args:
             batch_size (int): Number of samples per training batch.
             epochs (int): Maximum number of training epochs.
-            min_delta (float): Minimum change in loss to qualify as an improvement for early stopping.
+            early_stopping (EarlyStopping): Early stopping mechanism to prevent overfitting
         """
         # Create held-out validation set for early stopping
         val_t_interior, val_S_interior = self.__sample_interior(batch_size)
@@ -193,3 +189,9 @@ class BlackScholesPINN:
         self.model.eval()
         with torch.no_grad():
             return self.model(t, *S)
+
+    def save(self, path):
+        torch.save(self.model.state_dict(), path)
+
+    def load(self, path):
+        self.model.load_state_dict(torch.load(path))
