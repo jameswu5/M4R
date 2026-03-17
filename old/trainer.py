@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pickle
 from abc import ABC, abstractmethod
 
-from .model import BaseNetwork
+from ..utility.model import BaseNetwork
 from .sampler import Sampler
 from .losses import bs_residual, compute_derivatives_nd, pde_residual_nd, heston_residual, heston_residual_nd
 
