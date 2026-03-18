@@ -1,35 +1,13 @@
 """PINN for solving the 1D Black-Scholes PDE for American put options."""
 
-import matplotlib.pyplot as plt
 import torch
 
-from utility.model import BaseNetwork
-from utility.sampler import Sampler
+from utility.model import PINN
 
 
-class BlackScholesPINN:
+class BlackScholesPINN(PINN):
     def __init__(self, model_config, seed):
-        torch.manual_seed(seed)
-
-        self.model = BaseNetwork(
-            act_fn=model_config.activation,
-            input_size=model_config.input_size,
-            hidden_sizes=model_config.hidden_sizes,
-            output_size=model_config.output_size,
-            dropout=model_config.dropout
-        )
-
-        self.optimizer = torch.optim.Adam(
-            self.model.parameters(),
-            lr=model_config.learning_rate
-        )
-        self.scheduler = torch.optim.lr_scheduler.StepLR(
-            self.optimizer,
-            step_size=model_config.step_size,
-            gamma=model_config.gamma
-        )
-
-        self.sampler = Sampler(seed=seed)
+        super().__init__(model_config, seed)
         self.history = {
             'loss': [],
             'variational_loss': [],
@@ -45,11 +23,6 @@ class BlackScholesPINN:
         self.T = T
         self.S_min = S_min
         self.S_max = S_max
-
-    def set_loss_weights(self, loss_weights):
-        # Normalise loss weights to sum to 1
-        total_weight = sum(loss_weights.values())
-        self.loss_weights = {key: weight / total_weight for key, weight in loss_weights.items()}
 
     def train(self, batch_size, epochs, early_stopping):
         """
@@ -171,27 +144,3 @@ class BlackScholesPINN:
         Smin_loss = torch.mean((f_min - self.K) ** 2)
 
         return terminal_loss, Smin_loss, Smax_loss
-
-    def plot_losses(self, start_epoch=0, detailed=False):
-        x = range(start_epoch, len(self.history['loss']))
-        for key in self.history:
-            if (key == 'loss') ^ (detailed):  # one or the other but not both = xor
-                plt.plot(x, self.history[key][start_epoch:], label=key)
-
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        title = 'Total Loss' if not detailed else 'Loss Components'
-        plt.title(title)
-        plt.legend()
-        plt.show()
-
-    def predict(self, t, *S):
-        self.model.eval()
-        with torch.no_grad():
-            return self.model(t, *S)
-
-    def save(self, path):
-        torch.save(self.model.state_dict(), path)
-
-    def load(self, path):
-        self.model.load_state_dict(torch.load(path))
