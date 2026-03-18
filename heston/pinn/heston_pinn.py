@@ -59,8 +59,6 @@ class HestonPINN(PINN):
                 print(f"Early stopping at epoch {i}")
                 break
 
-        raise NotImplementedError("Training loop not implemented yet")
-
     def __process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss, update_dict=True):
         variational_loss *= self.loss_weights['variational']
         terminal_loss *= self.loss_weights['terminal']
