@@ -27,20 +27,30 @@ where $\mathcal B$ is a boundary operator. Then the unknown solution $u$ can be 
 
 where the loss components are mathematically defined as
 \begin{align}
-    L_{r}(\theta) &= \frac{1}{N_r}\sum_{i=1}^{N_r} \left| \frac{\partial f_\theta}{\partial t}(t_r^i, x_r^i) + \mathcal L[f_\theta](t_r^i, x_r^i) \right|^2 \\
+    L_{r}(\theta) &= \frac{1}{N_r}\sum_{i=1}^{N_r} \left| \mathcal R_\theta(t_r^i, x_r^i) \right|^2 \\
     L_{bc}(\theta) &= \frac{1}{N_{bc}} \sum_{i=1}^{N_{bc}} \left| \mathcal B[f_\theta](t_{bc}^i, x_{bc}^i) \right|^2 \\
     L_{ic}(\theta) &= \frac{1}{N_{ic}} \sum_{i=1}^{N_{ic}} \left| f_\theta(0, x_{ic}^i) - g(x_{ic}^i) \right|^2
 \end{align}
-with sampled points $\{x_{ic}^i\}_{i=1}^{N_{ic}}$ from the initial condition domain, $\{(t_{bc}^i, x_{bc}^i)\}_{i=1}^{N_{bc}}$ from the boundary condition domain and $\{(t_r^i, x_r^i)\}_{i=1}^{N_r}$ from the PDE domain, sampled at each iteration of the gradient descent algorithm.
+
+where the PDE residual $\mathcal R_\theta$ is defined as
+\begin{equation}
+    \mathcal R_\theta(t, x) = \frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x)
+\label{eq:pde_residual}
+\end{equation}
+
+We additionally use the sampled points $\{x_{ic}^i\}_{i=1}^{N_{ic}}$ from the initial condition domain, $\{(t_{bc}^i, x_{bc}^i)\}_{i=1}^{N_{bc}}$ from the boundary condition domain and $\{(t_r^i, x_r^i)\}_{i=1}^{N_r}$ from the PDE domain, sampled uniformly in their respective domains at each iteration of the gradient descent algorithm.
 
 There are different methods to choose the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$, such as using fixed weights or using adaptive weights that change during training. For simplicity, we will use fixed weights in the project.
 
 For our specific problem of option pricing, we can modify the above setup to fit our variational inequality formulation. The PDE to solve is dependent on the model for the asset dynamics, and the boundary conditions are given by the payoff function of the option. In general, we will have to solve a problem of the form
 \begin{align}
-    \min\left\{ -\frac{\partial u}{\partial t} - \mathcal L[u], u - g \right\} &= 0, \qquad t \in [0, T], x \in \Omega \\
+    \min\left\{ -\frac{\partial u}{\partial t} + \mathcal L[u], u - g \right\} &= 0, \qquad t \in [0, T], x \in \Omega \\
     u(T, x) &= g(x), \qquad x \in \Omega \\
-    \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega
+    \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega, k=1, \dots, K
 \end{align}
-where $k$ indexes the different boundary conditions. [Talk about loss function modification]
+where $k$ indexes the $K$ different boundary conditions. This is very similar to the general setup for PINNs, except that we have a variational inequality instead of a PDE, and we have a terminal condition instead of an initial condition. However, we can still use the framework by noting we can make the substitution $t \mapsto T-t$ to un-negate the negative partial derivative in the PDE term and to convert the terminal condition to an initial condition. The variational inequality can be handled by modifying the PDE residual loss (\ref{eq:pde_residual}) to
+\begin{equation}
+    \mathcal R_\theta(t, x) = \min\left\{ \frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x), f_\theta(t, x) - g(x) \right\}
+\end{equation}
 
 \subsection{Convergence}
