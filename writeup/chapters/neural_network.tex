@@ -180,6 +180,8 @@ Again, our total loss for the epoch is the weighted sum of these four components
 
 \section{Numerical Results}
 
+\clearpage
+
 \section{Free Boundary}
 
 We are now interested in finding the free boundary of the American put option, which is the boundary separating the exercise region and the continuation region. For an initial visualisation, assume the risk-neutral dynamics of our asset $S$ is modelled as a geometric brownian motion with constant risk-free interest rate $r$ and volatility $\sigma$. As before, the value of the American put with strike $K$ and maturity $T$ is given by the optimal stopping problem
@@ -202,7 +204,6 @@ because as soon as the option has no time value, it is optimal to exercise.
     \caption{Exercise boundary for the American put}
     \label{fig:free_boundary}
 \end{figure}
-
 
 This formulation describes a hard classification problem, where we classify points in the time-stock price space binarily to be either in the continuation region or the exercise region. However, our numerical solutions to the pricing problem are not exact and there is some level of error in the solution that comes from the Monte Carlo simulations upon the space, the numerical differentiation used in training and the early stopping in the training process. Therefore, it would be more intuitive to perform a soft classification instead, where we assign probabilities to points in the time-stock price space to be in the continuation region or the exercise region, which would give us a more intuitive visualisation of the free boundary and how it evolves over time. We will do this by extending hard classification: that is to say, the continuation region $A$ is
 
@@ -230,3 +231,12 @@ These softness parameters can be determined by defining thresholds $\epsilon_1, 
 which we could solve with some simple algebraic manipulation to get
 
 \[ \tau_1 = \frac{\epsilon_1}{\ln\left(\frac{I}{1 - I}\right)}, \qquad \tau_2 = \frac{\epsilon_2}{\ln\left(\frac{I}{1 - I}\right)}\]
+
+These classifications are illustrated in Figure \ref{fig:continuation_probabilities}, where we can see that the continuation probabilities are close to $1$ in the continuation region and close to $0$ in the exercise region, with a smooth transition between the two regions. We can see that even though the neural network solution correctly captures the regional behaviour of the value function, it struggles with estimating the time value of the option, which can be observed by the fact that the free boundary curve is concave rather than convex.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/continuation_probabilities.png}
+    \caption{Continuation probabilities for the American put}
+    \label{fig:continuation_probabilities}
+\end{figure}
