@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import norm
 
 
 def sigmoid(x):
@@ -35,6 +36,23 @@ def compute_continuation_probs(prices, intrinsics, eps1, eps2, one=0.99, shift=0
 
     cont_probs = p_cont(d, tau1, tau2)
     cont_probs = np.where(intrinsics <= 0, 1.0, cont_probs)  # If the option is out of the money, we always continue
+
+    return cont_probs
+
+
+def continuation_normal(prices, stds, intrinsics):
+    """
+    Compute the continuation probability with the Gaussian model.
+    All three inputs must be numpy arrays of the same shape.
+    """
+    # If option is not in the money, we always continue
+    cont_probs = np.where(
+        intrinsics <= 0, 1.0,
+        np.where(
+            stds > 0, norm.cdf((prices - intrinsics) / stds),  # std > 0 use CDF
+            (prices > intrinsics).astype(float)  # std = 0 use step function
+        )
+    )
 
     return cont_probs
 

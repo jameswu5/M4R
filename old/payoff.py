@@ -99,36 +99,37 @@ class Put(Payoff):
 
     def boundary_loss(self, model, t, S, **kwargs):
         K = kwargs.get('K', None)
+        T = kwargs.get('T', None)
         S_max = kwargs.get('S_max', None)[0]
         S_min = kwargs.get('S_min', None)[0]
 
         S_inf = S_max * 10
 
-        if K is None or S_max is None or S_min is None:
-            raise ValueError("K, S_max, and S_min must be provided for boundary loss calculation.")
+        if K is None or T is None or S_max is None or S_min is None:
+            raise ValueError("K, T, S_max, and S_min must be provided for boundary loss calculation.")
 
         length = t.shape[0]
         ones = torch.ones((length, 1))
         zeros = torch.zeros((length, 1))
 
-        # exercise loss: f(T, S) = payoff(S)
-        v_1 = model(ones, S)
+        # terminal condition: f(T, S) = payoff(S)
+        f_T = model(ones * T, S)
         payoff = self(S, K)
-        # payoff = self.smoothed(S_boundary, K)
-        exercise_loss = nn.MSELoss()(v_1, payoff)
+        exercise_loss = torch.mean((f_T - payoff) ** 2)
 
         # S_inf loss: f(t, S_inf) = 0
-        v_Smax = model(t, ones * S_inf)
-        boundary_Smax_loss = nn.MSELoss()(v_Smax, zeros)
+        f_max = model(t, ones * S_inf)
+        Smax_loss = torch.mean(f_max ** 2)
 
         # S_min loss: f(t, 0) = K
-        v_Smin = model(t, zeros)
-        boundary_Smin_loss = nn.MSELoss()(v_Smin, ones * K)
+        f_min = model(t, zeros)
+        Smin_loss = torch.mean((f_min - ones * K) ** 2)
 
-        return exercise_loss, boundary_Smax_loss, boundary_Smin_loss
+        return exercise_loss, Smax_loss, Smin_loss
 
     def sobolev_loss(self, model, **kwargs):
         K = kwargs.get('K', None)
+        T = kwargs.get('T', None)
         # a = kwargs.get('a', None)
         S_max = kwargs.get('S_max', None)[0]
         S_min = kwargs.get('S_min', None)[0]
@@ -137,8 +138,8 @@ class Put(Payoff):
         t1_interior = kwargs.get('t1_interior', None)
         t2_interior = kwargs.get('t2_interior', None)
 
-        if K is None or S_max is None or S_min is None or S_interior is None or t1_interior is None or t2_interior is None:
-            raise ValueError("K, S_max, S_min, S_interior, t1_interior, and t2_interior must be provided for Sobolev loss calculation.")
+        if K is None or T is None or S_max is None or S_min is None or S_interior is None or t1_interior is None or t2_interior is None:
+            raise ValueError("K, T, S_max, S_min, S_interior, t1_interior, and t2_interior must be provided for Sobolev loss calculation.")
 
         S_interior.requires_grad_(True)
         length = S_interior.shape[0]

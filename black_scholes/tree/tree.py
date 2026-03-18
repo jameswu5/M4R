@@ -123,8 +123,12 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
 
 
 class BinomialTree:
-    def __init__(self, market_params, n_steps, option_type="put", exercise_type="american"):
-        self.market_params = market_params
+    def __init__(self, K, r, T, sigma, n_steps, option_type="put", exercise_type="american"):
+        self.K = K
+        self.r = r
+        self.T = T
+        self.sigma = sigma
+
         self.n_steps = n_steps
         self.option_type = option_type
         self.exercise_type = exercise_type
@@ -135,11 +139,11 @@ class BinomialTree:
         S : float or array of shape (B,)
         Returns: price or array of prices of shape (B,)
         """
-        tau = self.market_params.T - t
+        tau = self.T - t
         if np.isscalar(S):
             S = np.array([S])
         return binomial_tree_batch(
-            S, self.market_params.K, self.market_params.r, self.market_params.sigma,
+            S, self.K, self.r, self.sigma,
             tau, self.n_steps, self.option_type, self.exercise_type
         )
 

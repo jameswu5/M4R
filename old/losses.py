@@ -2,6 +2,9 @@ import torch
 
 
 def bs_residual(model, t, S, r, sigma):
+    t = t.requires_grad_(True)
+    S = S.requires_grad_(True)
+
     f = model(t, S)
     f_t, f_S = torch.autograd.grad(
         f, (t, S), grad_outputs=torch.ones_like(f), create_graph=True

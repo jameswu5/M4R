@@ -2,6 +2,18 @@ import torch
 import torch.nn as nn
 
 
+class ModelConfig:
+    def __init__(self, input_size, hidden_sizes, output_size, activation, learning_rate, dropout=0, step_size=500, gamma=0.5):
+        self.input_size = input_size
+        self.hidden_sizes = hidden_sizes
+        self.output_size = output_size
+        self.activation = activation  # needs to be a torch.nn activation function
+        self.learning_rate = learning_rate
+        self.dropout = dropout
+        self.step_size = step_size
+        self.gamma = gamma
+
+
 class BaseNetwork(nn.Module):
     def __init__(self, act_fn, input_size, output_size, hidden_sizes, dropout):
         super().__init__()
@@ -60,3 +72,24 @@ class BaseNetwork(nn.Module):
 
         x = torch.cat([t] + assets, dim=-1)
         return self.layers(x)
+
+
+class EarlyStopping:
+    def __init__(self, patience, min_delta):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = float('inf')
+
+    def reset(self):
+        self.counter = 0
+        self.best_loss = float('inf')
+
+    def step(self, loss):
+        if loss < self.best_loss - self.min_delta:
+            self.best_loss = loss
+            self.counter = 0
+        else:
+            self.counter += 1
+
+        return self.counter >= self.patience

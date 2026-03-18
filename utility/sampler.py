@@ -125,50 +125,6 @@ class Sampler:
         plt.ylabel('Density')
         plt.show()
 
-    def sample_near_free_boundary_put(self, K, r, T, t_samples, width_fraction=0.15):
-        """
-        Sample points near the estimated free boundary for American put options.
-
-        Parameters:
-        -----------
-        K : float
-            Strike price
-        r : float
-            Risk-free rate
-        T : float
-            Time to maturity
-        t_samples : torch.Tensor
-            Time points at which to sample, shape (batch_size, 1)
-        width_fraction : float
-            Width of the sampling band as fraction of K (default 0.15 = 15%)
-
-        Returns:
-        --------
-        S_samples : torch.Tensor
-            Stock prices sampled near the free boundary, shape (batch_size, 1)
-        """
-        # Rough estimate of free boundary for American put
-        # More accurate: S_f(t) ≈ K * min(1, r/(r + lambda)) where lambda depends on parameters
-        # Simpler approximation: S_f(t) ≈ K * (1 - exp(-r*(T-t))) for small r*(T-t)
-        # Better approximation: S_f(t) is between K*r/(r+0.5*sigma^2) and K
-
-        # Use conservative estimate that works well in practice
-        tau = T - t_samples  # Time to maturity
-
-        # Free boundary is typically below K and increases with time
-        # Rough approximation for put: S_f ≈ K * (0.7 + 0.3 * (1 - tau/T))
-        S_boundary_estimate = K * (0.7 + 0.3 * (1 - tau / T))
-
-        # Sample in a band around this estimate
-        width = width_fraction * K
-        S_low = torch.maximum(S_boundary_estimate - width, torch.tensor(0.1 * K))
-        S_high = S_boundary_estimate + width
-
-        # Uniform sampling in this band
-        S_samples = S_low + (S_high - S_low) * torch.rand_like(t_samples)
-
-        return S_samples
-
 
 if __name__ == "__main__":
     sampler = Sampler(seed=42)
