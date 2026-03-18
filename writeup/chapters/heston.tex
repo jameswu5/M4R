@@ -120,7 +120,14 @@ We will now define the discretised process $(\tilde V, \tilde Z)$ on the grid sp
 
 Then using these functions, we can retrieve the next step. We can evolve our process to the next step with
 \[(\tilde V_{k+1}, \tilde Z_{k+1}) = \text{snap}_{Y^3_{k+1}, Y^4_{k+1}}^{\hat {\mathcal S}_{k+1}}\big(\nu (Y_{k+1}^1, \tilde V_k, \tilde Z_k), \zeta (Y_{k+1}^1, \tilde V_k, \tilde Z_k)\big)\]
-Where $\text{snap}_{i_3, i_4}^{\mathcal S} : \mathbb R^2 \to \mathcal S \subset \mathbb R^2$ is a function mapping $(v, z) \in \mathbb R^2$ to one of the grid points in $\mathcal S := \mathcal S_v \times \mathcal S_z$. $i_3, i_4 \in \{0, 1\}$ are additional parameters that determine the corner in which $(v, z)$ is mapped.
+Where $\text{snap}_{i_3, i_4}^{\mathcal S} : \mathbb R^2 \to \mathcal S \subset \mathbb R^2$ is a function mapping $(v, z) \in \mathbb R^2$ to one of the grid points in $\mathcal S := \mathcal S_v \times \mathcal S_z$. $i_3, i_4 \in \{0, 1\}$ are additional parameters that determine the corner in which $(v, z)$ is mapped. Visually, this is illustrated in Figure \ref{fig:tree_illustration}, where each point in the price-variance space can evolve to four different points in the next time step, each of which we take the interpolation of the four nearest grid points.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.55\textwidth]{../plots/heston/tree_illustration.png}
+    \caption{Interpolation illustration (inspired by \cite{vellekoop2009tree})}
+    \label{fig:tree_illustration}
+\end{figure}
 
 To do this, we define the 1D snapping functions $\phi^{\mathcal T}_i: \mathbb R \to \mathcal T$ where we have the one-dimensional grid points $\mathcal T \subset \mathbb R$ and the snap-right indicator $i \in \{0, 1\}$. The function is defined mathematically as
 \begin{align*}
