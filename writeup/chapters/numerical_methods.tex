@@ -1,6 +1,40 @@
 \chapter{Numerical Methods}
 
-\section{Tree Methods}
+\section{State Space Discretisation}
+
+\subsection{Background}
+
+Recall that the option value function $v(t, x)$ is the solution to the optimal stopping problem
+\begin{equation}
+    v(t, S) = \sup_{\tau \in [t, T]} \mathbb E\left[ e^{-r(\tau - t)} g(S_\tau) \mid S_t = S \right]
+\end{equation}
+
+There does not exist a closed-form solution for this problem in general, and thus we have to resort to numerical methods. We first consider methods that discretise the continuous time into a finite grid $\{t_i\}_{i=1}^N$ where we have
+\begin{equation}
+    0 = t_0 < t_1 < \dots < t_N = T
+\end{equation}
+which we can use to index the underlying state variable $S_{t_i}$ at time $t_i$. Note that the state variable $S_{t_i}$ could depend on multiple variables, such as in the Heston model, where we have a stochastic variance term encoded in the asset price. The goal is to compute the arbitrage-free price $v(0, S_0)$ at time $t=0$ given the initial state $S_0$. As we know the solution must satisfy the terminal condition $v(T, S) = g(S)$ for all $S$, we can use backward induction to compute the option value at each time step. This gives rise to the class of numerical methods known as tree methods.
+
+\subsection{Tree Methods}
+
+In a tree model, we discretise the time-state space into a finite grid, where the state variable $S_{t_i}$ can take a finite number of values at each time step given the previous one. We will particularly explore binomial trees in this project, where each state can evolve to one of two possible states at the next time step. Formally, suppose at time $t_n$ we have the state $S_{t_n} \in \{S_n^1, \dots, S_n^{M_n}\}$ where $M_n$ is the number of possible states at time $t_n$. Then at time $t_{n+1}$, each state $S_n^i$ can evolve to the state $S_{n+1}^j$ with transition probability
+\begin{equation}
+    p_{ij}^{(n)} = \mathbb P(S_{n+1} = S_{n+1}^j \mid S_n = S_n^i)
+\end{equation}
+This is a discrete-time Markov chain, and to identify the transition probabilities, we can use the risk-neutral condition which states that the discounted price process must be a martingale under the risk-neutral measure. This gives us the condition
+\begin{equation}
+    \sum_{j=1}^{M_{n+1}} p_{ij}^{(n)} S_{n+1}^j = e^{r\Delta t} S_n^i
+\end{equation}
+where $\Delta t = t_{n+1} - t_n$ and $r$ is the risk-free rate.
+
+With these transition probabilities, we can compute the option value at time $t_n$ given the option value at time $t_{n+1}$ by using backwards induction, which gives us the recursive relation
+\begin{equation}
+    v(t_n, S_n^i) = \max\left( g(S_n^i), e^{-r\Delta t} \sum_{j=1}^{M_{n+1}} p_{ij}^{(n)} v(t_{n+1}, S_{n+1}^j) \right)
+\end{equation}
+
+where we take the maximum of the payoff and the discounted expected future price to account for early exercise for the American option. This maximum operator can easily be lifted for all time steps for European options, or only imposed on certain time steps for Bermudan options, leaving the tree method a very flexible method. This backwards induction is applied iteratively starting from the terminal condition at time $t_N = T$ to compute the option value at time $t_0 = 0$.
+
+An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps $N$, leading to a very computationally expensive algorithm. To mitigate this, we can use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables or if we wish to extend it to options operating on multiple assets, but its reliability and interpretability make it a good benchmark for simpler models.
 
 \section{Physics-Informed Neural Networks}
 
