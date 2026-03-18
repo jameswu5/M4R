@@ -6,11 +6,11 @@ from utility.sampler import Sampler
 
 
 class ModelConfig:
-    def __init__(self, input_size, hidden_sizes, output_size, activation, learning_rate, dropout=0, step_size=500, gamma=0.5):
+    def __init__(self, input_size: int, hidden_sizes: list, output_size: int, activation: nn.Module, learning_rate: float, dropout=0.0, step_size=500, gamma=0.5):
         self.input_size = input_size
         self.hidden_sizes = hidden_sizes
         self.output_size = output_size
-        self.activation = activation  # needs to be a torch.nn activation function
+        self.activation = activation
         self.learning_rate = learning_rate
         self.dropout = dropout
         self.step_size = step_size
@@ -18,7 +18,7 @@ class ModelConfig:
 
 
 class BaseNetwork(nn.Module):
-    def __init__(self, act_fn, input_size, output_size, hidden_sizes, dropout):
+    def __init__(self, act_fn: nn.Module, input_size: int, output_size: int, hidden_sizes: list, dropout: float):
         super().__init__()
 
         layers = []
