@@ -38,11 +38,8 @@ class BlackScholesPINN(PINN):
         val_t_boundary, val_S_boundary = self.__sample_boundary(batch_size)
 
         for i in range(epochs):
-
-            t_batch, S_batch = self.__sample_interior(batch_size)
-
-            variational_loss = self.__interior_loss(batch_size, t_batch, S_batch)
-            terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size, t_batch, S_batch)
+            variational_loss = self.__interior_loss(batch_size)
+            terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size)
 
             loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss)
 
@@ -135,12 +132,12 @@ class BlackScholesPINN(PINN):
         g_T = torch.maximum(self.K - S, zeros)
         terminal_loss = torch.mean((f_T - g_T) ** 2)
 
-        # S_max loss: f(t, S_max) = 0
-        f_inf = self.model(t, ones * self.S_max)
-        Smax_loss = torch.mean(f_inf ** 2)
-
         # S_min loss: f(t, 0) = K
         f_min = self.model(t, zeros)
         Smin_loss = torch.mean((f_min - self.K) ** 2)
+
+        # S_max loss: f(t, S_max) = 0
+        f_inf = self.model(t, ones * self.S_max)
+        Smax_loss = torch.mean(f_inf ** 2)
 
         return terminal_loss, Smin_loss, Smax_loss
