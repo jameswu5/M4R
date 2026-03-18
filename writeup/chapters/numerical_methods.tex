@@ -1,0 +1,46 @@
+\chapter{Numerical Methods}
+
+\section{Tree Methods}
+
+\section{Physics-Informed Neural Networks}
+
+% Motivation
+Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent from the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality [cite?].
+
+We can instead use physics-informed neural networks (PINNs) to solve the PDEs, where we approximate the solution to the PDE using a deep neural network. The loss function of the neural network is designed to penalise deviations from the PDE as well as deviations from the boundary conditions. By training the neural network to minimise this loss function, we can obtain an approximation to the solution of the PDE.
+
+\subsection{Methodology}
+We first provide a general setup for PINNs, before modifying it to tailor our specific problem of option pricing. Formally, suppose we have an unknown latent solution $u(t, x)$ which is governed by a PDE of the form
+\begin{equation}
+    \frac{\partial u}{\partial t} + \mathcal L[u] = 0, \qquad t \in [0, T], x \in \Omega
+\end{equation}
+where $\mathcal L$ is a (not necessarily linear) differential operator. Suppose additionally that this PDE is subject to the boundary conditions
+\begin{align}
+    u(0, x) &= g(x), \qquad x \in \Omega \\
+    \mathcal B[u] &= 0, \qquad t \in [0, T], x \in \partial \Omega
+\end{align}
+where $\mathcal B$ is a boundary operator. Then the unknown solution $u$ can be approximated by a deep neural network $f_\theta(t, x)$ where $\theta$ are the parameters of the neural network, trained by minimising a loss function composed of deviations from the PDE residual, boundary conditions and initial conditions \cite{wang2023expert}:
+
+\begin{equation}
+    L(\theta) = \lambda_{r}L_{r}(\theta) + \lambda_{bc}L_{bc}(\theta) + \lambda_{ic}L_{ic}(\theta)
+\end{equation}
+
+where the loss components are mathematically defined as
+\begin{align}
+    L_{r}(\theta) &= \frac{1}{N_r}\sum_{i=1}^{N_r} \left| \frac{\partial f_\theta}{\partial t}(t_r^i, x_r^i) + \mathcal L[f_\theta](t_r^i, x_r^i) \right|^2 \\
+    L_{bc}(\theta) &= \frac{1}{N_{bc}} \sum_{i=1}^{N_{bc}} \left| \mathcal B[f_\theta](t_{bc}^i, x_{bc}^i) \right|^2 \\
+    L_{ic}(\theta) &= \frac{1}{N_{ic}} \sum_{i=1}^{N_{ic}} \left| f_\theta(0, x_{ic}^i) - g(x_{ic}^i) \right|^2
+\end{align}
+with sampled points $\{x_{ic}^i\}_{i=1}^{N_{ic}}$ from the initial condition domain, $\{(t_{bc}^i, x_{bc}^i)\}_{i=1}^{N_{bc}}$ from the boundary condition domain and $\{(t_r^i, x_r^i)\}_{i=1}^{N_r}$ from the PDE domain, sampled at each iteration of the gradient descent algorithm.
+
+There are different methods to choose the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$, such as using fixed weights or using adaptive weights that change during training. For simplicity, we will use fixed weights in the project.
+
+For our specific problem of option pricing, we can modify the above setup to fit our variational inequality formulation. The PDE to solve is dependent on the model for the asset dynamics, and the boundary conditions are given by the payoff function of the option. In general, we will have to solve a problem of the form
+\begin{align}
+    \min\left\{ -\frac{\partial u}{\partial t} - \mathcal L[u], u - g \right\} &= 0, \qquad t \in [0, T], x \in \Omega \\
+    u(T, x) &= g(x), \qquad x \in \Omega \\
+    \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega
+\end{align}
+where $k$ indexes the different boundary conditions. [Talk about loss function modification]
+
+\subsection{Convergence}
