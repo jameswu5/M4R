@@ -4,10 +4,20 @@
 
 \section{Physics-Informed Neural Networks}
 
-% Motivation
-Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent from the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality [cite?].
+\subsection{Motivation}
+Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent from the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality. Traditional methods such as finite difference methods require discretisation of the domain and the number of grid points (and hence algorithm complexity) scales exponentially $\mathcal O(N^d)$ with the dimension $d$ of the problem.
 
-We can instead use physics-informed neural networks (PINNs) to solve the PDEs, where we approximate the solution to the PDE using a deep neural network. The loss function of the neural network is designed to penalise deviations from the PDE as well as deviations from the boundary conditions. By training the neural network to minimise this loss function, we can obtain an approximation to the solution of the PDE.
+We can attempt a neural network solution to the PDEs, as neural networks are known to be universal approximators. That is, suppose we have the class of functions $\mathcal F$ over a compact set $S$ that can be represented by a neural network with a given architecture, with a continuous target function $f^\star$ that we would like to approximate. Then for any target accuracy $\epsilon > 0$, there exists a function $f \in \mathcal F$ such that
+\begin{equation}
+    \sup_{x \in S} |f(x) - f^\star(x)| \le \epsilon
+\end{equation}
+If we have a squashing activation function $\Psi(\cdot)$ that is non-decreasing and satisfies the limits
+\begin{equation}
+    \Psi(-\infty) = 0, \quad \Psi(\infty) = 1
+\end{equation}
+then the class of functions $\mathcal F$ that can be represented by a neural network with one hidden layer and activation function $\Psi$ is dense in the space of continuous functions on $S$ and thus is a universal approximator \cite{hornik1989multilayer}.
+
+Since the option price function is continuous in the time-asset price domain, we can use a neural network to find an approximation. This is favourable because the time complexity scales with the number of parameters, which is not exponential. To do this, we will use the framework of physics-informed neural networks (PINNs) to solve the PDEs, which have been shown to be effective for solving high-dimensional PDEs \cite{raissi2019physics}, by avoiding mesh construction and leveraging the interpolation capability of neural networks \cite{hu2024tackling}. The loss function of the neural network is designed to penalise deviations from the PDE as well as deviations from the boundary conditions. By training the neural network to minimise this loss function, we can obtain an approximation to the solution of the PDE. This method has been applied to option pricing problems in the literature, such as in \cite{dhiman2023physics} for the Black-Scholes model, but we will look to apply it to more complex models such as the Heston model as well as to options on multiple assets. 
 
 \subsection{Methodology}
 We first provide a general setup for PINNs, before modifying it to tailor our specific problem of option pricing. Formally, suppose we have an unknown latent solution $u(t, x)$ which is governed by a PDE of the form
@@ -20,11 +30,9 @@ where $\mathcal L$ is a (not necessarily linear) differential operator. Suppose 
     \mathcal B[u] &= 0, \qquad t \in [0, T], x \in \partial \Omega
 \end{align}
 where $\mathcal B$ is a boundary operator. Then the unknown solution $u$ can be approximated by a deep neural network $f_\theta(t, x)$ where $\theta$ are the parameters of the neural network, trained by minimising a loss function composed of deviations from the PDE residual, boundary conditions and initial conditions \cite{wang2023expert}:
-
 \begin{equation}
     L(\theta) = \lambda_{r}L_{r}(\theta) + \lambda_{bc}L_{bc}(\theta) + \lambda_{ic}L_{ic}(\theta)
 \end{equation}
-
 where the loss components are mathematically defined as
 \begin{align}
     L_{r}(\theta) &= \frac{1}{N_r}\sum_{i=1}^{N_r} \left| \mathcal R_\theta(t_r^i, x_r^i) \right|^2 \\
@@ -37,7 +45,6 @@ where the PDE residual $\mathcal R_\theta$ is defined as
     \mathcal R_\theta(t, x) = \frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x)
 \label{eq:pde_residual}
 \end{equation}
-
 We additionally use the sampled points $\{x_{ic}^i\}_{i=1}^{N_{ic}}$ from the initial condition domain, $\{(t_{bc}^i, x_{bc}^i)\}_{i=1}^{N_{bc}}$ from the boundary condition domain and $\{(t_r^i, x_r^i)\}_{i=1}^{N_r}$ from the PDE domain, sampled uniformly in their respective domains at each iteration of the gradient descent algorithm.
 
 There are different methods to choose the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$, such as using fixed weights or using adaptive weights that change during training. For simplicity, we will use fixed weights in the project.
@@ -53,4 +60,4 @@ where $k$ indexes the $K$ different boundary conditions. This is very similar to
     \mathcal R_\theta(t, x) = \min\left\{ \frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x), f_\theta(t, x) - g(x) \right\}
 \end{equation}
 
-\subsection{Convergence}
+\section{Sobolev Deep Neural Networks}
