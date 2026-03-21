@@ -86,7 +86,7 @@ class HestonMultiAssetPINN(PINN):
     def __sample_interior(self, batch_size):
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
         S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, self.n_assets))
-        V = self.sampler.uniform(self.V_min, self.V_max, (batch_size, self.n_assets))
+        V = self.sampler.uniform(self.V_min, self.V_max, (batch_size, 1))
         return t, S, V
 
     def __sample_boundary(self, batch_size):
@@ -170,6 +170,8 @@ class HestonMultiAssetPINN(PINN):
         return variational_loss
 
     def __boundary_loss(self, batch_size, t=None, S=None, V=None):
+        if t is None or S is None or V is None:
+            t, S, V = self.__sample_boundary(batch_size)
 
         S_list = [S[:, i].unsqueeze(1) for i in range(self.n_assets)]
 
