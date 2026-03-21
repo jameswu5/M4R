@@ -2,68 +2,9 @@
 
 We will now explore how to use deep neural networks to price our American put options. Using the Black-Scholes dynamics we can derive the variational equation, a partial differential equation that our solution must satisfy. As the solution of this PDE does not have a closed form in general, we aim to find an approximation to the solution by using a neural network. This can be done by customising a loss function as the variational equation, along with some boundary conditions that we know our value function must satisfy, with the hope that using optimisation techniques such as gradient descent, we can approach the solution numerically by descending the loss landscape.
 
-\section{Variational Equation} \label{nn_variational}
+\section{Variational Equation}
 
-We will derive the variational equation in one dimension for simplicity, but the same steps can be followed for a multi-dimensional derivation, which would be covered when we determine the Black-Scholes operator.
-
-Recall the value function of an American put with payoff $g$ at time $t$ with asset price $S_t = S$ is given by
-
-\[v(t, S) = \sup_{\tau \in [t, T]} \mathbb E_t\big[e^{-r(\tau - t)}g(S_\tau)\big]\]
-
-where $\tau$ is any stopping time in $[t, T]$ and $\mathbb E_t$ is conditional expectation at time $t$, given $S_t = S$. For an American option, we always have two options:
-
-\begin{itemize}
-    \item Immediately exercise the option and get payoff $g(S)$. Since this is not necessarily optimal, the payoff must bound the value option from below:
-    \[v(t, S) \ge g(S)\]
-    \item Do nothing and let the option continue to time $t + h$ with $h>0$ a very small number. With some derivation \cite{zheng2025fundamentals} we arrive at
-    \[e^{rh}v(t, S) \ge \mathbb E_t \big[v(t+h, S_{t + h})\big]\]
-    and the inequality turns into an equality at the limit $\delta \to 0$.
-    
-\end{itemize}
-
-We will additionally assume that the value function $v \in C^{1,2}$ (continuously differentiable with respect to $t$ and twice continuously differentiable with respect to $S$) so that we can apply Itô's formula. Let's model the asset price $S$ as a geometric Brownian motion satisfying
-
-\[\mathrm dS_t = rS_t \mathrm dt + \sigma S_t \mathrm dW_t\]
-
-Then by Ito’s lemma and taking expectations of both sides we have
-
-\[
-\mathbb E\big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
-\]
-
-Now let’s substitute into the LHS. By using a Taylor approximation $e^{rh} = 1 + rh + o(h)$, cancelling $v(t, S)$ on both sides and dividing both sides by $h$ we get
-
-\[
-rv(t, S) + \frac{o(h)}{h} \ge \mathbb E_t\bigg[\frac 1h\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
-\]
-
-Sending $h \to 0$ makes the higher order term $o(h)/h$ vanish, and the expectation of the integral to collapse to the integrand. Thus we obtain
-
-\[
-rv(t, S) \ge \frac{\partial v}{\partial t}(t, S) + \frac{\partial v}{\partial S}(t, S) r S + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(t, S) \sigma^2 S^2
-\]
-
-or by defining the linear parabolic operator $\mathcal G$ \cite{zhao2025fractional}:
-
-\[\mathcal G[v] = rv(t, S) - \frac{\partial v}{\partial t}(t, S) - \frac{\partial v}{\partial S}(t, S) r S - \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(t, S) \sigma^2 S^2 \ge 0\]
-
-which we could also write in terms of the Greeks:
-
-\[\mathcal G[v] = rv(t, S) - \Theta - rS\Delta - \frac 12 \sigma^2 S^2\Gamma \ge 0\]
-
-We can concisely express this inequality together with $(\dag)$:
-
-\[
-\min\left(\mathcal G[v], v(t, S) - g(S)\right) \ge 0
-\]
-
-However, note that at time $t$, we must either exercise the option or do nothing and continue. One of these two options must be optimal, implying that one of the arguments must be $0$. Thus we actually have an equality:
-
-\[
-\min\left(\mathcal G[v], v(t, S) - g(S)\right) = 0
-\]
-
-which is the \textit{variational equation} \cite{jo2019variational} for the American option. Clearly, we have the terminal condition $v(T, S) = g(S)$.
+copied over already
 
 \section{Black-Scholes Operator}
 

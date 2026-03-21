@@ -203,7 +203,8 @@ To compute the American option price with the tree model, all we need to do is t
 
 In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option price indeed bounds the American prices from below, as we would expect. We have confidence that our American prices are accurate since our binomial tree faithfully approximates the closed-form solution for European options. We will now use this as a benchmark for neural network approximations.
 
-\section{Neural Network Solution}
+\section{PINN Solution}
+
 \subsection{Variational Equation}
 
 We would now like to derive the variational equation for options on assets under the Heston model. Note that for a general process $X_t \in \mathbb R^d$ solving the Itô SDE
@@ -344,7 +345,7 @@ We can see that the tree prices are indeed well approximated by the Neural netwo
     \label{fig:heston_american_put_vary_vol}
 \end{figure}
 
-\section{Multiple assets}
+\section{Multi-asset PINN}
 
 With the neural network established, we are now ready to move on to pricing options on multiple assets. As with the Black-Scholes case, we will price the put on the product of multiple assets because we can find a one-dimensional reduction. Here, we will consider a simplified model. Suppose we have $n$ assets and our assets $S = (S_1, \dots, S_n)^\top$ are governed by the stochastic differential equations:
 \begin{align*}
