@@ -199,5 +199,86 @@ because it is always optimal to exercise the option when the asset is at its low
 \end{equation}
 These three conditions together would form the boundary setup (\ref{eq:pinn_boundary}) for our PINN.
 
+\subsection{Reduction of multi-asset to one-asset case}
+
+Before we apply the PINN framework to the multi-dimensional case, we will first introduce a benchmark for the multi-dimensional case, from which we will build the boundary conditions for the PINN, as they change depending on the payoff function. The benchmark will need to be able to be reduced to a one-dimensional problem, so that we can solve it using the binomial tree method as a reference for our PINN results. This will, in turn, give us confidence that our PINN implementation is correct, and that the results we get for more complex payoffs are reasonable.
+
+In the multi-dimensional case, we have $k$ underlying assets with price processes following a correlated geometric Brownian motion. Mathematically, let each asset $S^i$ satisfy under the risk-free measure $\mathbb Q$, for $i = 1, \dots, k$,
+\begin{equation}
+\mathrm dS_t^i = rS_t^i\mathrm dt + \sigma_i S^i_t \mathrm dW_t^i
+\end{equation}
+with $\langle W^i, W^j\rangle_t := \mathbb E\big[\mathrm dW_t^i \mathrm dW_t^j\big] = \rho_{ij}\mathrm dt$ for all $i, j$ pairs. As the geometric Brownian motion is multiplicative, for our benchmark, we will consider the put on the product of the assets. More precisely, we consider the put option with payoff
+\begin{equation}
+    g(S^1, \dots, S^k) = \left(K - \prod_{i=1}^k S^i\right)^+
+\end{equation}
+
+To represent the dynamics of the product of the assets, we can apply Ito’s formula to the log of the price process. The log representation is
+\begin{equation}
+\ln S_t^i = \ln S_0^t + \int_0^t \left (r - \frac 12 \sigma^2_i\right) \,\mathrm ds + \int_0^t \sigma _i \,\mathrm dW_s^i
+\end{equation}
+
+Define our new asset $X$ to be
+\begin{equation}X_t := \prod_{i=1}^k S^i_t\end{equation}
+and hence we have
+\begin{equation}
+\ln X_t = \sum_{i=1}^k \ln S_t^i = \ln X_0 + \int_0^t \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 \right)\,\mathrm ds + \sum_{i=1}^k \int_0^t \sigma_i \,\mathrm dW_s^i
+\end{equation}
+
+By taking the differential we have
+\begin{equation}
+\mathrm d\ln X_t = \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 \right)\,\mathrm dt + \sum_{i=1}^k \sigma_i \,\mathrm dW_s^i
+\end{equation}
+
+The quadratic variation of the martingale term is
+\begin{equation}
+\left\langle\sum_{i=1}^k \sigma_i W^i, \sum_{j=1}^k \sigma_j W^j\right\rangle_t = \sum_{i=1}^k\sum_{j=1}^k \sigma_i\sigma_j \rho_{ij} t =: \sigma^2_X t
+\end{equation}
+i.e. $\sigma_X^2 = \sum_{i=1}^k\sum_{j=1}^k \sigma_i\sigma_j\rho_{ij}$. So we can express the second term in terms of a new Brownian motion $\widetilde W$:
+
+\begin{equation}
+\sum_{i=1}^k \sigma_i \,\mathrm dW_s^i =  \mathrm d\widetilde W_t
+\end{equation}
+
+Going back, we have
+\begin{equation}
+\mathrm d \ln X_t = \left( kr - \frac 12 \sum_{i=1}^k \sigma_i^2\right)\,\mathrm dt + \sigma_X \mathrm d \widetilde W_t
+\end{equation}
+
+Exponentiating using Ito’s formula gets us
+\begin{equation}
+\mathrm dX_t = X_t\left[\left(kr -\frac12\sum_{i=1}^k\sigma_i^2\right)\mathrm dt + \sigma_X\mathrm d\widetilde W_t\right]
++ \frac12 X_t\sigma_X^2 \mathrm dt
+\end{equation}
+which we can rearrange to get
+\begin{equation}
+\mathrm d X_t = \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 + \frac 12 \sigma_X^2\right) X_t \mathrm dt + \sigma _X X_t \,\mathrm d\widetilde W_t
+\end{equation}
+which is a geometric Brownian motion with volatility $\sigma_X$ and drift $r_X$ where
+\begin{align*}
+    r_X &= kr - \frac 12 \sum_{i=1}^k \sigma_i^2 + \frac 12 \sigma_X^2 \\
+    &= kr + \sum_{i < j} \sigma_i\sigma_j\rho_{ij}
+\end{align*}
+by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values
+\begin{equation}
+r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qquad \mathrm R = \begin{pmatrix}
+    1 & 0.6 & -0.2 \\ 0.6 & 1 & 0.4 \\-0.2 & 0.4 & 1
+\end{pmatrix}
+\end{equation}
+where $\mathrm R$ is the correlation matrix, we can plot the histogram of final prices in Figure [\ref{fig:gbm_histogram}].
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{../plots/introduction/gbm_histogram.png}
+    \caption{Histogram of final prices for product of assets and equivalent asset}
+    \label{fig:gbm_histogram}
+\end{figure}
+
+They look very similar, and we can further statistically test if they come from the same distribution. Using Kolmogorov-Smirnov's 2-sample test on the null hypothesis that they come from the same distribution, we obtain a p-value of $0.8491$, which does not provide sufficient evidence to reject the null hypothesis, which gives us stronger evidence that our derivation is correct.
+
+Therefore, we will be able to price the put option on the product of multiple assets and compare that to the price of the put option on this single constructed asset as a benchmark.
+
+\subsection{PINN formulation for multi-dimensional case}
+
+
 
 \section{Sobolev Deep Neural Networks}
