@@ -18,9 +18,21 @@ class HestonMultiAssetPINN(PINN):
             'Vmax_loss': []
         }
 
-    def set_params(self):
-        self.n_assets = 0
-        pass
+    def set_params(self, K, r, T, kappa, theta, sigma_bar, sigmas, corr, rho_cross, S_min, S_max, V_min, V_max):
+        self.n_assets = len(sigmas)
+        self.K = K
+        self.r = r
+        self.T = T
+        self.kappa = kappa
+        self.theta = theta
+        self.sigma_bar = sigma_bar
+        self.sigmas = sigmas
+        self.corr = corr
+        self.rho_cross = rho_cross
+        self.S_min = S_min
+        self.S_max = S_max
+        self.V_min = V_min
+        self.V_max = V_max
 
     def train(self, batch_size, epochs, early_stopping):
         # Create held-out validation set for early stopping
@@ -81,7 +93,61 @@ class HestonMultiAssetPINN(PINN):
         return self.__sample_interior(batch_size)
 
     def __heston_residual(self, t, S, V):
-        raise NotImplementedError("Heston residual computation not implemented for multi-asset case yet.")
+        f = self.model(t, S, V)
+
+        f_t, f_S, f_V = torch.autograd.grad(
+            f, (t, S, V), torch.ones_like(f), create_graph=True
+        )
+
+        f_SS = []
+        for i in range(self.n_assets):
+            grad_i = torch.autograd.grad(
+                f_S[:, i:i+1], S,
+                torch.ones_like(f_S[:, i:i+1]),
+                create_graph=True
+            )[0]
+            f_SS.append(grad_i.unsqueeze(1))
+        f_SS = torch.cat(f_SS, dim=1)   # (N,n,n)
+
+        f_VV = torch.autograd.grad(
+            f_V, V, torch.ones_like(f_V), create_graph=True
+        )[0]
+
+        f_SV = []
+        for i in range(self.n_assets):
+            grad_i = torch.autograd.grad(
+                f_S[:, i:i+1], V,
+                torch.ones_like(f_S[:, i:i+1]),
+                create_graph=True
+            )[0]
+            f_SV.append(grad_i)
+        f_SV = torch.cat(f_SV, dim=1)   # (N,n)
+
+        Lf = self.r * torch.sum(S * f_S, dim=1, keepdim=True)
+        Lf += self.kappa * (self.theta - V) * f_V
+
+        # Asset-asset diffusion
+        diffusion = 0
+        for i in range(self.n_assets):
+            for k in range(self.n_assets):
+                coeff = V * self.sigmas[i] * self.sigmas[k] * self.corr[i, k] * S[:, i:i+1] * S[:, k:k+1]
+                diffusion += coeff * f_SS[:, i, k:k+1]
+        Lf += 0.5 * diffusion
+
+        # Variance diffusion
+        Lf += 0.5 * self.sigma_bar ** 2 * V * f_VV
+
+        # Cross S-V terms
+        cross = 0
+        for i in range(self.n_assets):
+            coeff = V * self.sigmas[i] * self.sigma_bar * self.rho_cross[i] * S[:, i:i+1]
+            cross += coeff * f_SV[:, i:i+1]
+
+        Lf += cross
+
+        residual = -f_t - Lf + self.r * f
+
+        return residual, f
 
     def __interior_loss(self, batch_size, t=None, S=None, V=None):
         if t is None or S is None or V is None:
@@ -104,4 +170,46 @@ class HestonMultiAssetPINN(PINN):
         return variational_loss
 
     def __boundary_loss(self, batch_size, t=None, S=None, V=None):
-        raise NotImplementedError("Boundary loss computation not implemented for multi-asset case yet.")
+
+        S_list = [S[:, i].unsqueeze(1) for i in range(self.n_assets)]
+
+        zeros = torch.zeros((batch_size, 1))
+        ones = torch.ones((batch_size, 1))
+
+        # Terminal condition f(T, S, V) = payoff(S)
+        f_T = self.model(self.T * ones, S, V)
+        S_prod = torch.prod(S, dim=1, keepdim=True)
+        g = torch.maximum(self.K - S_prod, zeros)
+        terminal_loss = torch.mean((f_T - g)**2)
+
+        # Smin loss: f(t, S', V) = K if S' = S_min for any asset, else f(t, S', V) = 0
+        Smin_loss = 0
+        for i in range(self.n_assets):
+            S_boundary = S.clone()
+            S_boundary[:, i] = 0
+            S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(self.n_assets)]
+            Smin_loss += torch.mean((
+                self.model(t, *S_boundary_list, V) - self.K
+            )**2)
+
+        # Smax loss: f(t, S', V) = 0 if S' = S_max for any asset
+        Smax_loss = 0
+        for i in range(self.n_assets):
+            S_boundary = S.clone()
+            S_boundary[:, i] = self.S_max[i] * 10
+            S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(self.n_assets)]
+            Smax_loss += torch.mean((
+                self.model(t, *S_boundary_list, V)
+            )**2)
+
+        # Vmin loss: f(t, S, 0) = payoff(S)
+        f_Vmin = self.model(t, *S_list, zeros)
+        g_Vmin = torch.maximum(self.K - S_prod, zeros)
+        Vmin_loss = torch.mean((f_Vmin - g_Vmin) ** 2)
+
+        # Vmax loss: f(t, S, v_inf) = K
+        V_inf = ones * self.V_max * 100
+        f_Vinf = self.model(t, *S_list, V_inf)
+        Vmax_loss = torch.mean((f_Vinf - self.K) ** 2)
+
+        return terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss
