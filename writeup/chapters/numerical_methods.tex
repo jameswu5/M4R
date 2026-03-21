@@ -37,6 +37,7 @@ where we take the maximum of the payoff and the discounted expected future price
 An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps $N$, leading to a very computationally expensive algorithm. To mitigate this, we can use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables or if we wish to extend it to options operating on multiple assets, but its reliability and interpretability make it a good benchmark for simpler models.
 
 \section{Physics-Informed Neural Networks}
+\label{sec:pinns}
 
 \subsection{Motivation}
 Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent from the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality. Traditional methods such as finite difference methods require discretisation of the domain and the number of grid points (and hence algorithm complexity) scales exponentially $\mathcal O(N^d)$ with the dimension $d$ of the problem.
@@ -85,9 +86,9 @@ There are different methods to choose the loss weights $\lambda_r, \lambda_{bc},
 
 For our specific problem of option pricing, we can modify the above setup to fit our variational inequality formulation. The PDE to solve is dependent on the model for the asset dynamics, and the boundary conditions are given by the payoff function of the option. In general, we will have to solve a problem of the form
 \begin{align}
-    \min\left\{ -\frac{\partial u}{\partial t} + \mathcal L[u], u - g \right\} &= 0, \qquad t \in [0, T], x \in \Omega \\
-    u(T, x) &= g(x), \qquad x \in \Omega \\
-    \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega, k=1, \dots, K
+    \min\left\{ -\frac{\partial u}{\partial t} + \mathcal L[u], u - g \right\} &= 0, \qquad t \in [0, T], x \in \Omega \label{eq:pinn_pde}\\
+    u(T, x) &= g(x), \qquad x \in \Omega \label{eq:pinn_terminal}\\
+    \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega, k=1, \dots, K \label{eq:pinn_boundary}
 \end{align}
 where $k$ indexes the $K$ different boundary conditions. This is very similar to the general setup for PINNs, except that we have a variational inequality instead of a PDE, and we have a terminal condition instead of an initial condition. However, we can still use the framework by noting we can make the substitution $t \mapsto T-t$ to un-negate the negative partial derivative in the PDE term and to convert the terminal condition to an initial condition. The variational inequality can be handled by modifying the PDE residual loss (\ref{eq:pde_residual}) to
 \begin{equation}
