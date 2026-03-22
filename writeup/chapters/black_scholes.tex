@@ -134,6 +134,7 @@ where $\tau$ is any stopping time in $[t, T]$ and $\mathbb E_t$ is conditional e
     \item Do nothing and let the option continue to time $t + h$ with $h>0$ a very small number. By using the supremum definition of $v(t, S)$ (\ref{eq:american_option_value_function}) and swapping the expectation and supremum \cite{zheng2025fundamentals} we arrive at
     \begin{equation}
         e^{rh}v(t, S) \ge \mathbb E_t \big[v(t+h, S_{t + h})\big]
+    \label{eq:continuation_value_inequality}
     \end{equation}
     and the inequality turns into an equality at the limit $\delta \to 0$.
     
@@ -151,7 +152,13 @@ Then by Ito’s lemma and taking expectations of both sides we have
     \mathbb E\big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
-Now let’s substitute into the LHS. By using a Taylor approximation $e^{rh} = 1 + rh + o(h)$, cancelling $v(t, S)$ on both sides and dividing both sides by $h$ we get
+Now let’s substitute (\ref{eq:continuation_value_inequality}) into the LHS, which gives us
+
+\begin{equation}
+    e^{rh}v(t, S) \ge v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+\end{equation}
+
+We can use the Taylor approximation $e^{rh} = 1 + rh + o(h)$, which permits us to cancel the $v(t, S)$ on both sides. Dividing both sides by $h$ in the same step, we get
 
 \begin{equation}
     rv(t, S) + \frac{o(h)}{h} \ge \mathbb E_t\bigg[\frac 1h\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
@@ -280,7 +287,73 @@ Therefore, we will be able to price the put option on the product of multiple as
 
 \subsection{PINN formulation for multi-dimensional case}
 
+With the benchmark in place, we now need to derive the variational inequality for the multi-dimensional case where we have $k$ assets. This is a straightforward extension of the one-dimensional case, where the value function $v(t, S^1, \dots, S^k)$ now takes $k+1$ inputs. For notation, we will express the multiple assets as a vector $\mathbf S = (S^1, \dots, S^k)^\top$, so the value function is $v(t, \mathbf S)$. Similarly, the payoff function will be written as $g(S^1, \dots, S^k) = g(\mathbf{S})$.
 
+The value function stays
+
+\begin{equation}
+    v(t, \mathbf S) = \sup_{\tau \in [t, T]} \mathbb E_t\big[e^{-r(\tau - t)}g(\mathbf S_\tau)\big]
+\end{equation}
+
+Should we choose not to exercise the option at time $t$, we can apply the same argument as in the one-dimensional case: considering a small $h > 0$, we can apply Itô's lemma on multiple dimensions to yield
+
+\begin{equation}
+    \begin{aligned}
+        v(t + h, \mathbf S_{t + h}) = v(t, \mathbf S) + \int_t^{t+h} &\bigg(
+            \frac{\partial v}{\partial t}(u, \mathbf S_u) +
+            % \mathcal L_u[v(\mathbf S_u)]
+            \sum_{i=1}^k \frac{\partial v}{\partial S^i}(u, \mathbf S_u) rS_u^i\\
+            &+ \frac 12 \sum_{i=1}^k \sum_{j=1}^k \frac{\partial^2 v}{\partial S^i \partial S^j}(u, \mathbf S_u) \sigma_i \sigma_j \rho_{ij} S_u^i S_u^j
+        \bigg) \,\mathrm du
+    \end{aligned}
+\end{equation}
+
+The steps from here are identical to the one-dimensional case, where we can take expectations of both sides and use the second order Taylor expansion of the exponential to get the variational inequality
+
+\begin{equation}
+    rv(t, \mathbf S) \ge \frac{\partial v}{\partial t}(t, \mathbf S) + \sum_{i=1}^k \frac{\partial v}{\partial S^i}(t, \mathbf S) rS^i + \frac 12 \sum_{i=1}^k \sum_{j=1}^k \frac{\partial^2 v}{\partial S^i \partial S^j}(t, \mathbf S) \sigma_i \sigma_j \rho_{ij} S^i S^j
+\end{equation}
+
+where to simplify into the PINN framework as in (\ref{eq:pinn_pde}), we can define the operator $\mathcal L$ as
+
+\begin{equation}
+    \mathcal L[v] = rv(t, \mathbf S) - \sum_{i=1}^k \frac{\partial v}{\partial S^i}(t, \mathbf S) rS^i - \frac 12 \sum_{i=1}^k \sum_{j=1}^k \frac{\partial^2 v}{\partial S^i \partial S^j}(t, \mathbf S) \sigma_i \sigma_j \rho_{ij} S^i S^j
+\end{equation}
+
+and the problem reduces to the same variational inequality as in the one-dimensional case (\ref{eq:variational_inequality_bs_1d}), with a different operator $\mathcal L$.
+
+To finish the PINN formulation, we need to derive the boundary conditions. The terminal condition is straightforward, as it is given by the payoff function:
+\begin{equation}
+    v(T, \mathbf S) = g(\mathbf S) = \left(K - \prod_{i=1}^k S^i\right)^+
+\end{equation}
+
+For the spatial boundary conditions, we will again truncate the domain to
+\begin{equation}
+    \Omega = \left \{
+        \mathbf S=(S^i, \dots, S^k) \in \mathbb R^k: S^i \in [S_\text{min}^i, S_\text{max}^i] \text{ for } i = 1, \dots, k
+    \right \}
+\end{equation}
+for some sufficiently small and large respective minimum and maximum values for each stock. The lower boundary will be sampled from the set
+\begin{equation}
+    \partial_\text{lower} \Omega = \left\{
+        \mathbf S \in \Omega: S^i = S_\text{min}^i \text{ for some } i
+    \right\}
+\end{equation}
+where we have the boundary condition
+\begin{equation}
+    v(t, \mathbf S) = g(\mathbf S), \qquad \mathbf S \in \partial_\text{lower} \Omega
+\end{equation}
+and the upper boundary will be sampled from the set
+\begin{equation}
+    \partial_\text{upper} \Omega = \left\{
+    \mathbf S \in \Omega: S^i = S_\text{max}^i \text{ for some } i
+    \right\}
+\end{equation}
+with the boundary condition
+\begin{equation}
+    v(t, \mathbf S) = 0, \qquad \mathbf S \in \partial_\text{upper} \Omega
+\end{equation}
+analogous to the one-dimensional case. Of course, this framework could be easily adapted to other payoff functions, where the boundary conditions would change accordingly (but not the variational inequality). But for our benchmark, this is the setup we will use.
 
 \section{Sobolev Deep Neural Networks}
 
