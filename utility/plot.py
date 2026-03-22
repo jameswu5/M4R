@@ -19,6 +19,7 @@ def plot_price_heatmaps(prices1, prices2, **kwargs):
     label2 = kwargs.get("label2", None)
     label_diff = kwargs.get("label_diff", None)
     extent = kwargs.get("extent", None)
+    save_path = kwargs.get("save_path", None)
 
     plt.figure(figsize=(17, 5))
 
@@ -52,6 +53,10 @@ def plot_price_heatmaps(prices1, prices2, **kwargs):
     plt.title(title_diff)
 
     plt.tight_layout()
+
+    if save_path is not None:
+        plt.savefig(save_path)
+
     plt.show()
 
 
