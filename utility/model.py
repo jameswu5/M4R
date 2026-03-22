@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from abc import ABC, abstractmethod
+import copy
 from utility.sampler import Sampler
 
 
@@ -83,19 +84,26 @@ class EarlyStopping:
         self.min_delta = min_delta
         self.counter = 0
         self.best_loss = float('inf')
+        self.best_state = None
 
     def reset(self):
         self.counter = 0
         self.best_loss = float('inf')
+        self.best_state = None
 
-    def step(self, loss):
+    def step(self, loss, model):
         if loss < self.best_loss - self.min_delta:
             self.best_loss = loss
             self.counter = 0
+            self.best_state = copy.deepcopy(model.state_dict())
         else:
             self.counter += 1
 
         return self.counter >= self.patience
+
+    def restore(self, model):
+        if self.best_state is not None:
+            model.load_state_dict(self.best_state)
 
 
 class PINN(ABC):

@@ -24,7 +24,7 @@ class BlackScholesPINN(PINN):
         self.S_min = S_min
         self.S_max = S_max
 
-    def train(self, batch_size, epochs, early_stopping, alpha=0.1):
+    def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9):
         """
         Train the PINN model with automatic loss reweighting via learning rate annealing.
 
@@ -32,14 +32,15 @@ class BlackScholesPINN(PINN):
             batch_size (int): Number of samples per training batch.
             epochs (int): Maximum number of training epochs.
             early_stopping (EarlyStopping): Early stopping mechanism to prevent overfitting
+            anneal_freq (int): Frequency of loss reweighting updates.
             alpha (float): exponential moving average smoothing factor for loss reweighting
         """
 
         self.loss_weights = {
-            'variational': 1.0,
-            'terminal': 1.0,
-            'Smin': 1.0,
-            'Smax': 1.0
+            'variational': 0.25,
+            'terminal': 0.25,
+            'Smin': 0.25,
+            'Smax': 0.25
         }
 
         # Create held-out validation set for early stopping
@@ -50,14 +51,15 @@ class BlackScholesPINN(PINN):
             variational_loss = self.__interior_loss(batch_size)
             terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size)
 
-            unweighted_losses = {
-                'variational': variational_loss,
-                'terminal': terminal_loss,
-                'Smin': Smin_loss,
-                'Smax': Smax_loss
-            }
+            if i > 2000 and i % anneal_freq == 0:
+                unweighted_losses = {
+                    'variational': variational_loss,
+                    'terminal': terminal_loss,
+                    'Smin': Smin_loss,
+                    'Smax': Smax_loss
+                }
 
-            self.__anneal_weights(unweighted_losses, alpha)
+                self.__anneal_weights(unweighted_losses, alpha)
 
             loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss)
 
@@ -72,14 +74,15 @@ class BlackScholesPINN(PINN):
             # val_loss = self.__process_loss(variational_loss_val, terminal_loss_val, Smin_loss_val, Smax_loss_val, update_dict=False)
             val_loss = variational_loss_val + terminal_loss_val + Smin_loss_val + Smax_loss_val
 
-            if i % 100 == 0:
+            if i % 500 == 0:
                 weight_str = "  ".join(
                     f"{k}={v:.3f}" for k, v in self.loss_weights.items())
                 print(f"Iter {i:>6} | Train: {loss.item():.4e} "
                       f"| Val: {val_loss.item():.4e} | Weights: {weight_str}")
 
-            if early_stopping and early_stopping.step(val_loss.item()):
+            if early_stopping and early_stopping.step(val_loss.item(), self.model):
                 print(f"Early stopping at epoch {i}")
+                early_stopping.restore(self.model)
                 break
 
     def __process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, update_dict=True):
@@ -121,9 +124,11 @@ class BlackScholesPINN(PINN):
                 sum(g.abs().mean().item() for g in grad_tensors) / len(grad_tensors)
             ) if grad_tensors else 1.0
             lambda_hat = peak_grad / (mean_grad + 1e-8)
-            new_weights[name] = (1.0 - alpha) * self.loss_weights[name] + alpha * lambda_hat
+            new_weights[name] = alpha * self.loss_weights[name] + (1.0 - alpha) * lambda_hat
 
-        self.loss_weights = new_weights
+        # Renormalise
+        total = sum(new_weights.values())
+        self.loss_weights = {k: v / total for k, v in new_weights.items()}
 
     def __sample_interior(self, batch_size):
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
