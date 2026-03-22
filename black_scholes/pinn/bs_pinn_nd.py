@@ -49,8 +49,10 @@ class BlackScholesMultiAssetPINN(PINN):
             if i % 500 == 0:
                 print(f"Iteration {i} | Training Loss: {loss.item()} | Validation Loss: {val_loss.item()}")
 
-            if early_stopping and early_stopping.step(val_loss.item()):
+            if early_stopping and early_stopping.step(val_loss.item(), self.model):
                 print(f"Early stopping at epoch {i}")
+                early_stopping.restore(self.model)
+                break
 
     def __process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, update_dict=True):
         variational_loss *= self.loss_weights['variational']
@@ -93,7 +95,7 @@ class BlackScholesMultiAssetPINN(PINN):
                 f_i, S, grad_outputs=torch.ones_like(f_i), create_graph=True
             )[0]
             rows.append(f_i_S.unsqueeze(1))  # (batch, 1, n_assets)
-        f_SS = torch.cat(rows, dim=1)        # (batch, n_assets, n_assets) — stays in graph ✅
+        f_SS = torch.cat(rows, dim=1)        # (batch, n_assets, n_assets)
 
         cov_matrix = torch.outer(self.sigmas, self.sigmas) * self.corr
 
