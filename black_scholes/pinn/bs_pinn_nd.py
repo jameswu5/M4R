@@ -15,12 +15,12 @@ class BlackScholesMultiAssetPINN(PINN):
             'Smin_loss': [],
             'Smax_loss': []
         }
-    
+
     def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs):
         self.K = K
         self.r = r
-        self.sigmas = torch.tensor(sigmas, dtype=torch.float32) # array of length n_assets
-        self.corr = torch.tensor(corr, dtype=torch.float32) # n_assets x n_assets correlation matrix
+        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # array of length n_assets
+        self.corr = torch.tensor(corr, dtype=torch.float32)  # n_assets x n_assets correlation matrix
         self.T = T
         self.S_mins = S_mins
         self.S_maxs = S_maxs
@@ -68,7 +68,7 @@ class BlackScholesMultiAssetPINN(PINN):
             self.history['Smax_loss'].append(Smax_loss.item())
 
         return loss
-    
+
     def __sample_interior(self, batch_size):
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
         S = self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
@@ -76,7 +76,7 @@ class BlackScholesMultiAssetPINN(PINN):
 
     def __sample_boundary(self, batch_size):
         return self.__sample_interior(batch_size)
-    
+
     def __bs_residual(self, t, S):
         batch_size = S.shape[0]
 
@@ -94,7 +94,6 @@ class BlackScholesMultiAssetPINN(PINN):
             )[0]
             rows.append(f_i_S.unsqueeze(1))  # (batch, 1, n_assets)
         f_SS = torch.cat(rows, dim=1)        # (batch, n_assets, n_assets) — stays in graph ✅
-
 
         cov_matrix = torch.outer(self.sigmas, self.sigmas) * self.corr
 
@@ -152,7 +151,7 @@ class BlackScholesMultiAssetPINN(PINN):
             Smin_loss += torch.mean((
                 self.model(t, S_) - self.K
             )**2)
-        
+
         # S_max loss: if any S_i is very large, then f(t, S) = 0
         Smax_loss = 0
         for i in range(self.n_assets):
@@ -161,5 +160,5 @@ class BlackScholesMultiAssetPINN(PINN):
             Smax_loss += torch.mean((
                 self.model(t, S_)
             )**2)
-        
+
         return terminal_loss, Smin_loss, Smax_loss
