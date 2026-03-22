@@ -19,3 +19,53 @@ where $K$ is the pre-determined strike price.
 \section{Risk-neutral pricing}
 
 \section{Continuation region and free boundary}
+
+[copied over, modify later]
+
+We are now interested in finding the free boundary of the American put option, which is the boundary separating the exercise region and the continuation region. For an initial visualisation, assume the risk-neutral dynamics of our asset $S$ is modelled as a geometric brownian motion with constant risk-free interest rate $r$ and volatility $\sigma$. As before, the value of the American put with strike $K$ and maturity $T$ is given by the optimal stopping problem
+
+\[v(0, S) = \sup_{\tau \in [0, T]} \mathbb E\big[e^{-r\tau}(K - S_\tau)^+\big] \]
+
+which is achieved by an optimal stopping time $\tau^\star$ taking the form
+
+\[\tau^\star = \inf\{t \ge 0 : S(t) \le b^\star(t)\}\]
+
+for some optimal exercise boundary $b^\star(t)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price and plot it against the exercise boundary, which is found using binary search on the binomial tree solution, where we have
+
+\[b^\star(t) = \inf\{S : v(t, S) > g(S)\}\]
+
+because as soon as the option has no time value, it is optimal to exercise.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.8\textwidth]{../plots/free_boundary.png}
+    \caption{Exercise boundary for the American put}
+    \label{fig:free_boundary}
+\end{figure}
+
+This formulation describes a hard classification problem, where we classify points in the time-stock price space binarily to be either in the continuation region or the exercise region. However, our numerical solutions to the pricing problem are not exact and there is some level of error in the solution that comes from the Monte Carlo simulations upon the space, the numerical differentiation used in training and the early stopping in the training process. Therefore, it would be more intuitive to perform a soft classification instead, where we assign probabilities to points in the time-stock price space to be in the continuation region or the exercise region, which would give us a more intuitive visualisation of the free boundary and how it evolves over time. We will do this by extending hard classification: that is to say, the continuation region $A$ is
+
+\[A = \{(t, S) : u(t, S) > g(S)\} \cup \{(t, S) : g(S) = 0\}\]
+
+where intuitively the first term indicates that we still have time value, and the second term immediately assigns at-the-money and out-of-the-money options in the continuation region as they are worthless under immediate exercise.
+
+To extend the definition of the continuation region to a soft classification, we consider the sigmoid function $s: \mathbb R \to (0, 1)$ defined as
+
+\[ s(x) = \frac{1}{1 + e^{-x}}\]
+
+and introducing two softness parameters $\tau_1, \tau_2 > 0$ to yield our continuation probability function on the relative difference from the payoff as
+
+\[ P_\text{cont}(d) = \begin{cases}
+    s \left(\frac{d}{\tau_1}\right) & d \le 0 \\
+    s \left(\frac{d}{\tau_2}\right) & d > 0
+\end{cases}, \qquad d := \frac{u(t, S) - g(S)}{g(S)}\]
+
+We introduce different softness paramaters depending on the sign of $d$ because we would like different leniencies for when the value function is above or below the payoff. Value functions below the payoff arise under errors in the neural network solution and thus our continuation probability should be steeper.
+
+These softness parameters can be determined by defining thresholds $\epsilon_1, \epsilon_2 > 0$ such that for $I \in (0.5, 1)$ we have
+
+\[P_\text{cont}(-\epsilon_1) = 1-I, \qquad P_\text{cont}(\epsilon_2) = I\]
+
+which we could solve with some simple algebraic manipulation to get
+
+\[ \tau_1 = \frac{\epsilon_1}{\ln\left(\frac{I}{1 - I}\right)}, \qquad \tau_2 = \frac{\epsilon_2}{\ln\left(\frac{I}{1 - I}\right)}\]

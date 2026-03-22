@@ -262,10 +262,10 @@ which we can rearrange to get
 \mathrm d X_t = \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 + \frac 12 \sigma_X^2\right) X_t \mathrm dt + \sigma _X X_t \,\mathrm d\widetilde W_t
 \end{equation}
 which is a geometric Brownian motion with volatility $\sigma_X$ and drift $r_X$ where
-\begin{align*}
+\begin{align}
     r_X &= kr - \frac 12 \sum_{i=1}^k \sigma_i^2 + \frac 12 \sigma_X^2 \\
     &= kr + \sum_{i < j} \sigma_i\sigma_j\rho_{ij}
-\end{align*}
+\end{align}
 by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values
 \begin{equation}
 r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qquad \mathrm R = \begin{pmatrix}
