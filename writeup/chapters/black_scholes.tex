@@ -121,6 +121,7 @@ In order to set up our PINN, we need to first derive the PDE satisfied by the op
 
 \begin{equation}
     v(t, S) = \sup_{\tau \in [t, T]} \mathbb E_t\big[e^{-r(\tau - t)}g(S_\tau)\big]
+\label{eq:american_option_value_function}
 \end{equation}
 
 where $\tau$ is any stopping time in $[t, T]$ and $\mathbb E_t$ is conditional expectation at time $t$, given $S_t = S$. For an American option, we always have two options:
@@ -130,7 +131,7 @@ where $\tau$ is any stopping time in $[t, T]$ and $\mathbb E_t$ is conditional e
     \begin{equation}
         v(t, S) \ge g(S)
     \end{equation}
-    \item Do nothing and let the option continue to time $t + h$ with $h>0$ a very small number. With some derivation \cite{zheng2025fundamentals} we arrive at
+    \item Do nothing and let the option continue to time $t + h$ with $h>0$ a very small number. By using the supremum definition of $v(t, S)$ (\ref{eq:american_option_value_function}) and swapping the expectation and supremum \cite{zheng2025fundamentals} we arrive at
     \begin{equation}
         e^{rh}v(t, S) \ge \mathbb E_t \big[v(t+h, S_{t + h})\big]
     \end{equation}
