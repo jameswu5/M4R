@@ -395,10 +395,35 @@ Overall, we can conclude that the tree benchmark yields very strong results agai
 
 \subsection{PINN results against tree benchmark}
 
+[Do the writeup once all the results are in but put plots in here for now]
+
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison.png}
-    \caption{PINN vs tree price comparison for American put option}
+    \caption{PINN vs tree price comparison heatmap across domain}
     \label{fig:bs_pinn_price_comparison}
 \end{figure}
 
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison_line.png}
+    \caption{Price comparison for varying underlying price, and for term structure at $S=K$}
+    \label{fig:bs_pinn_price_comparison_line}
+\end{figure}
+
+\subsection{Free boundary}
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/nn_price_distribution.png}
+    \caption{Distribution of standardised neural network price estimates across 25 runs}
+    \label{fig:nn_price_distribution}
+\end{figure}
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/free_boundary_pinn_1d.png}
+    \caption{Free boundary for PINN}
+    \label{fig:free_boundary_pinn_1d}
+\end{figure}
