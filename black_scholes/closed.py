@@ -61,11 +61,11 @@ def implied_volatility(price, S, K, r, T, option_type="put", tol=1e-6, max_itera
 
 
 class BlackScholes:
-    def __init__(self, market_params, option_type):
-        self.K = market_params.K
-        self.r = market_params.r
-        self.sigma = market_params.sigma
-        self.T = market_params.T
+    def __init__(self, K, r, sigma, T, option_type):
+        self.K = K
+        self.r = r
+        self.sigma = sigma
+        self.T = T
         self.option_type = option_type
 
     def price(self, t, S):

@@ -123,7 +123,7 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
 
 
 class BinomialTree:
-    def __init__(self, K, r, T, sigma, n_steps, option_type="put", exercise_type="american"):
+    def __init__(self, K, r, sigma, T, n_steps, option_type="put", exercise_type="american"):
         self.K = K
         self.r = r
         self.T = T
