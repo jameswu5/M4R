@@ -360,9 +360,20 @@ analogous to the one-dimensional case. Of course, this framework could be easily
 
 \section{Numerical Results}
 
-First we will evaluate the performance of the benchmark binomial tree method for the one-dimensional case against the closed-form solution. To do this, we will compute the tree option price without taking the maximum of the payoff and continuation value at each step so that we can compare the tree price against the Black-Scholes price. 
+\subsection{Tree benchmark against closed-form solution}
 
-[Plot European tree price against Black-Scholes]
+First we will evaluate the performance of the benchmark binomial tree method for the one-dimensional case against the closed-form solution, which we would take as the ground truth. To do this, we will compute the tree option price without taking the maximum of the payoff and continuation value at each step so that we can compare the tree price against the Black-Scholes price.
+
+First, we will evaluate the tree's accuracy on the most sensitive point, which is at time $t=0$ and when the initial asset price $S$ is equal to the strike price $K$ (at the money). Figure \ref{fig:tree_convergence} shows the convergence of the tree price to the closed-form Black-Scholes price for European put options as we increase the depth of the tree. We can see that around $1000$ steps yields a sufficiently close price to the closed-form solution, and further increasing the depth does not yield significant improvements, so this is the depth we will use for our tree benchmark.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/tree_convergence.png}
+    \caption{Tree convergence at $t=0, S=K$ over different depths}
+    \label{fig:tree_convergence}
+\end{figure}
+
+Evaluating the tree price against the closed-form solution for different initial asset prices $S$ at the initial time $t=0$ in Figure \ref{fig:tree_vs_closed}, we can see that the tree price is very close to the ground truth, with less than $0.05\%$ of relative error until we are far out of the money where the option price is very close to $0$ and unsurprisingly yields greater errors, where machine precision becomes a limiting factor.
 
 \begin{figure}[ht!]
     \centering
@@ -371,6 +382,7 @@ First we will evaluate the performance of the benchmark binomial tree method for
     \label{fig:tree_vs_closed}
 \end{figure}
 
+We can see that the tree price also closely tracks the term structure of the option price, as shown in Figure \ref{fig:tree_vs_closed_time}, where the error is again less than $0.05\%$, decreasing as we get closer to maturity, which is expected as the tree has not done as many backward-induction steps to get to the initial time, where errors can accumulate.
 
 \begin{figure}[ht!]
     \centering
@@ -379,7 +391,9 @@ First we will evaluate the performance of the benchmark binomial tree method for
     \label{fig:tree_vs_closed_time}
 \end{figure}
 
-[PINN vs tree]
+Overall, we can conclude that the tree benchmark yields very strong results against the closed-form solution, giving us good confidence that it will provide accurate results for American options too, where we do not have a closed-form solution to compare against. This will serve as our benchmark for evaluating the performance of our PINN implementation for American options.
+
+\subsection{PINN results against tree benchmark}
 
 \begin{figure}[ht!]
     \centering
