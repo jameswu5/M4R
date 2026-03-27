@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from utility.assets import simulate_gbm
 from scipy.stats import norm
 
 
@@ -55,6 +56,16 @@ def continuation_normal(prices, stds, intrinsics):
     )
 
     return cont_probs
+
+
+def estimate_continuation_value(model, t, S, r, sigma, n_paths=100, h=0.01, seed=None):
+    # This is for black scholes model
+    S_forward = simulate_gbm(S0=S, r=r, sigma=sigma, T=h, N=1, n_paths=n_paths, seed=seed)[:, -1]
+    t_forward = np.full_like(S_forward, t + h)
+
+    f_forward = model(t_forward, S_forward).detach().numpy()
+    cont_value = np.exp(-r * h) * np.mean(f_forward)
+    return cont_value
 
 
 def plot_p_cont(tau1, tau2):
