@@ -1,6 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from utility.simulate import simulate_gbm
+from utility.simulate import simulate_gbm, simulate_correlated_gbm
 from scipy.stats import norm
 
 
@@ -8,16 +7,12 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
-def p_cont(d, tau):
-    return sigmoid(d / tau)
-
-
-def compute_continuation_probs(prices, intrinsics, eps, one=0.99, shift=0):
+def compute_continuation_probs(continuation, intrinsics, eps, one=0.99, shift=0):
     """
-    Compute continuation probabilities for a set of prices and intrinsic values. These are performed on the
+    Compute continuation probabilities for a set of continuation prices and intrinsic values. These are performed on the
     relative difference between them.
 
-    Prices and intrinsics must be numpy arrays of the same shape.
+    `continuation` and `intrinsics` must be numpy arrays of the same shape.
 
     We have eps as a parameter that controls the shape of the continuation probability function, such that
     sigmoid(-eps / tau) = 1 - one and sigmoid(eps / tau) = one
@@ -26,20 +21,20 @@ def compute_continuation_probs(prices, intrinsics, eps, one=0.99, shift=0):
     prices where we necessarily have price >= intrinsic, for neural networks this may not be the case
     """
 
-    assert prices.shape == intrinsics.shape, "Prices and intrinsics must have the same shape."
+    assert continuation.shape == intrinsics.shape, "Continuation and intrinsics must have the same shape."
     assert 0.5 < one < 1, "one must be between 0.5 and 1."
 
     tau = eps / np.log(one / (1 - one))
 
-    d = (prices - intrinsics + shift) / intrinsics
+    d = (continuation - intrinsics + shift) / intrinsics
 
-    cont_probs = p_cont(d, tau)
+    cont_probs = sigmoid(d / tau)
     cont_probs = np.where(intrinsics <= 0, 1.0, cont_probs)  # If the option is out of the money, we always continue
 
     return cont_probs
 
 
-def continuation_normal(prices, stds, intrinsics):
+def continuation_normal(continuation, stds, intrinsics):
     """
     Compute the continuation probability with the Gaussian model.
     All three inputs must be numpy arrays of the same shape.
@@ -48,8 +43,8 @@ def continuation_normal(prices, stds, intrinsics):
     cont_probs = np.where(
         intrinsics <= 0, 1.0,
         np.where(
-            stds > 0, norm.cdf((prices - intrinsics) / stds),  # std > 0 use CDF
-            (prices > intrinsics).astype(float)  # std = 0 use step function
+            stds > 0, norm.cdf((continuation - intrinsics) / stds),  # std > 0 use CDF
+            (continuation > intrinsics).astype(float)  # std = 0 use step function
         )
     )
 
@@ -62,21 +57,14 @@ def estimate_continuation_value(model, t, S, r, sigma, n_paths=100, h=0.01, seed
     t_forward = np.full_like(S_forward, t + h)
 
     f_forward = model(t_forward, S_forward).detach().numpy()
-    cont_value = np.exp(-r * h) * np.mean(f_forward)
-    return cont_value
+    continuation_values = np.exp(-r * h) * np.mean(f_forward)
+    return continuation_values
 
 
-def plot_p_cont(tau):
-    x = np.linspace(-4, 4, 500)
-    y = p_cont(x, tau)
-    plt.plot(x, y)
-    plt.title(f'p_cont with tau={tau}')
-    plt.xlabel('x')
-    plt.ylabel('p_cont(x)')
-    plt.grid()
-    plt.show()
+def estimate_continuation_value_nd(model, t, S, r, sigmas, corr, n_paths=100, h=0.01, seed=None):
+    S_forward = simulate_correlated_gbm(S0=S, r=r, sigma=sigmas, corr=corr, T=h, N=1, n_paths=n_paths, seed=seed)[:, -1]
+    t_forward = np.full_like(S_forward[:, 0], t + h)
 
-
-if __name__ == "__main__":
-    tau = 0.1
-    plot_p_cont(tau)
+    f_forward = model(t_forward, S_forward).detach().numpy()
+    continuation_values = np.exp(-r * h) * np.mean(f_forward)
+    return continuation_values
