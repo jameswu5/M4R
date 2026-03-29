@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from utility.assets import simulate_gbm
+from utility.simulate import simulate_gbm
 from scipy.stats import norm
 
 

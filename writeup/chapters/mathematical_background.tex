@@ -26,9 +26,9 @@ which is achieved by an optimal stopping time $\tau^\star$ taking the form
 
 for some optimal exercise boundary $b^\star(t)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary, which is found using binary search on the binomial tree solution, where we have
 
-\begin{equation}b^\star(t) = \inf\{S : v(t, S) > g(S)\}\end{equation}
+\begin{equation}b^\star(t) = \inf\{S : c(t, S) > g(S)\}\end{equation}
 
-because as soon as the option has no time value, it is optimal to exercise.
+where $c(t, S)$ is the continuation value of the option with payoff $g(S)$.
 
 \begin{figure}[h!]
     \centering
@@ -40,10 +40,10 @@ because as soon as the option has no time value, it is optimal to exercise.
 This formulation describes a hard classification problem, where we classify points in the time-stock price space binarily to be either in the continuation region or the exercise region. However, our numerical solutions to the pricing problem are not exact and there is some level of error in the solution that comes from the Monte Carlo simulations upon the space, the numerical differentiation used in training and the early stopping in the training process. Therefore, it would be more intuitive to perform a soft classification instead, where we assign probabilities to points in the time-stock price space to be in the continuation region or the exercise region, which would give us a more intuitive visualisation of the free boundary and how it evolves over time. We will do this by extending hard classification: that is to say, the continuation region $A$ is
 
 \begin{equation}
-    A = \{(t, S) : u(t, S) > g(S)\} \cup \{(t, S) : g(S) = 0\}
+    A = \{(t, S) : c(t, S) > g(S)\} \cup \{(t, S) : g(S) = 0\}
 \end{equation}
 
-where intuitively the first term indicates that we still have time value, and the second term immediately assigns at-the-money and out-of-the-money options in the continuation region as they are worthless under immediate exercise.
+where intuitively, the first set is those where the continuation value is greater than the early exercise value, and the second set is those where the payoff is zero, which are at-the-money and out-of-the-money options that are worthless under immediate exercise.
 
 We will consider two methods to extend the definition of the continuation region to a soft classification. The first one is to use a sigmoid function $s: \mathbb R \to (0, 1)$ defined as
 
@@ -55,7 +55,7 @@ to smoothly transition the continuation probability from $0$ to $1$ as the value
 
 \begin{equation}
     P_\text{cont}(d) = s\left(\frac d \tau\right),
-    \qquad d := \frac{u(t, S) - g(S)}{g(S)}
+    \qquad d := \frac{c(t, S) - g(S)}{g(S)}
 \end{equation}
 
 To tune the softness parameter, we can define a threshold $I \in (0.5, 1)$ such that we want the continuation probability to be $I$ at some relative difference $\epsilon > 0$, i.e. $P_\text{cont}(\epsilon) = I$, which we could solve with some simple algebraic manipulation to get
@@ -63,16 +63,24 @@ To tune the softness parameter, we can define a threshold $I \in (0.5, 1)$ such 
     \tau = \frac{\epsilon}{\ln\left(\frac{I}{1 - I}\right)}
 \end{equation}
 
-The second method is to assume Gaussianity of the noise in our solution $f$ of the value function, or in other words
+The second method is to assume Gaussianity of the noise in our estimate $\hat c$ of the continuation value, or in other words
 \begin{equation}
-    f(t, S) = v(t, S) + \epsilon, \qquad \epsilon \sim \mathcal N(0, \tilde \sigma^2)
+    \hat c(t, S) = c(t, S) + \epsilon, \qquad \epsilon \sim \mathcal N(0, \tilde \sigma^2)
 \end{equation}
-where $v$ is the true (latent) value function and $\tilde \sigma$ is the standard deviation of the noise, which is unknown. We can then perform $n$ simulations of the solution to get $f_1, \dots, f_n$ and use the sample mean $\bar f$ as our unbiased estimate of the value function, and the sample standard deviation $\hat \sigma$ as our estimate. Then $\bar f$ is distributed according to a $t$-distribution with $n-1$ degrees of freedom, and we can compute the continuation probability as
+where $c$ is the true (latent) continuation value and $\tilde \sigma$ is the standard deviation of the noise, which is unknown. We can then perform $n$ simulations of the solution to get $\hat c_1, \dots, \hat c_n$ and use the sample mean $\bar c$ as our unbiased estimate of the continuation value function, and the sample standard deviation $\hat \sigma$ as our estimate. Then $\bar c$ is distributed according to a $t$-distribution with $n-1$ degrees of freedom, and we can compute the continuation probability as
 \begin{equation}
-    P_\text{cont}(t, S) = \mathbb P_{t_{n-1}}\left( \frac{\bar f(t, S) - g(S)}{\hat \sigma(t, S) / \sqrt n} > 0 \right)
+    P_\text{cont}(t, S) = \mathbb P_{t_{n-1}}\left( \frac{\bar c(t, S) - g(S)}{\hat \sigma(t, S) / \sqrt n} > 0 \right)
 \end{equation}
 
 The caveat with this method is that it requires multiple simulations of the solution, which becomes infeasible for more complex models and higher dimensions, but it gives us a more statistically grounded way to compute the continuation probability.
+
+All that is left is to find a method to obtain the continuation value function, as it is generally latent and not directly observable, given that we predict the American option price that already takes the maximum of the continuation value and the payoff. However, we can use
+
+\begin{equation}
+    c(t, S) = \mathbb E\left[e^{-rh} f(t+h, S_{t+h})\mid S_t = S\right]
+\end{equation}
+
+where $h > 0$ is a small time step and $f$ is the American option price function. We can estimate this expectation by simulating the asset price $S_{t+h}$ at time $t+h$ given $S_t=S$ and evaluating the option price function at the point, then taking the average across all simulations.
 
 \section{State Space Discretisation}
 
