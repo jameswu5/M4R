@@ -1,5 +1,5 @@
 import numpy as np
-from utility.simulate import simulate_gbm, simulate_correlated_gbm, simulate_heston
+from utility.simulate import simulate_gbm, simulate_correlated_gbm, simulate_heston, simulate_heston_multi
 from scipy.stats import norm
 
 
@@ -75,6 +75,19 @@ def estimate_contination_value_heston(model, t, S, V, r, kappa, theta, sigma, rh
     S_forward = S_forward[:, -1]
     V_forward = V_forward[:, -1]
     t_forward = np.full_like(S_forward, t + h)
+
+    f_forward = model(t_forward, S_forward, V_forward).detach().numpy()
+    continuation_values = np.exp(-r * h) * np.mean(f_forward)
+    return continuation_values
+
+
+def estimate_continuation_value_heston_nd(model, t, S, V, r, kappa, theta, sigma_bar, sigmas, corr, rho_cross, n_paths=100, h=0.01, seed=None):
+    S_forward, V_forward = simulate_heston_multi(S0=S, V0=V, r=r, T=h, kappa=kappa,
+                                                 theta=theta, sigma_bar=sigma_bar, sigmas=sigmas,
+                                                 corr=corr, rho_cross=rho_cross, N=1, n_paths=n_paths, seed=seed)
+    S_forward = S_forward[:, -1]
+    V_forward = V_forward[:, -1]
+    t_forward = np.full_like(S_forward[:, 0], t + h)
 
     f_forward = model(t_forward, S_forward, V_forward).detach().numpy()
     continuation_values = np.exp(-r * h) * np.mean(f_forward)
