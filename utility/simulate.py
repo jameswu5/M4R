@@ -91,21 +91,38 @@ def simulate_heston(S0, V0, r, T, kappa, theta, sigma, rho, N, n_paths=1, seed=N
     - n_paths: Number of paths to simulate (scalar).
     - seed: Random seed for reproducibility (scalar or None).
     """
-    rng = np.random.default_rng(seed)
 
+    rng = np.random.default_rng(seed)
     dt = T / N
+
     S = np.zeros((n_paths, N + 1))
     V = np.zeros((n_paths, N + 1))
     S[:, 0] = S0
     V[:, 0] = V0
 
-    for t in range(N):
-        Z1 = rng.standard_normal(size=n_paths)
-        Z2 = rng.standard_normal(size=n_paths)
-        dW1 = np.sqrt(dt) * Z1
-        dW2 = np.sqrt(dt) * (rho * Z1 + np.sqrt(1 - rho**2) * Z2)
+    sqrt_dt = np.sqrt(dt)
 
-        V[:, t+1] = np.maximum(V[:, t] + kappa * (theta - V[:, t]) * dt + sigma * np.sqrt(V[:, t]) * dW2, 0)
-        S[:, t+1] = S[:, t] * np.exp((r - 0.5 * V[:, t]) * dt + np.sqrt(V[:, t]) * dW1)
+    for t in range(N):
+        Z1 = rng.standard_normal(n_paths)
+        Z2 = rng.standard_normal(n_paths)
+
+        dW1 = sqrt_dt * Z1
+        dW2 = sqrt_dt * (rho * Z1 + np.sqrt(1 - rho**2) * Z2)
+
+        # Truncate V to ensure non-negativity
+        V_pos = np.maximum(V[:, t], 0)
+        sqrt_V = np.sqrt(V_pos)
+
+        # Milstein scheme for variance (need to explain in write-up)
+        V[:, t+1] = np.maximum(
+            V[:, t]
+            + kappa * (theta - V_pos) * dt
+            + sigma * sqrt_V * dW2
+            + 0.25 * sigma**2 * (dW2**2 - dt),
+            0
+        )
+
+        # Log-Euler for asset price
+        S[:, t+1] = S[:, t] * np.exp((r - 0.5 * V_pos) * dt + sqrt_V * dW1)
 
     return S, V
