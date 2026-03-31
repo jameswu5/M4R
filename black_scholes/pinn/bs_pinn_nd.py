@@ -105,7 +105,7 @@ class BlackScholesMultiAssetPINN(PINN):
         cov_broadcast = cov_matrix.unsqueeze(0).expand(batch_size, self.n_assets, self.n_assets)  # shape (batch_size, n_assets, n_assets)
 
         elements = cov_broadcast * S_outer * f_SS  # shape (batch_size, n_assets, n_assets)
-        diffusion = 0.5 * torch.sum(elements, dim=(1, 2))
+        diffusion = 0.5 * torch.sum(elements, dim=(1, 2), keepdim=False).unsqueeze(-1)  # → (batch_size, 1)
 
         residual = -f_t - drift - diffusion + self.r * f  # shape (batch_size, 1)
 
@@ -114,6 +114,8 @@ class BlackScholesMultiAssetPINN(PINN):
     def __interior_loss(self, batch_size, t=None, S=None):
         if t is None or S is None:
             t, S = self.__sample_interior(batch_size)
+
+        assert t.shape[0] == batch_size and S.shape[0] == batch_size
 
         t.requires_grad_(True)
         S.requires_grad_(True)
@@ -134,8 +136,7 @@ class BlackScholesMultiAssetPINN(PINN):
         if t is None or S is None:
             t, S = self.__sample_interior(batch_size)
 
-        t.requires_grad_(True)
-        S.requires_grad_(True)
+        assert t.shape[0] == batch_size and S.shape[0] == batch_size
 
         zeros = torch.zeros((batch_size, 1))
         ones = torch.ones((batch_size, 1))
