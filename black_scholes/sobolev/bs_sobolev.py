@@ -126,14 +126,23 @@ class BlackScholesSobolev(PINN):
 
     def __sample_time_pairs(self, batch_size):
         """Sample pairs (t1, t2) in [0, T] with |t1 - t2| >= 0.01."""
-        t1, t2, _, _ = self.sampler.uniform_pair(0, self.T, batch_size, 1, epsilon=0.01, boundary=False)
+        t1, t2, _, _ = self.sampler.uniform_pair(
+            0, self.T, batch_size, 1, epsilon=0.01, boundary=False
+        )
         return t1, t2
 
     def __sample_S(self, batch_size):
         return self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
 
     def __bs_residual(self, t, S):
-        """Black-Scholes PDE residual: L[f] = -f_t - rS f_S - 0.5 sigma^2 S^2 f_SS + r f."""
+        """
+        Black-Scholes PDE residual (forward-time convention):
+            L[f] = -f_t - rS f_S - 0.5 sigma^2 S^2 f_SS + r f
+
+        For the European BS PDE  f_t + rS f_S + 0.5 sigma^2 S^2 f_SS - r f = 0,
+        we have L[f] = 0, so the sign convention is correct for forward time
+        where t = 0 is today and t = T is expiry.
+        """
         f = self.model(t, S)
         f_t, f_S = torch.autograd.grad(
             f, (t, S), grad_outputs=torch.ones_like(f), create_graph=True
@@ -141,14 +150,17 @@ class BlackScholesSobolev(PINN):
         f_SS = torch.autograd.grad(
             f_S, S, grad_outputs=torch.ones_like(f_S), create_graph=True
         )[0]
-        residual = -f_t - self.r * S * f_S - 0.5 * self.sigma**2 * S**2 * f_SS + self.r * f
+        residual = (
+            -f_t
+            - self.r * S * f_S
+            - 0.5 * self.sigma ** 2 * S ** 2 * f_SS
+            + self.r * f
+        )
         return residual, f
 
     def __pde_loss(self, t, S):
         """
-        American put complementarity loss:
-          - penalises relu(min(residual, v - g))^2  (both conditions must hold)
-          - enforces v >= g everywhere
+        American put complementarity loss.
         """
         t = t.detach().requires_grad_(True)
         S = S.detach().requires_grad_(True)
@@ -157,38 +169,45 @@ class BlackScholesSobolev(PINN):
         g = F.relu(self.K - S)
 
         complementarity = torch.min(residual, v - g)
-        pde_loss = torch.mean(F.relu(complementarity) ** 2)
-        constraint_loss = torch.mean(F.relu(g - v) ** 2)
-        return pde_loss + 10.0 * constraint_loss
+        pde_loss = torch.mean(complementarity ** 2)
+
+        return pde_loss
 
     def __sobolev_loss(self, t1, t2, S_interior):
         """
-        Three Sobolev regularity terms for the 1-D Black-Scholes problem.
+        Three Sobolev regularity terms for the 1-D Black-Scholes problem,
+        where u = v - g and g(S) = max(K - S, 0).
 
-        J2  — H^1 norm of (v(0,·) - g(·)) over the interior
-        J3  — mixed fractional H^{3/4, 3/2} norm of (v - g) on the boundary {S_min, S_max}
-        J4  — mixed fractional H^{1/4, 1/2} normal-derivative norm on the boundary
+        J2  — H^1 norm of u(T, ·) on the interior (terminal condition)
+        J3  — H^{3/4} in time, L^2 in space, on the lateral boundary
+        J4  — H^{1/4} in time, L^2 in space, for the normal derivative
+              ∂u/∂S on the lateral boundary
         """
         S_interior = S_interior.detach().requires_grad_(True)
         batch = S_interior.shape[0]
-        zeros = torch.zeros(batch, 1)
-        ones  = torch.ones(batch, 1)
+        ones = torch.ones(batch, 1)
 
-        # ---- J2: H^1 norm of u0(S) = v(0, S) - g(S) at t = 0 ----------
-        v0 = self.model(zeros, S_interior)
-        g0 = F.relu(self.K - S_interior)
-        u0 = v0 - g0
+        # ------------------------------------------------------------------
+        # J2: H^1 norm of u(T, S) = v(T, S) - g(S) at t = T
+        # ------------------------------------------------------------------
+        t_terminal = ones * self.T
+        v_T = self.model(t_terminal, S_interior)
+        g_T = F.relu(self.K - S_interior)
+        u_T = v_T - g_T
 
-        J2_L2   = torch.mean(u0 ** 2)
-        grad_u0 = torch.autograd.grad(
-            u0, S_interior, grad_outputs=torch.ones_like(u0), create_graph=True
+        J2_L2 = torch.mean(u_T ** 2)
+        grad_u_T = torch.autograd.grad(
+            u_T, S_interior, grad_outputs=torch.ones_like(u_T), create_graph=True
         )[0]
-        J2_H1 = torch.mean(grad_u0 ** 2)
+        J2_H1 = torch.mean(grad_u_T ** 2)
         J2 = J2_L2 + J2_H1
 
-        # ---- Boundary evaluations for J3 and J4 -------------------------
-        x1 = ones * self.S_min   # shape (batch, 1)
-        x2 = ones * self.S_max
+        # ------------------------------------------------------------------
+        # Boundary evaluations for J3 and J4
+        # ------------------------------------------------------------------
+        # Need requires_grad for computing spatial derivatives at boundaries
+        x1 = (ones * self.S_min).requires_grad_(True)   # S_min boundary
+        x2 = (ones * self.S_max).requires_grad_(True)   # S_max boundary
 
         v_t1_x1 = self.model(t1, x1)
         v_t1_x2 = self.model(t1, x2)
@@ -205,26 +224,65 @@ class BlackScholesSobolev(PINN):
 
         dt = torch.abs(t1 - t2)
 
-        # ---- J3: mixed H^{3/4, 3/2} on {S_min, S_max} ------------------
-        denom_t_J3 = (dt ** 2.5).clamp_min(1e-8)   # |t1-t2|^{1+2*0.75}
+        # ------------------------------------------------------------------
+        # J3: H^{3/4} fractional norm in time on {S_min, S_max}
+        #     Gagliardo seminorm: |u(t1,x) - u(t2,x)|^2 / |t1-t2|^{1+2s}
+        #     with s = 3/4  =>  exponent = 2.5
+        # ------------------------------------------------------------------
+        denom_t_J3 = (dt ** 2.5).clamp_min(1e-8)
 
         time_frac_x1 = torch.mean(((u_t1_x1 - u_t2_x1) ** 2) / denom_t_J3)
         time_frac_x2 = torch.mean(((u_t1_x2 - u_t2_x2) ** 2) / denom_t_J3)
 
-        val_term = 0.5 * (torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2))
-        J3 = val_term + time_frac_x1 + time_frac_x2
+        J3_L2 = 0.5 * (torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2))
+        J3 = J3_L2 + time_frac_x1 + time_frac_x2
 
-        # ---- J4: normal-derivative H^{1/4, 1/2} on {S_min, S_max} ------
-        denom_t_J4 = (dt ** 1.5).clamp_min(1e-8)   # |t1-t2|^{1+2*0.25}
+        # ------------------------------------------------------------------
+        # J4: H^{1/4} fractional norm in time for the normal derivative
+        #     ∂u/∂S on {S_min, S_max}
+        #     s = 1/4  =>  exponent = 1.5
+        # ------------------------------------------------------------------
+        dv_dS_t1_x1 = torch.autograd.grad(
+            v_t1_x1, x1, grad_outputs=torch.ones_like(v_t1_x1), create_graph=True
+        )[0]
+        dv_dS_t1_x2 = torch.autograd.grad(
+            v_t1_x2, x2, grad_outputs=torch.ones_like(v_t1_x2), create_graph=True
+        )[0]
+        dv_dS_t2_x1 = torch.autograd.grad(
+            v_t2_x1, x1, grad_outputs=torch.ones_like(v_t2_x1), create_graph=True
+        )[0]
+        dv_dS_t2_x2 = torch.autograd.grad(
+            v_t2_x2, x2, grad_outputs=torch.ones_like(v_t2_x2), create_graph=True
+        )[0]
 
-        time_frac_x1_J4 = torch.mean(((u_t1_x1 - u_t2_x1) ** 2) / denom_t_J4)
-        time_frac_x2_J4 = torch.mean(((u_t1_x2 - u_t2_x2) ** 2) / denom_t_J4)
+        # g(S) = relu(K - S).  dg/dS = -1 if S < K, else 0.
+        # At fixed boundary points this is a constant, so the fractional
+        # differences of du/dS = dv/dS - dg/dS reduce to differences of dv/dS.
+        dg_dS_x1 = -1.0 if self.S_min < self.K else 0.0
+        dg_dS_x2 = -1.0 if self.S_max < self.K else 0.0
 
-        # Spatial fractional norm between x1 and x2 with exponent 2*(0.5) + 1 - 1 = 1
-        x_denom_J4 = 2.0 * (self.S_min ** 2 + self.S_max ** 2)
-        du_val = (u_t1_x2 - u_t1_x1) ** 2
-        spatial_frac_J4 = torch.mean(du_val / x_denom_J4)
+        du_dS_t1_x1 = dv_dS_t1_x1 - dg_dS_x1
+        du_dS_t1_x2 = dv_dS_t1_x2 - dg_dS_x2
+        du_dS_t2_x1 = dv_dS_t2_x1 - dg_dS_x1
+        du_dS_t2_x2 = dv_dS_t2_x2 - dg_dS_x2
 
-        J4 = val_term + time_frac_x1_J4 + time_frac_x2_J4 + spatial_frac_J4
+        denom_t_J4 = (dt ** 1.5).clamp_min(1e-8)
+
+        time_frac_x1_J4 = torch.mean(
+            ((du_dS_t1_x1 - du_dS_t2_x1) ** 2) / denom_t_J4
+        )
+        time_frac_x2_J4 = torch.mean(
+            ((du_dS_t1_x2 - du_dS_t2_x2) ** 2) / denom_t_J4
+        )
+
+        spatial_denom_J4 = (self.S_max - self.S_min) ** 2
+        spatial_frac_J4 = torch.mean(
+            (du_dS_t1_x2 - du_dS_t1_x1) ** 2 / spatial_denom_J4
+        )
+
+        J4_L2 = 0.5 * (
+            torch.mean(du_dS_t1_x1 ** 2) + torch.mean(du_dS_t1_x2 ** 2)
+        )
+        J4 = J4_L2 + time_frac_x1_J4 + time_frac_x2_J4 + spatial_frac_J4
 
         return J2, J3, J4
