@@ -253,32 +253,43 @@ class BlackScholesSobolevMultiAsset(PINN):
         time_frac_S2 = torch.mean(((d_t1_S2 - d_t2_S2) ** 2) / denom_time_J3)
         J3_time = 0.5 * (time_frac_S1 + time_frac_S2)
 
-        # Spatial Gagliardo: |u(t1,S1)-u(t1,S2)|^2 / |S1-S2|^{2*frac+d-1}
+        # Gradient of u at boundary points (needed for H^1 and spatial Gagliardo)
+        grad_u_S1 = torch.autograd.grad(
+            d_t1_S1, S1_boundary, grad_outputs=torch.ones_like(d_t1_S1), create_graph=True
+        )[0]
+        grad_u_S2 = torch.autograd.grad(
+            d_t1_S2, S2_boundary, grad_outputs=torch.ones_like(d_t1_S2), create_graph=True
+        )[0]
+
+        # H^1 contribution: L^2 norm of the gradients on the boundary
+        J3_grad_L2 = 0.5 * (
+            torch.mean(torch.sum(grad_u_S1 ** 2, dim=1, keepdim=True)) +
+            torch.mean(torch.sum(grad_u_S2 ** 2, dim=1, keepdim=True))
+        )
+
+        # Spatial Gagliardo on the gradient: ||grad_u(S1) - grad_u(S2)||^2 / |S1-S2|^d
         frac_space_J3 = s_space_J3 % 1
         s_exp_J3 = 2 * frac_space_J3 + d - 1
         diff_xy = S1_boundary - S2_boundary
         dist_xy = torch.norm(diff_xy, dim=1, keepdim=True).clamp_min(1e-8)
-        J3_space = torch.mean(((d_t1_S1 - d_t1_S2) ** 2) / (dist_xy ** s_exp_J3))
+        grad_diff = grad_u_S1 - grad_u_S2
+        J3_space = torch.mean(
+            torch.sum(grad_diff ** 2, dim=1, keepdim=True) / (dist_xy ** s_exp_J3)
+        )
 
-        J3 = J3_val + J3_time + J3_space
+        J3 = J3_val + J3_grad_L2 + J3_time + J3_space
 
         # ------------------------------------------------------------------
         # J4: outward normal derivative dnu = du/dS_{face_i} on each face
         #     L^2 term + time Gagliardo + spatial Gagliardo
         # ------------------------------------------------------------------
-        grad_d_t1_S1 = torch.autograd.grad(
-            d_t1_S1, S1_boundary, grad_outputs=torch.ones_like(d_t1_S1), create_graph=True
-        )[0]
-        grad_d_t1_S2 = torch.autograd.grad(
-            d_t1_S2, S2_boundary, grad_outputs=torch.ones_like(d_t1_S2), create_graph=True
-        )[0]
-
+        # Reuse grad_u_S1 / grad_u_S2 already computed for J3
         idx = torch.arange(S1_boundary.shape[0], device=device)
         face1_t = torch.tensor(face1, dtype=torch.long, device=device)
         face2_t = torch.tensor(face2, dtype=torch.long, device=device)
 
-        dnu_t1_S1 = grad_d_t1_S1[idx, face1_t].unsqueeze(1)
-        dnu_t1_S2 = grad_d_t1_S2[idx, face2_t].unsqueeze(1)
+        dnu_t1_S1 = grad_u_S1[idx, face1_t].unsqueeze(1)
+        dnu_t1_S2 = grad_u_S2[idx, face2_t].unsqueeze(1)
 
         J4_L2 = torch.mean(dnu_t1_S1 ** 2) + torch.mean(dnu_t1_S2 ** 2)
 
