@@ -1,6 +1,6 @@
 \chapter{The Heston Model}
 
-The classic Black Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black Scholes formula does not depend on the mean, so allowing the mean to vary does not help us to generalise the model. But if we allow volatility to vary according to a stochastic process, we obtain a more generalised model. Heston \cite{heston1993closed} proposes a model that is not based on the Black Scholes formula that provides a closed-form solution for European call options. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system
+The classic Black Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black Scholes formula does not depend on the mean, so allowing the mean to vary does not help us to generalise the model. But if we allow volatility to vary according to a stochastic process, we obtain a more generalised model. Heston \cite{heston1993closed} proposes a model that is not based on the Black Scholes formula that provides a closed-form solution for European call options. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
 \begin{align}
 \mathrm dS_t &= rS_t\mathrm dt + \sqrt {V_t} \mathrm dW_t^1 \\
 \mathrm d V_t &= \kappa (\theta - V_t) \mathrm dt + \sigma \sqrt {V_t} \mathrm dW_t^2
@@ -13,7 +13,12 @@ The dynamics of the variance $V$ follow a CIR process with mean reversion rate $
 
 \section{Closed-form solution}
 
-There exists a closed-form solution derived by Heston \cite{heston1993closed} to the price of the European call option. This is done by using an Ansatz inspired by the Black-Scholes formula, and determining the elements of our guess by substituting it into the PDE we know the solution must satisfy along with the boundary conditions (derived in [reference]). We will include this here to serve as a benchmark for our other techniques. Of course, the other techniques will provide more flexibility such as early stopping for American options for which there does not exist a closed-form solution even for the Black Scholes model let alone the Heston model, but should the European prices coincide between the closed form solution and our other techniques, we can have more confidence that the American option prices are accurate.
+There exists a closed-form solution derived by Heston \cite{heston1993closed} to the price of the European call option. This will serve as a benchmark for our other techniques, which would give us confidence in the accuracy of our other techniques for European options, and by extension, for American options too.
+
+The closed-form solution is derived by using an Ansatz inspired by the Black-Scholes formula, and determining the elements of our guess by substituting it into the PDE we know the solution must satisfy along with the boundary conditions. We will include a sketch of the derivation here which follows those found in \cite{gatheral2011volatility}, but in more detail.
+
+[Derivation]
+
 
 For expiry $T > 0$, the solution takes the form
 \begin{equation}
