@@ -91,10 +91,11 @@ Given that the market is arbitrage-free, we can price any derivative with payoff
 For this project, we will deal with constant interest rates, so the bond price process reduces to $B_t = e^{rt}$ where $r$ is the constant risk-free rate. Additionally, we will also assume the Markov property (\ref{def:markov_process}). The arbitrage-free price of the European derivative will therefore be given by
 
 \begin{equation}
-    v(t, S_t) = e^{-r(T-t)} \mathbb E^\mathbb Q \left[g(S_T) \mid S_t\right]
+    v(t, S_t) = \mathbb E^\mathbb Q \left[e^{-r(T-t)} g(S_T) \mid S_t\right]
+\label{eq:risk_neutral_pricing_european}
 \end{equation}
 
-\subsection{Optimal stopping problem}
+\subsection{Optimal stopping problem and free boundary}
 
 The American option gives the holder the right to exercise the option at any time before maturity, which thus gives us the interpretation of the option price as the solution to an optimal stopping problem.
 
@@ -106,11 +107,14 @@ The price of the American option can thus be expressed as the $\mathbb Q$-expect
 
 \begin{equation}
     v(t, S_t) = \sup_{\tau \in [t, T]} \mathbb E^\mathbb Q \left[e^{-r(\tau - t)} g(S_\tau) \mid S_t \right]
+\label{eq:optimal_stopping_problem}
 \end{equation}
 
-\subsection{Continuation region and free boundary}
+which is simply (\ref{eq:risk_neutral_pricing_european}) with the additional optimisation over the stopping time $\tau$.
 
-The optimal stopping problem for the American put option gives rise to the problem of finding the free boundary, which is the boundary separating the exercise region and the continuation region. As before, the value of the American put with strike $K$ and maturity $T$ on a risky asset $S$ is given by the optimal stopping problem
+This optimal $\tau^\star$ is the first time that the option holder chooses to exercise the option, which motivates the notion of a free boundary, which is the boundary separating separating the exercise region and the continuation region.
+
+Let's work with the case $t=0$ for simplicity, but the same logic applies for any $t \in [0, T]$. For the American put, the optimal stopping problem (\ref{eq:optimal_stopping_problem}) can be rewritten as
 
 \begin{equation}
     v(0, S) = \sup_{\tau \in [0, T]} \mathbb E\big[e^{-r\tau}(K - S_\tau)^+\big]
@@ -119,19 +123,21 @@ The optimal stopping problem for the American put option gives rise to the probl
 which is achieved by an optimal stopping time $\tau^\star$ taking the form
 
 \begin{equation}
-    \tau^\star = \inf\{t \ge 0 : S(t) \le b^\star(t)\}
+    \tau^\star = \inf\{\tau \ge 0 : S_\tau \le b^\star(\tau)\}
 \end{equation}
 
-for some optimal exercise boundary $b^\star(t)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary, which is found using binary search on the binomial tree solution, where we have
+for some optimal exercise boundary $b^\star(\tau)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary, which is found using binary search on the binomial tree solution, where we have
 
-\begin{equation}b^\star(t) = \inf\{S : c(t, S) > g(S)\}\end{equation}
+\begin{equation}
+    b^\star(\tau) = \inf\{S : c(\tau, S) > g(S)\}
+\end{equation}
 
 where $c(t, S)$ is the continuation value of the option with payoff $g(S)$.
 
 \begin{figure}[h!]
     \centering
     \includegraphics[width=0.8\textwidth]{../plots/mathematical_background/free_boundary.png}
-    \caption{Exercise boundary for the American put}
+    \caption{Exercise boundary for the American put (adapted from \cite{glasserman2004monte})}
     \label{fig:free_boundary}
 \end{figure}
 
@@ -285,7 +291,7 @@ The theory of Sobolev spaces are rich and we will not attempt to cover all the d
 
 \subsubsection{Sobolev Spaces}
 
-We first introduce the concept of Sobolev spaces. To bein, we consider those of integer order, defined over an arbitrary domain $\Omega \subset \mathbb R^n$, but we will generalise to fractional orders later. These are vector subspaces of various Lebesgue spaces $L^p(\Omega)$, which is the class of all measurable functions $u$ for which
+We first introduce the concept of Sobolev spaces. To begin, we consider those of integer order, defined over an arbitrary domain $\Omega \subset \mathbb R^n$, but we will generalise to fractional orders later. These are vector subspaces of various Lebesgue spaces $L^p(\Omega)$, which is the class of all measurable functions $u$ for which
 \begin{equation}
     \int_\Omega |u(x)|^p \,\mathrm dx < \infty
 \end{equation}
