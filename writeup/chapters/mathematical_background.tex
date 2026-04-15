@@ -2,15 +2,60 @@
 
 \section{Preliminaries}
 
+We will first assemble the necessary mathematical background to understand the option pricing problem and build some foundations into the methods we will be using to solve it. The definitions and results are mostly standard, and can be found in textbooks such as \cite{karatzas2014brownian, karatzas1998methods} but we will cover them here for self-containment and to set up notation for the rest of the project. As a result, we will only cover the main concepts and not delve too deeply into the details, since our focus is more on the numerical methods and their applications in this project.
+
 \subsection{Probabilistic Setup}
 
-% \subsubsection{Filtered Probability Space}
+To begin, we require a formalisation of the underlying randomness in our model for the market, which will be done through probability spaces and filtrations. The pricing problem is inherently probabilistic, as we are uncertain about the future evolution of the underlying asset price, thus requiring a rigorous mathematical framework to model this uncertainty.
 
 \begin{definition}[Probability space]
     A \textit{probability space} is a triple $(\Omega, \mathcal F, \mathbb P)$ where $\Omega$ is the sample space, $\mathcal F$ is a $\sigma$-algebra on $\Omega$, and $\mathbb P: \mathcal F \to [0, 1]$ is a probability measure such that $\mathbb P(\Omega) = 1$.
 \end{definition}
 
-% Brownian motion
+The arrival of information through time in the market is modelled by a filtration.
+
+\begin{definition}[Filtration, filtered probability space]
+    A \textit{filtration} on the probability space $(\Omega, \mathcal F, \mathbb P)$ is a non-decreasing family $(\mathcal F_t)_{t \ge 0}$ of sub-$\sigma$-algebras of $\mathcal F$, that is to say, $\mathcal F_s \subseteq \mathcal F_t \subseteq \mathcal F$ for all $s \le t$. The quadruple $(\Omega, \mathcal F, \{\mathcal F_t\}_{t \ge 0}, \mathbb P)$ is called a \textit{filtered probability space}.
+\end{definition}
+
+We will also define a Martingale, which formalises the idea that future expectations of a process are equal to the current value, which is a key concept in the risk-neutral pricing framework.
+
+\begin{definition}[Martingale]
+    A process $M = (M_t)_{t \ge 0}$ is a \textit{martingale} with respect to the filtration $\{\mathcal F_t\}$ and the probability measure $\mathbb P$ if $\mathbb E[M_t \mid \mathcal F_s] = M_s$ for all $0 \le s \le t$.
+\end{definition}
+
+The Markov assumption is also commonly made in financial modelling and will also be made in our project, which states that the future evolution of the process only depends on the current state and not on the past history.
+
+\begin{definition}[Markov process]
+    A process $X = (X_t)_{t \ge 0}$ is a \textit{Markov process} with respect to the filtration $\{\mathcal F_t\}$ if
+    \begin{equation}
+        \mathbb E[f(X_t) \mid \mathcal F_s] = \mathbb E[f(X_t) \mid X_s]
+    \end{equation}
+    for all $0 \le s \le t$ and all bounded measurable functions $f$.
+\label{def:markov_process}
+\end{definition}
+
+\subsection{Stochastic processes}
+
+The market in practice is not deterministic, so we will mathematically construct our model with stochastic processes.
+
+\begin{definition}[Stochastic process]
+    A \textit{stochastic process} is a family of random variables $\{X_t : t \ge 0\}$ defined on a probability space $(\Omega, \mathcal F, \mathbb P)$.
+\end{definition}
+
+More specifically, we will use Brownian motion to model the underlying asset price dynamics, which is a continuous-time stochastic process with continuous paths and stationary independent increments.
+
+\begin{definition}[Brownian motion]
+    A real-valued process $W = (W_t)_{t \ge 0}$ on the probability space ($\Omega, \mathcal F, \mathbb P$) is a \textit{Brownian motion} if it satisfies the following properties:
+    \begin{itemize}
+        \item $W_0 = 0$ almost surely
+        \item The increment $W_t - W_s$ is normally distributed with mean $0$ and variance $t-s$ for all $0 \le s < t$
+        \item The increments $W_{t_1} - W_{t_0}, \dots, W_{t_n} - W_{t_{n-1}}$ are independent for all $0 \le t_0 < t_1 < \dots < t_n$
+        \item The sample paths $t \mapsto W_t(\omega)$ are continuous
+    \end{itemize}
+\end{definition}
+
+The existence of this process is established by Wiener \cite{wiener1923differential} and is very powerful in modelling the randomness in the financial market.
 
 \subsection{Risk-neutral pricing}
 
@@ -43,7 +88,7 @@ Given that the market is arbitrage-free, we can price any derivative with payoff
     v(t, S) = B_t \mathbb E^\mathbb Q \left[\frac{g(S_T)}{B_T} \mid \mathcal F_t\right]
 \end{equation}
 
-For this project, we will deal with constant interest rates, so the bond price process reduces to $B_t = e^{rt}$ where $r$ is the constant risk-free rate. Additionally, we will also assume the Markov property, that is to say, the option price can be expressed as a function of the current time and the current state of the underlying asset. The arbitrage-free price of the European derivative will therefore be given by
+For this project, we will deal with constant interest rates, so the bond price process reduces to $B_t = e^{rt}$ where $r$ is the constant risk-free rate. Additionally, we will also assume the Markov property (\ref{def:markov_process}). The arbitrage-free price of the European derivative will therefore be given by
 
 \begin{equation}
     v(t, S_t) = e^{-r(T-t)} \mathbb E^\mathbb Q \left[g(S_T) \mid S_t\right]
