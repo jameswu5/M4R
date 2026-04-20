@@ -1,6 +1,6 @@
 \chapter{Black-Scholes Model}
 
-The Black-Scholes model \cite{black1973pricing} is the fundamental model for option pricing, which assumes that the underlying asset price follows a geometric Brownian motion. Here, the market consists of two underlying assets:
+The Black-Scholes model \cite{black1973pricing} is the fundamental model for option pricing, which assumes that the underlying asset price follows a geometric Brownian motion. As with the market introduced in section (\ref{sec:risk-neutral-pricing}), the market consists of two underlying assets:
 
 \begin{itemize}
     \item The risk-free asset, described by a deterministic function
@@ -16,6 +16,7 @@ The Black-Scholes model \cite{black1973pricing} is the fundamental model for opt
     for a given drift $\mu$ and volatility $\sigma$. We can solve this SDE to yield the unique solution
     \begin{equation}
         S_t = S_0 \exp \left(\left(\mu - \frac 12 \sigma^2\right) t + \sigma W_t\right)\qquad 0 \le t \le T
+    \label{eq:gbm_closed_form}
     \end{equation}
 \end{itemize}
 
@@ -26,6 +27,38 @@ Under risk-neutral pricing, we can find an equivalent probability measure $\math
 where the drift has been replaced by the risk-free rate $r$. The derivation can be found in Appendix \ref{sec:change_of_measure}.
 
 \section{Closed-form solution for European options}
+
+Our first benchmark will be the closed-form solution for the European option, which would be used to evaluate the accuracy of the binomial tree later. The derivation of this formula is widely available and hence I will only include the main ideas. Using the risk-neutral pricing formula, the value of the European call option with strike $K$ and expiry $T$ is given by
+\begin{equation}
+    v(0, S_0) = e^{rT}\mathbb E^\mathbb Q\big[(S_T - K)^+ \mid S_0\big]
+\label{eq:rnpf_black_scholes}
+\end{equation}
+
+We use the solution of geometric brownian motion (\ref{eq:gbm_closed_form}) to note that
+\begin{equation}
+    S_T = S_0 \exp \left( (r-\tfrac 12 \sigma^2)T + \sigma W_T^{\mathbb Q}\right)
+\end{equation}
+under the risk-neutral measure $\mathbb Q$, noting we have replaced the drift $\mu$ with the risk-free rate $r$. The Brownian motion is essentially the standard normal variable $Z \sim \mathcal N(0, 1)$ so we have
+\begin{equation}
+    S_T = S_0 \exp \left( (r-\tfrac 12 \sigma^2)T + \sigma Z\right)
+\end{equation}
+
+This can be plugged into the risk-neutral pricing formula (\ref{eq:rnpf_black_scholes}): the exercise event $\{S_T > K\}$ is equivalent to $\{Z > -d_2\}$ where
+\begin{equation}
+    d_2 = \frac{\log(S_0/K) + (r - \tfrac 12 \sigma^2)T}{\sigma \sqrt T}, \qquad d_1 = d_2 + \sigma \sqrt T
+\end{equation}
+
+The expectation (\ref{eq:rnpf_black_scholes}) can be split
+\begin{align}
+    v(0, S) &= e^{rT} \mathbb E^\mathbb Q[(S_T - K)^+] \\
+    &= e^{rT} \mathbb E^\mathbb Q[(S_T - K) \boldsymbol{1}_{\{S_T > K\}}] \\
+    &= e^{rT} \mathbb E^\mathbb Q[S_T \boldsymbol{1}_{\{S_T > K\}}] - Ke^{rT} \mathbb Q(S_T > K)
+\end{align}
+
+The second probability is immediate as we see $\mathbb Q(S_T > K) = \mathbb Q(Z > d_2) = \Phi(d_2)$ by symmetry, where $\Phi$ is the CDF of the standard normal. We can complete the square in the Gaussian integrand for the first expectation to get the final formula \cite{black1973pricing}
+\begin{equation}
+    v(0, S_0) = S_0 \Phi(d_1) - Ke^{rT}\Phi(d_2)
+\end{equation}
 
 \section{Binomial Tree Method}
 [Need to make more cohesive]

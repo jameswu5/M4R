@@ -2,17 +2,15 @@
 
 \section{Preliminaries}
 
-We will first assemble the necessary mathematical background to understand the option pricing problem and build some foundations into the methods we will be using to solve it. The definitions and results are mostly standard, and can be found in textbooks such as \cite{karatzas2014brownian, karatzas1998methods} but we will cover them here for self-containment and to set up notation for the rest of the project. As a result, we will only cover the main concepts and not delve too deeply into the details, since our focus is more on the numerical methods and their applications in this project.
+We will first assemble the necessary mathematical background to understand the option pricing problem and build some foundations into the methods we will be using to solve it. The definitions and results are mostly standard, and can be found in textbooks such as \cite{karatzas2014brownian, karatzas1998methods} but we will cover them here for self-containment and to set up notation for the rest of the project. As a result, we will only cover the main concepts and not delve too deeply into the details, since our focus is more on the numerical methods and their applications.
 
 \subsection{Probabilistic Setup}
 
-To begin, we require a formalisation of the underlying randomness in our model for the market, which will be done through probability spaces and filtrations. The pricing problem is inherently probabilistic, as we are uncertain about the future evolution of the underlying asset price, thus requiring a rigorous mathematical framework to model this uncertainty.
+The pricing problem is inherently probabilistic, as we are uncertain about the future evolution of the underlying asset price, thus requiring a rigorous mathematical framework to model this uncertainty. The formalisation of the underlying randomness in our model for the market will be done through probability spaces, and the arrival of information in the market through time through filtrations.
 
 \begin{definition}[Probability space]
     A \textit{probability space} is a triple $(\Omega, \mathcal F, \mathbb P)$ where $\Omega$ is the sample space, $\mathcal F$ is a $\sigma$-algebra on $\Omega$, and $\mathbb P: \mathcal F \to [0, 1]$ is a probability measure such that $\mathbb P(\Omega) = 1$.
 \end{definition}
-
-The arrival of information through time in the market is modelled by a filtration.
 
 \begin{definition}[Filtration, filtered probability space]
     A \textit{filtration} on the probability space $(\Omega, \mathcal F, \mathbb P)$ is a non-decreasing family $(\mathcal F_t)_{t \ge 0}$ of sub-$\sigma$-algebras of $\mathcal F$, that is to say, $\mathcal F_s \subseteq \mathcal F_t \subseteq \mathcal F$ for all $s \le t$. The quadruple $(\Omega, \mathcal F, \{\mathcal F_t\}_{t \ge 0}, \mathbb P)$ is called a \textit{filtered probability space}.
@@ -24,7 +22,7 @@ We will also define a Martingale, which formalises the idea that future expectat
     A process $M = (M_t)_{t \ge 0}$ is a \textit{martingale} with respect to the filtration $\{\mathcal F_t\}$ and the probability measure $\mathbb P$ if $\mathbb E[M_t \mid \mathcal F_s] = M_s$ for all $0 \le s \le t$.
 \end{definition}
 
-The Markov assumption is also commonly made in financial modelling and will also be made in our project, which states that the future evolution of the process only depends on the current state and not on the past history.
+The Markov assumption is also commonly made in financial modelling, which states that the future evolution of the process only depends on the current state and not on the past history. It is useful because it greatly simplifies models, and hence we will employ it in our project as well.
 
 \begin{definition}[Markov process]
     A process $X = (X_t)_{t \ge 0}$ is a \textit{Markov process} with respect to the filtration $\{\mathcal F_t\}$ if
@@ -37,7 +35,7 @@ The Markov assumption is also commonly made in financial modelling and will also
 
 \subsection{Stochastic processes}
 
-The market in practice is not deterministic, so we will mathematically construct our model with stochastic processes.
+The market in practice is not deterministic, so we will mathematically construct our model with stochastic processes, indexed by time in our application.
 
 \begin{definition}[Stochastic process]
     A \textit{stochastic process} is a family of random variables $\{X_t : t \ge 0\}$ defined on a probability space $(\Omega, \mathcal F, \mathbb P)$.
@@ -58,6 +56,7 @@ More specifically, we will use Brownian motion to model the underlying asset pri
 The existence of this process is established by Wiener \cite{wiener1923differential} and is very powerful in modelling the randomness in the financial market.
 
 \subsection{Risk-neutral pricing}
+\label{sec:risk-neutral-pricing}
 
 We will now formalise the financial market and establish the principle of arbitrage-free valuation that will underpin our option pricing problem.
 
@@ -67,7 +66,7 @@ In our model, the market involves a fixed horizon $T > 0$ (our expiry) and a fil
 \end{equation}
 and one or more risky assets $S_t$ that follows an Itô process.
 
-It is important that the market is arbitrage-free, which means that there does not exist any trading strategy that can generate a positive profit with zero initial investment and zero risk. To formalise this, we first define a trading strategy $\phi$ that is self-financing, which means that that any change in the value of the portfolio is only due to changes in the assets held, without any external cash flow.
+It is important that the market is arbitrage-free, which means that there does not exist any trading strategy that can generate a positive profit with zero initial investment and zero risk. This trading strategy $\phi$ must be self-financing, which means that that any change in the value of the portfolio is only due to changes in the assets held, without any external cash flow.
 
 \begin{definition}[Self-financing trading strategy]
     A \textit{self-financing trading strategy} $\phi$ is a predictable process such that the value of the portfolio $V_t = \phi_t^B B_t + \phi_t^S S_t$ satisfies
@@ -80,24 +79,22 @@ It is important that the market is arbitrage-free, which means that there does n
     An \textit{arbitrage} is some trading strategy $\phi$ such that $V_0 = 0$, $V_T \ge 0$ almost surely and $\mathbb P(V_T > 0) > 0$.
 \end{definition}
 
-By the fundamental theorem of asset pricing, the market is arbitrage-free if and only if there exists a measure $\mathbb Q$ such that $\mathbb Q$ is equivalent to $\mathbb P$ (they have the same null sets) and the discounted price process $\tilde S_t = \frac{S_t}{B_t}$ is a martingale under $\mathbb Q$.
+By the fundamental theorem of asset pricing, the market is arbitrage-free if and only if there exists a measure $\mathbb Q$ such that $\mathbb Q$ is equivalent to $\mathbb P$ (they have the same null sets) and the discounted price process $\tilde S_t = \frac{S_t}{B_t}$ is a martingale under $\mathbb Q$. We will assume that our market is complete (any derivative can be replicated), and hence such a measure $\mathbb Q$ will be unique.
 
 Given that the market is arbitrage-free, we can price any derivative with payoff $g(\cdot)$ at time $t$ by taking the discounted expectation of the payoff under the risk-neutral measure $\mathbb Q$, giving us the risk-neutral pricing formula for European derivative with maturity $T$:
-
 \begin{equation}
-    v(t, S) = B_t \mathbb E^\mathbb Q \left[\frac{g(S_T)}{B_T} \mid \mathcal F_t\right]
+    v(t, S) = B_t \mathbb E^\mathbb Q \left[\frac{g(S_T)}{B_T} \Bigm| \mathcal F_t\right]
 \end{equation}
 
-For this project, we will deal with constant interest rates, so the bond price process reduces to $B_t = e^{rt}$ where $r$ is the constant risk-free rate. Additionally, we will also assume the Markov property (\ref{def:markov_process}). The arbitrage-free price of the European derivative will therefore be given by
-
+Throughout this project specifically, we will deal with constant interest rates, so the bond price process reduces to $B_t = e^{rt}$ where $r$ is the constant risk-free rate. Additionally, we will also assume the Markov property (\ref{def:markov_process}). The arbitrage-free price of the European derivative will therefore be given by
 \begin{equation}
-    v(t, S_t) = \mathbb E^\mathbb Q \left[e^{-r(T-t)} g(S_T) \mid S_t\right]
+    v(t, S) = \mathbb E^\mathbb Q \left[e^{-r(T-t)} g(S_T) \Bigm| S_t = S\right]
 \label{eq:risk_neutral_pricing_european}
 \end{equation}
 
 \subsection{Optimal stopping problem and free boundary}
 
-The American option gives the holder the right to exercise the option at any time before maturity, which thus gives us the interpretation of the option price as the solution to an optimal stopping problem.
+The American option gives the holder the right to exercise the option at any time before maturity, which thus gives us the interpretation of the option price as the solution to an optimal stopping problem, as we need to additionally identify when we should exercise the option.
 
 \begin{definition}[Stopping time]
     A random variable $\tau : \Omega \to [0, \infty]$ is a \textit{stopping time} if $\{\tau \le t\} \in \mathcal F_t$ for all $t \ge 0$.
@@ -106,7 +103,7 @@ The American option gives the holder the right to exercise the option at any tim
 The price of the American option can thus be expressed as the $\mathbb Q$-expectation of the discounted payoff at the optimal stopping time $\tau^\star$ that maximises the expected payoff, giving the optimal stopping problem
 
 \begin{equation}
-    v(t, S_t) = \sup_{\tau \in [t, T]} \mathbb E^\mathbb Q \left[e^{-r(\tau - t)} g(S_\tau) \mid S_t \right]
+    v(t, S) = \sup_{\tau \in [t, T]} \mathbb E^\mathbb Q \left[e^{-r(\tau - t)} g(S_\tau) \Bigm| S_t = S \right]
 \label{eq:optimal_stopping_problem}
 \end{equation}
 
@@ -114,25 +111,19 @@ which is simply (\ref{eq:risk_neutral_pricing_european}) with the additional opt
 
 This optimal $\tau^\star$ is the first time that the option holder chooses to exercise the option, which motivates the notion of a free boundary, which is the boundary separating separating the exercise region and the continuation region.
 
-Let's work with the case $t=0$ for simplicity, but the same logic applies for any $t \in [0, T]$. For the American put, the optimal stopping problem (\ref{eq:optimal_stopping_problem}) can be rewritten as
-
+Let's work with the case $t=0$ for simplicity, but the same logic applies for any $t \in [0, T)$. For the American put, the optimal stopping problem (\ref{eq:optimal_stopping_problem}) can be rewritten as
 \begin{equation}
-    v(0, S) = \sup_{\tau \in [0, T]} \mathbb E\big[e^{-r\tau}(K - S_\tau)^+\big]
+    v(0, S) = \sup_{\tau \in [0, T]} \mathbb E\big[e^{-r\tau}(K - S_\tau)^+ \mid S_0 = S \big]
 \end{equation}
-
 which is achieved by an optimal stopping time $\tau^\star$ taking the form
-
 \begin{equation}
     \tau^\star = \inf\{\tau \ge 0 : S_\tau \le b^\star(\tau)\}
 \end{equation}
-
-for some optimal exercise boundary $b^\star(\tau)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary, which is found using binary search on the binomial tree solution, where we have
-
+for some optimal exercise boundary $b^\star(\tau)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary. The illustration is based on the binomial tree solution on the American put option, which has the boundary
 \begin{equation}
-    b^\star(\tau) = \inf\{S : c(\tau, S) > g(S)\}
+    b^\star(\tau) = \sup\{S : c(\tau, S) = g(S)\}
 \end{equation}
-
-where $c(t, S)$ is the continuation value of the option with payoff $g(S)$.
+which is found using binary search here, and $c(t, S)$ is the continuation value of the option with payoff $g(S)$.
 
 \begin{figure}[h!]
     \centering
@@ -142,21 +133,16 @@ where $c(t, S)$ is the continuation value of the option with payoff $g(S)$.
 \end{figure}
 
 This formulation describes a hard classification problem, where we classify points in the time-stock price space binarily to be either in the continuation region or the exercise region. However, our numerical solutions to the pricing problem are not exact and there is some level of error in the solution that comes from the Monte Carlo simulations upon the space, the numerical differentiation used in training and the early stopping in the training process. Therefore, it would be more intuitive to perform a soft classification instead, where we assign probabilities to points in the time-stock price space to be in the continuation region or the exercise region, which would give us a more intuitive visualisation of the free boundary and how it evolves over time. We will do this by extending hard classification: that is to say, the continuation region $A$ is
-
 \begin{equation}
     A = \{(t, S) : c(t, S) > g(S)\} \cup \{(t, S) : g(S) = 0\}
 \end{equation}
-
-where intuitively, the first set is those where the continuation value is greater than the early exercise value, and the second set is those where the payoff is zero, which are at-the-money and out-of-the-money options that are worthless under immediate exercise.
+where intuitively, the first set is those where the continuation value is greater than the early exercise value (and hence it is better to continue), and the second set is those where the payoff is zero, which are at-the-money and out-of-the-money options that are worthless under immediate exercise.
 
 We will consider two methods to extend the definition of the continuation region to a soft classification. The first one is to use a sigmoid function $s: \mathbb R \to (0, 1)$ defined as
-
 \begin{equation}
     s(x) = \frac{1}{1 + e^{-x}}
 \end{equation}
-
 to smoothly transition the continuation probability from $0$ to $1$ as the value function transitions from being below the payoff to being above the payoff. As the sigmoid function is the CDF of the logistic distribution, we can interpret this as modelling the noise in the value function as a logistic distribution. The effect of the noise can be controlled by introducing the softness parameter $\tau > 0$, and our continuation probability function can be defined on the relative difference from the payoff as
-
 \begin{equation}
     P_\text{cont}(d) = s\left(\frac d \tau\right),
     \qquad d := \frac{c(t, S) - g(S)}{g(S)}
@@ -167,30 +153,29 @@ To tune the softness parameter, we can define a threshold $I \in (0.5, 1)$ such 
     \tau = \frac{\epsilon}{\ln\left(\frac{I}{1 - I}\right)}
 \end{equation}
 
-The second method is to assume Gaussianity of the noise in our estimate $\hat c$ of the continuation value, or in other words
+The second method is to assume Gaussianity of the noise in our estimate $\hat c$ of the continuation value, and that our approximated price is unbiased. In other words, we have
 \begin{equation}
     \hat c(t, S) = c(t, S) + \epsilon, \qquad \epsilon \sim \mathcal N(0, \tilde \sigma^2)
 \end{equation}
-where $c$ is the true (latent) continuation value and $\tilde \sigma$ is the standard deviation of the noise, which is unknown. We can then perform $n$ simulations of the solution to get $\hat c_1, \dots, \hat c_n$ and use the sample mean $\bar c$ as our unbiased estimate of the continuation value function, and the sample standard deviation $\hat \sigma$ as our estimate. Then $\bar c$ is distributed according to a $t$-distribution with $n-1$ degrees of freedom, and we can compute the continuation probability as
+where $c$ is the true (latent) continuation value and $\tilde \sigma$ is the standard deviation of the solution noise, which is also unknown. We can then perform solve the problem $n$ times to get the different approximated continuation values $\hat c_1, \dots, \hat c_n$. This allows us to use the sample mean $\bar c$ as our unbiased estimate of the continuation value function paired with the sample standard deviation $\hat \sigma$ as our estimate. Then $\bar c$ is distributed according to a $t$-distribution with $n-1$ degrees of freedom, and we can compute the continuation probability as
 \begin{equation}
     P_\text{cont}(t, S) = \mathbb P_{t_{n-1}}\left( \frac{\bar c(t, S) - g(S)}{\hat \sigma(t, S) / \sqrt n} > 0 \right)
 \end{equation}
+which is simple as the CDF of the $t$-distribution is readily available.
 
 The caveat with this method is that it requires multiple simulations of the solution, which becomes infeasible for more complex models and higher dimensions, but it gives us a more statistically grounded way to compute the continuation probability.
 
 All that is left is to find a method to obtain the continuation value function, as it is generally latent and not directly observable, given that we predict the American option price that already takes the maximum of the continuation value and the payoff. However, we can use
-
 \begin{equation}
-    c(t, S) = \mathbb E\left[e^{-rh} f(t+h, S_{t+h})\mid S_t = S\right]
+    c(t, S) = \mathbb E\left[e^{-rh} f(t+h, S_{t+h})\Bigm| S_t = S\right]
 \end{equation}
-
-where $h > 0$ is a small time step and $f$ is the American option price function. We can estimate this expectation by simulating the asset price $S_{t+h}$ at time $t+h$ given $S_t=S$ and evaluating the option price function at the point, then taking the average across all simulations.
+where $h > 0$ is a small time step and $f$ is the American option price function. We can obtain an unbiased estimation of this expectation by Monte Carlo: we simulate the asset price $S_{t+h}$ at time $t+h$ given $S_t=S$ many times and evaluate the option price function for each simulation, then taking the mean.
 
 \section{State Space Discretisation}
 
 \subsection{Background}
 
-Recall that the option value function $v(t, x)$ is the solution to the optimal stopping problem
+Recall that the option value function $v(t, S)$ is the solution to the optimal stopping problem
 \begin{equation}
     v(t, S) = \sup_{\tau \in [t, T]} \mathbb E\left[ e^{-r(\tau - t)} g(S_\tau) \mid S_t = S \right]
 \end{equation}
@@ -207,6 +192,7 @@ In a tree model, we discretise the time-state space into a finite grid, where th
 \begin{equation}
     p_{ij}^{(n)} = \mathbb P(S_{n+1} = S_{n+1}^j \mid S_n = S_n^i)
 \end{equation}
+
 This is a discrete-time Markov chain, and to identify the transition probabilities, we can use the risk-neutral condition which states that the discounted price process must be a martingale under the risk-neutral measure. This gives us the condition
 \begin{equation}
     \sum_{j=1}^{M_{n+1}} p_{ij}^{(n)} S_{n+1}^j = e^{r\Delta t} S_n^i
@@ -220,7 +206,7 @@ With these transition probabilities, we can compute the option value at time $t_
 
 where we take the maximum of the payoff and the discounted expected future price to account for early exercise for the American option. This maximum operator can easily be lifted for all time steps for European options, or only imposed on certain time steps for Bermudan options, leaving the tree method a very flexible method. This backwards induction is applied iteratively starting from the terminal condition at time $t_N = T$ to compute the option value at time $t_0 = 0$.
 
-An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps $N$, leading to a very computationally expensive algorithm. To mitigate this, we can use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables or if we wish to extend it to options operating on multiple assets, but its reliability and interpretability make it a good benchmark for simpler models.
+An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps $N$, leading to a very computationally expensive algorithm. To mitigate this, we use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables or if we wish to extend it to options operating on multiple assets, but its reliability and interpretability make it a good benchmark for simpler models.
 
 \section{Physics-Informed Neural Networks}
 \label{sec:pinns}
@@ -332,7 +318,9 @@ where we have used the \textit{Gagliardo seminorm} of $u$:
 \end{equation}
 
 \subsection{Model}
-Suppose we would like to price an option on $k$ assets $\bm S = (S^1, \dots, S^k)$. Similar to before, these assets have theoretically unbounded prices, so we need to truncate it a minimum and maximum price in our model. Thus the domain of the target function can be chosen to be
+[Maybe this should be in the Black-Scholes function]
+
+Suppose we would like to price an option on $k$ assets $\bm S = (S^1, \dots, S^k)$. As asset prices are theoretically unbounded, we truncate it in our model. Thus the domain of the target function can be chosen to be
 
 \begin{equation}
     \Omega = (S_\text{min}^1, S_\text{max}^1) \times \cdots \times (S_\text{min}^k, S_\text{max}^k)
