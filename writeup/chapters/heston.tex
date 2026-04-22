@@ -15,7 +15,7 @@ The dynamics of the variance $V$ follow a CIR process with mean reversion rate $
 
 There exists a closed-form solution derived by Heston \cite{heston1993closed} to the price of the European call option. This will serve as a benchmark for our other techniques, which would give us confidence in the accuracy of our other techniques for European options, and by extension, for American options too.
 
-The closed-form solution is derived by using an Ansatz inspired by the Black-Scholes formula, and determining the elements of our guess by substituting it into the PDE we know the solution must satisfy along with the boundary conditions. We will include a sketch of the derivation here which follows those found in \cite{gatheral2011volatility}, but in slightly more detail.
+The closed-form solution is derived by using an Ansatz inspired by the Black-Scholes formula, and determining the elements of our guess by substituting it into the PDE we know the solution must satisfy along with the boundary conditions. We will include a sketch of the derivation here which follows those found in \cite{heston1993closed, gatheral2011volatility}, but with some further justification for a better overall understanding.
 
 We will derive this PDE when we derive the variational equation in Section \ref{sec:heston_variation_equation}, but it is also an application of the Feynman-Kac formula, stating that the price of the European call option with strike $K$ and maturity $T$ must satisfy
 \begin{equation}
@@ -28,17 +28,17 @@ We will mimic the form of the Black-Scholes formula to form the Ansatz for the s
 C(S, V, t) = SP_1(x, V, t) - Ke^{-r(T-t)}P_2(x, V, t), \qquad x := \ln S
 \label{eq:heston_ansatz}
 \end{equation}
-with terminal conditions $P_j(x, V, T) = \boldsymbol{1}_{\{x \ge \ln K\}}$ so that our Ansatz reduces to $(S-K)^+$ at maturity. We can substitute the Ansatz into the PDE and equate the coefficients of $S$ and $Ke^{-r(T-t)}$ to get two PDEs for $P_1$ and $P_2$:
+with terminal conditions $P_j(x, V, T) = \boldsymbol{1}_{\{x \ge \ln K\}}$ so that our Ansatz reduces to $(S-K)^+$ at maturity. We can substitute the Ansatz into the PDE and equate the coefficients of $S$ and $Ke^{-r(T-t)}$ to obtain two PDEs for $P_1$ and $P_2$:
 \begin{equation}
     \frac{\partial P_j}{\partial t} + (r + u_jV) \frac{\partial P_j}{\partial x} + (a - b_j V) \frac{\partial P_j}{\partial V} + \frac 12 V \frac{\partial^2P_j}{\partial x^2} + \rho \sigma V \frac{\partial^2 P_j}{\partial x \partial V} + \frac 12 \sigma^2 V \frac{\partial^2 P_j}{\partial V^2} = 0
 \end{equation}
-where $u_1 = \frac 12$, $u_2 = -\frac 12$, $a = \kappa\theta$, $b_1 = \kappa - \rho \sigma$ and $b_2 = \kappa$. Another interpretation is, by Feynman-Kac, that $P_j$ is the probability $\mathbb Q_j(x_T \ge \ln K \mid \mathcal F_t)$ where $\mathbb Q_j$ is a measure with the same dynamics as $\mathbb Q$ but with the drift of the log stock price process $x_t = \ln S_t$ changed to $r + u_j V_t$. This is a change of measure that can be done with Girsanov's theorem \cite{karatzas2014brownian}.
+where $u_1 = \frac 12$, $u_2 = -\frac 12$, $a = \kappa\theta$, $b_1 = \kappa - \rho \sigma$ and $b_2 = \kappa$ \cite{heston1993closed}. Another interpretation is, by Feynman-Kac, that $P_j$ is the probability $\mathbb Q_j(x_T \ge \ln K \mid \mathcal F_t)$ where $\mathbb Q_j$ is a measure with the same dynamics as $\mathbb Q$ but with the drift of the log stock price process $x_t = \ln S_t$ changed to $r + u_j V_t$. This is a change of measure that can be done with Girsanov's theorem \cite{karatzas2014brownian}.
 
 With this in mind, let's define the characteristic functions
 \begin{equation}
-    \phi_j(\omega) = \mathbb E^{\mathbb Q_j}\left[e^{i\omega x_T}\mid \mathcal F_t\right]
+    \phi_j(x, V, t; \omega) = \mathbb E^{\mathbb Q_j}\left[e^{i\omega x_T}\mid \mathcal F_t\right]
 \end{equation}
-which will have the Ansatz
+which admits the Ansatz
 \begin{equation}
     \phi_j(\omega) = \exp\left(C_j(\tau, \omega) + D_j(\tau, \omega) V + i \omega x\right), \qquad \tau := T-t
 \end{equation}
@@ -48,9 +48,9 @@ We can insert this Ansatz into the PDE for $P_j$ to get a system of ODEs for $C_
 \begin{equation}
     \frac{\partial D_j}{\partial \tau} = \frac 12 \sigma^2 D_j^2 + (\rho \sigma i \omega - b_j)D_j + u_j i \omega - \frac 12 \omega^2, \qquad \frac{\partial C_j}{\partial \tau } = ri\omega + aD_j
 \end{equation}
-with the terminal conditions $C_j(0, \omega) = D_j(0, \omega) = 0$. There exists a closed-form integral solution to this system of ODEs, where we first define
+with the terminal conditions $C_j(0, \omega) = D_j(0, \omega) = 0$. There exists a closed-form solution to this system of ODEs, where we first define
 \begin{align}
-    d_j & := \sqrt{(\rho \sigma i \omega - b_j)^2 - \sigma^2 (2u_j \omega - \omega^2)} \\
+    d_j & := \sqrt{(\rho \sigma i \omega - b_j)^2 - \sigma^2 (2u_j i\omega - \omega^2)} \\
     g_j & := \frac{b_j - \rho \sigma i \omega - d_j}{b_j - \rho \sigma i \omega + d_j}
 \end{align}
 where we use the opposite sign convention compared to Heston's original formulation for better numerical stability (more precisely to avoid regions of numerical discontinuity in the complex plane) as suggested in \cite{albrecher2007little}. This yields the solutions
@@ -62,7 +62,7 @@ where we use the opposite sign convention compared to Heston's original formulat
 By the Gil-Pelaez inversion theorem \cite{gil1951note}, we can retrieve $P_j$ from its characteristic function $\phi_j$:
 
 \begin{equation}
-P_j = \frac 12 + \frac 1\pi \int_0^\infty \Re\left[\frac{e^{-iu \ln K} \phi_j(\omega)}{i\omega}\right]\,\mathrm d\omega
+P_j = \frac 12 + \frac 1\pi \int_0^\infty \Re\left[\frac{e^{-i\omega \ln K} \phi_j(\omega)}{i\omega}\right]\,\mathrm d\omega
 \end{equation}
 
 which we can substitute back into our original Ansatz for the call option (\ref{eq:heston_ansatz}) to get the closed-form solution for the call option price.
