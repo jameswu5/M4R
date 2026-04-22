@@ -482,7 +482,7 @@ Overall, we can conclude that the tree benchmark yields very strong results agai
 
 \subsection{PINN results against tree benchmark}
 
-[Do the writeup once all the results are in but put plots in here for now]
+We will now train our PINN on the one-dimensional case and compare the results against the tree benchmark on the American put on the asset with parameters $K=1, r=0.1, \sigma=0.3, T=1$ across a range of possible initial asset prices $S_0 \in [0, 3]$. This will be done through a feedforward neural network with 3 hidden layers each of width 32, with learning rate 0.001, batch size 10000 with 30000 maximum epochs with early stopping patience of 500 epochs. We train 30 models with different random initialisation and compute the ensemble mean for our final price estimate.
 
 \begin{figure}[ht!]
     \centering
@@ -491,6 +491,7 @@ Overall, we can conclude that the tree benchmark yields very strong results agai
     \label{fig:bs_pinn_price_comparison}
 \end{figure}
 
+Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price against the tree price across the domain of time and initial asset price. We can see that the PINN price is very close to the tree price across the domain, where the time value is correctly captured at the most sensitive point of $S=K$ and $t=0$ as seen in Figure \ref{fig:bs_pinn_price_comparison_line}. This figure additionally shows the model capturing the term structure of the option price, where the PINN price closely tracks the tree price across time for $S=K$.
 
 \begin{figure}[ht!]
     \centering
@@ -498,6 +499,22 @@ Overall, we can conclude that the tree benchmark yields very strong results agai
     \caption{Price comparison for varying underlying price, and for term structure at $S=K$}
     \label{fig:bs_pinn_price_comparison_line}
 \end{figure}
+
+We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 30 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. That said, the tree price is not guaranteed to be the ground truth, and hence the bias could be due to the tree approximation as well, so we cannot conclude that the PINN is biased without further investigation.
+
+\begin{table}
+    \centering
+    \begin{tabular}{|c|c|c|}
+        \hline
+        Tree price & PINN price & Relative error \\
+        \hline
+        0.0833 & 0.0860 $\pm$ 0.0006 & 3.33\% \\
+        \hline
+    \end{tabular}
+    \caption{PINN price at the money and initial time against tree benchmark}
+    \label{tab:bs_pinn_atm_price}
+\end{table}
+
 
 \subsection{Free boundary}
 
@@ -514,4 +531,3 @@ Overall, we can conclude that the tree benchmark yields very strong results agai
     \caption{Free boundary for PINN}
     \label{fig:free_boundary_pinn_1d}
 \end{figure}
-    
