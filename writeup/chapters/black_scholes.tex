@@ -423,7 +423,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     \end{equation}
     and the derivative
     \begin{equation}\nabla d = \big(\partial_{x_1}d, \dots, \partial_{x_k}d\big)\end{equation}
-    \item J3 (need to explain intuitively)
+    \item The Dirichlet trace loss:
     \begin{equation}
         J_3 =\|f(t, x) - g( x)\|^2_{H^{\frac 34, \frac 32}(\Sigma), \mu_3}
     \end{equation}
@@ -432,7 +432,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
         \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{2}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
     \end{align}
     The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent $2$ is equal to $2\theta + k - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $k$ the dimension. Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
-    \item J4 (need to explain intuitively):
+    \item The Neumann trace loss:
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot v\right\|^2_{H^{\frac 14, \frac 12}(\Sigma), \mu_4}
     \end{equation}
@@ -443,14 +443,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     because $H^{0, 0} = L^2$.
 \end{enumerate}
 
-In practice, we will compute a Monte Carlo estimate of these integrals by sampling pairs $(t_1, t_2)$ from the domain, evaluating the integrand and taking the mean across all pairs. To see this, suppose we can sample iid a random variable $X$ with probability density function $q(x)$. Then for any integrand $\phi(x)$ we have
-    
-\begin{equation}
-    \int \phi(x)\,\mathrm dx = \int\frac{\phi(x)}{q(x)}q(x) \,\mathrm dx = \mathbb E\left[\frac{\phi(X)}{q(X)}\right] \approx \frac 1N\sum_{i=1}^N\frac{\phi(X_i)}{q(X_i)}
-\end{equation}
-
-which can be generalised similarly to higher dimensions. By restricting our domain of $t_1$ and $t_2$ to be uniform in $[0, 1]$, we have $q$ uniformly equal to $1$ and hence we can just evaluate the integrand.
-
+The third and fourth losses are those that enforce $f$ to solve the option pricing variational inequality with regularity in the time and space dimensions beyond pointwise \cite{lions2012non}. In practice, we will compute a Monte Carlo estimate of these integrals by sampling pairs $(t_1, t_2)$ from the domain, evaluating the integrand and taking the mean across all pairs.
 
 \section{Numerical Results}
 

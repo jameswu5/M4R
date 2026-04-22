@@ -171,6 +171,28 @@ All that is left is to find a method to obtain the continuation value function, 
 \end{equation}
 where $h > 0$ is a small time step and $f$ is the American option price function. We can obtain an unbiased estimation of this expectation by Monte Carlo: we simulate the asset price $S_{t+h}$ at time $t+h$ given $S_t=S$ many times and evaluate the option price function for each simulation, then taking the mean.
 
+\subsection{Monte Carlo integration}
+
+Monte Carlo is a powerful way to estimate integrals that may be intractable or not have a closed-form solution, which will be useful through our project as expectations can be expressed as integrals under the probability measure. The idea is to use the law of large numbers to estimate the integral by sampling from some distribution and evaluating the integrand at the sampled points.
+
+Suppose we want to compute the integral of some function $\phi$ over a domain $\Omega$:
+\begin{equation}
+    I = \int_\Omega \phi(x)\,\mathrm dx
+\end{equation}
+
+If we are able to sample iid from some distribution with probability density function $q$ that has positive density on $\Omega$, then we can rewrite the integral as
+\begin{equation}
+    I = \int_\Omega \frac{\phi(x)}{q(x)} q(x) \,\mathrm dx = \mathbb E\left[\frac{\phi(X)}{q(X)}\right]
+\end{equation}
+where the expectation is taken under the distribution with density $q$. This expectation can be estimated by sampling $X_1, \dots, X_N$ iid from $q$ and taking the sample mean:
+\begin{equation}
+    \hat I = \frac 1N \sum_{j=1}^N \frac{\phi(X_j)}{q(X_j)}
+\end{equation}
+This is known as importance sampling \cite{akyildiz2025stochastic}, and our choice of $q$ can affect the variance of the estimator $\hat I$. In practice, we can choose $q$ to be uniform over $\Omega$, giving us the simple estimator
+\begin{equation}
+    \hat I = \frac{1}{N} \sum_{j=1}^N \phi(X_j)
+\end{equation}
+
 \section{State Space Discretisation}
 
 \subsection{Background}
