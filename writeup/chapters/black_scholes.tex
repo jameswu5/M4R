@@ -435,7 +435,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent $2$ is equal to $2\theta + k - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $k$ the dimension. Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
     \item The Neumann trace loss:
     \begin{equation}
-        J_4 =\left\|\nabla (f-g) \cdot v\right\|^2_{H^{\frac 14, \frac 12}(\Sigma), \mu_4}
+        J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma), \mu_4}
     \end{equation}
     where the norm derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ given that $x_{i^\star} \in \{a, b\}$ and $x_{i} \in (a, b)$ for $i \ne i^\star$. Rigorously, we require the sign but in practice this is not necessary, as we will square in the end. The fractional norm is thus written
     \begin{align}

@@ -314,34 +314,6 @@ In practice, as we clearly cannot represent infinity, we will settle for large c
 
 The boundary conditions (2)-(5) together will form the boundary loss (\ref{eq:pinn_boundary}) for the PINN. By choosing relevant weights for each of these loss components (we could additionally set different values for different individual boundary components), we can ensure that the neural network learns the correct behaviour at the boundaries, which is crucial for the accuracy of the solution.
 
-\subsection{Numerical results}
-
-We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_american_put} for the American put.
-
-\begin{figure}[h!]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put.png}
-    \caption{American put option prices}
-    \label{fig:heston_american_put}
-\end{figure}
-
-We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at greater volatilities. This can also be easily shown by fixing a volatility and plotting the approximated option value against the underlying, as shown in in Figure \ref{fig:heston_american_put_fixed_vol}.
-
-\begin{figure}[h!]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put_fixed_vol.png}
-    \caption{American put option prices with volatility fixed}
-    \label{fig:heston_american_put_fixed_vol}
-\end{figure}
-
-We can see that the tree prices are indeed well approximated by the Neural network, but the at-the-money options are underpriced for higher volatilities. This is due to the lack of a strict high initial variance boundary condition. We can plot the option prices with respect to initial variance in Figure \ref{fig:heston_american_put_vary_vol}. Our price does indeed increase with increasing initial variance, but not at the same rate.
-
-\begin{figure}[h!]
-    \centering
-    \includegraphics[width=0.5\textwidth]{../plots/heston/heston_american_put_vary_vol.png}
-    \caption{At-the-money price with varying initial variance}
-    \label{fig:heston_american_put_vary_vol}
-\end{figure}
 
 \section{Multi-asset PINN}
 
@@ -467,17 +439,8 @@ This will be very similar to the one-dimensional case, but we will make a few mo
     \end{equation}
 \end{enumerate}
 
-\subsection{Numerical results}
-
-\begin{figure}[h!]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_multi_vs.png}
-    \caption{Neural network vs 1D reduction tree prices}
-    \label{fig:heston_multi_vs}
-\end{figure}
 
 \section{Numerical Results}
-
 
 \subsection{Interpolating tree method}
 \label{sec:heston_tree_results}
@@ -503,3 +466,41 @@ To compute the American option price with the tree model, all we need to do is t
 \end{figure}
 
 In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option price indeed bounds the American prices from below, as we would expect. We have confidence that our American prices are accurate since our binomial tree faithfully approximates the closed-form solution for European options. We will now use this as a benchmark for neural network approximations.
+
+\subsection{One-dimensional PINN solution}
+
+We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_american_put} for the American put.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put.png}
+    \caption{American put option prices}
+    \label{fig:heston_american_put}
+\end{figure}
+
+We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at greater volatilities. This can also be easily shown by fixing a volatility and plotting the approximated option value against the underlying, as shown in in Figure \ref{fig:heston_american_put_fixed_vol}.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put_fixed_vol.png}
+    \caption{American put option prices with volatility fixed}
+    \label{fig:heston_american_put_fixed_vol}
+\end{figure}
+
+We can see that the tree prices are indeed well approximated by the Neural network, but the at-the-money options are underpriced for higher volatilities. This is due to the lack of a strict high initial variance boundary condition. We can plot the option prices with respect to initial variance in Figure \ref{fig:heston_american_put_vary_vol}. Our price does indeed increase with increasing initial variance, but not at the same rate.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{../plots/heston/heston_american_put_vary_vol.png}
+    \caption{At-the-money price with varying initial variance}
+    \label{fig:heston_american_put_vary_vol}
+\end{figure}
+
+\subsection{Multi-asset PINN solution}
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/heston/heston_multi_vs.png}
+    \caption{Neural network vs 1D reduction tree prices}
+    \label{fig:heston_multi_vs}
+\end{figure}
