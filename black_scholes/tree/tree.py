@@ -68,9 +68,12 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     return price, price_tree, option_tree
 
 
-def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="american"):
+def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="american", continuation_value=False):
     """
     Vectorised binomial tree for batch pricing.
+    Continuation value set to True effectively is a Bermudan option with exercise opportunities at each time step except the root,
+    useful for computing continuation values.
+
     S : array of shape (B,)
     Returns: prices of shape (B,)
     """
@@ -109,6 +112,10 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
             + (1 - p) * option_tree[:, i+1, :i+1]
         )
 
+        # Bermudan option
+        if continuation_value and i == 0:
+            continue
+
         if exercise_type == "american":
             if option_type == "call":
                 exercise_value = np.maximum(0, price_tree[:, i, :i+1] - K)
@@ -133,10 +140,12 @@ class BinomialTree:
         self.option_type = option_type
         self.exercise_type = exercise_type
 
-    def predict(self, t, S):
+    def predict(self, t, S, continuation_value=False):
         """
         t : float
         S : float or array of shape (B,)
+        continuation_value : bool, optional
+            If True, return continuation values instead of option prices.
         Returns: price or array of prices of shape (B,)
         """
         tau = self.T - t
@@ -144,7 +153,8 @@ class BinomialTree:
             S = np.array([S])
         return binomial_tree_batch(
             S, self.K, self.r, self.sigma,
-            tau, self.n_steps, self.option_type, self.exercise_type
+            tau, self.n_steps, self.option_type, self.exercise_type,
+            continuation_value
         )
 
 
