@@ -11,7 +11,7 @@ where we have initial conditions $S_0  = s>0$ and $V_0 = v \ge 0$, and the two B
 \end{equation}
 The dynamics of the variance $V$ follow a CIR process with mean reversion rate $\kappa > 0$, long run state $\theta > 0$ and volatility of the volatility $\sigma > 0$. We can enforce the Feller condition $2\kappa\theta \ge \sigma^2$ so that the volatility process stays positive.
 
-\section{Closed-form solution}
+\section{Closed-form Solution}
 
 There exists a closed-form solution derived by Heston \cite{heston1993closed} to the price of the European call option. This will serve as a benchmark for our other techniques, which would give us confidence in the accuracy of our other techniques for European options, and by extension, for American options too.
 
@@ -68,35 +68,11 @@ P_j = \frac 12 + \frac 1\pi \int_0^\infty \Re\left[\frac{e^{-i\omega \ln K} \phi
 
 which we can substitute back into our original Ansatz for the call option (\ref{eq:heston_ansatz}) to get the closed-form solution for the call option price.
 
-We can plot the call option prices against the stock price $S_0$. We expect it to be close to the Black Scholes formula and for it to collapse to the call option payoff at expiry as the option loses its time value. We see in Figure \ref{fig:heston_closed_call} that this behaviour is indeed exhibited.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_closed_call.png}
-    \caption{Call option values on different maturities}
-    \label{fig:heston_closed_call}
-\end{figure}
-
-For European options, we can also use put call parity, which is model independent, to obtain the put prices:
-\begin{equation}
-    \text{Call} - \text{Put} = S - Ke^{-rT}
-\end{equation}
-where we can get the graphs with the same parameters as shown in Figure \ref{fig:heston_closed_put}. As expected, we also get convergence towards the payoff at smaller time to maturities, and for greater time to maturities, we see that the value of the option is actually lower than the payoff, which is due to the interest rate.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_closed_put.png}
-    \caption{Put option values on different maturities}
-    \label{fig:heston_closed_put}
-\end{figure}
-
 \section{Tree Solution}
 
 Since the closed-form solution is limited to European options, we would like to find ways to approximate solutions to the pricing problem so that we can eventually extend the case to American options, which has no closed-form solution. The first method we will explore is the tree method, where it is easy to modify to the American case by adding an additional comparison to the intrinsic value at each node. We will use the closed-form formula as a benchmark for the tree method for European options, to give us confidence in the solution the tree model provides for American options as it is a simple modification in the algorithm, which we can use as a benchmark for the neural networks we will explore later.
 
-The idea will be similar to the binomial tree we explored earlier in the paper, but we now have two correlated stochastic processes in the Heston model: the asset price process and the variance process. As this tree is not recombinant, generating paths for these processes and computing the option prices by backwards induction naively would lead to an exponential time complexity, which is not computationally feasible. Therefore, we will use a grid interpolation approach as in \cite{vellekoop2009tree} so that the number of nodes grows quadratically in the number of time steps instead.
-
-\subsection{Algorithm}
+The idea will be similar to the binomial tree we explored earlier in the paper for the Black-Scholes model, but we now have two correlated stochastic processes in the Heston model: the asset price process and the variance process. As this tree is not recombinant, generating paths for these processes and computing the option prices by backwards induction naively would lead to an exponential time complexity, which is not computationally feasible. Therefore, we will use a grid interpolation approach as in \cite{vellekoop2009tree} so that the number of nodes grows quadratically in the number of time steps instead.
 
 For the algorithm, we will work under the variance process $V$ and log stock price process $Z$ (which is a simple transformation from $S$ using Itô's formula):
 \begin{align}
@@ -108,7 +84,7 @@ where $\mathrm d\langle W^1, W^2\rangle_t = \rho$ under the risk-neutral measure
     C(t, V_t, Z_t) = e^{-r(T-t)}\mathbb E^\mathbb Q [g(e^{Z_t}, \sqrt {V_t})\mid \mathcal F_t]
 \end{equation}
 
-\subsubsection{Euler Scheme}
+\subsection{Euler scheme}
 To construct the tree, we need to discretise the process. Suppose we have $n$ steps, then $\Delta t = \frac Tn$. Using the standard Euler scheme, we can have
 \begin{align}
     V_{k+1} &= V_k + \kappa (\theta - V_k^+)\Delta t + Y^1_{k+1} \sigma \sqrt{V_k^+ \Delta t} \\
@@ -120,7 +96,7 @@ where the increment variables $(Y_k^1, Y_k^2)$ are iid in $k$ with probabilities
 \end{equation}
 We use a different measure $\mathbb Q^n$ as it is not the same as the risk-neutral measure in the Heston model. To ensure positivity of the process, we have taken the positive part of the variance process $V_k^+ :=\max(0, V_k)$.
 
-\subsubsection{Interpolation optimisation}
+\subsection{Interpolation optimisation}
 
 The problem with the naïve Euler scheme is that the tree is not recombining, and hence the number of nodes scales exponentially with increasing time steps, which is not feasible computationally. We will hence, for each time step $k$, construct a grid of option prices at time $k$ and the backward induction would be a bilinear interpolation of the four nearest points.
 
@@ -139,7 +115,7 @@ With these boundaries, we have the grid spacing given our mesh sizes $m_z, m_v \
 and the gridpoints:
 $$
     \hat{\mathcal S}_k = \left\{\left(
-    v_k^\text{min} + i\Delta v_k, z_k^\text{min} + j\Delta z_k \right) \mid i \in \{0, \dots, m_v\}, j \in \{0, \dots, m_z\}\right\}
+    v_k^\text{min} + i\Delta v_k, z_k^\text{min} + j\Delta z_k \right) \Bigm | i \in \{0, \dots, m_v\}, j \in \{0, \dots, m_z\}\right\}
 $$
 
 We will now define the discretised process $(\tilde V, \tilde Z)$ on the grid space $\hat {\mathcal S}_k$. This will involve the Euler scheme functions
@@ -191,7 +167,7 @@ where we have the difference terms
 
 because our grid is evenly spaced at all time steps $k$.
 
-\subsubsection{Backwards induction}
+\subsection{Backwards induction}
 
 We can now work backwards on the tree, having constructed the grids. Our base case is the final grid, where the price is just the payoff as we are at maturity. For a general time $t_k$ at step $k$ and node $(v, z) \in \hat{\mathcal S}_{k}$, we will generate the four possible steps determined by $y_1, y_2$ each taking values in $\{-1, 1\}$, and evolve our node with
 \begin{equation}
@@ -207,47 +183,23 @@ Each of these will have a known option price. Therefore, we can just compute the
 \end{equation}
 where $\mathcal Y = \{-1, 1\}^2 \times \{0, 1\}^2$.
 
-\subsubsection{Implementation techniques}
+\subsection{Implementation techniques}
 
 If we implemented this method naively, it would be very difficult for us to use the binomial tree as a benchmark because it would need to construct a new tree from scratch for every single value of $S_0$, $V_0$ and $T$. Thus any heatmaps or plots we create would require hundreds of trees which is not feasible, considering each tree requires many time steps and large mesh sizes to be accurate. 
 
 Thus in addition to vectorising our code for each tree, we will instead consider an initial range $[S_0^\text{min}, S_0^\text{max}]$ and $[V_0^\text{min}, V_0^\text{max}]$ which we will use to construct our grid bounds. More specifically, $z_k^\text{max}$ and $v_k^\text{max}$ will be the up-most path starting with $(S_0^\text{max}, V_0^\text{max})$ instead of simply some individual value $(S_0, V_0)$, and similar for the down paths. In this way, when we use the binomial tree as a benchmark, we can use any initial value of $(S_0, V_0)$ as long as it's in the original range and compute the price with an interpolation as described above. With this method, we can evaluate across different initial values while constructing just one tree. We sacrifice a little accuracy in doing so because the grids would be more widely spaced, which we can combat by increasing the mesh sizes. Thus, we effectively construct one more complex tree instead of hundreds of simpler ones, which is much more computationally efficient.
 
-
-\subsection{Numerical Results}
-
-It can be shown that if we have
-
+As for selecting our mesh sizes, we will use the result that if we have
 \begin{equation}
     \lim _{n \to \infty} \Delta t = 0, \qquad \lim _{n \to \infty}\max_{k=1, \dots, n-1} \frac{\Delta v^n_k}{\Delta t_k} = 0, \qquad \lim _{n \to \infty}\max_{k=1, \dots, n-1} \frac{\Delta z^n_k}{\Delta t_k} = 0
 \end{equation}
 then the process represented in our Heston tree converges weakly to the original process $(V, Z)$ \cite{vellekoop2009tree}. Note here we denote $\Delta v_k$ from before as $\Delta v_k^n$ to emphasize we have split our maturity $T$ into $n$ steps, and similarly for $\Delta z_k^n$.
 
-Taking this into account, we choose our parameters to be $n=100, m_v=300, m_z=600$ which allows our tree to faithfully reproduce the closed form solution while keeping runtime low (after I optimised the algorithm with Python vectorisation). Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $v_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_tree.png}
-    \caption{Call option prices by the Heston Tree}
-    \label{fig:heston_tree}
-\end{figure}
-
-We can see that the Heston tree does indeed replicate the closed form solution very closely to very small error. This gives us confidence in our implementation, and with an easy modification we can compute the American option prices which we will use as a benchmark.
-
-To compute the American option price with the tree model, all we need to do is to introduce early stopping at every node: we evaluate the intrinsic value the option has at a node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_tree_put_eu_vs_am.png}
-    \caption{American vs European option prices for the put}
-    \label{fig:heston_put_eu_vs_am}
-\end{figure}
-
-In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option price indeed bounds the American prices from below, as we would expect. We have confidence that our American prices are accurate since our binomial tree faithfully approximates the closed-form solution for European options. We will now use this as a benchmark for neural network approximations.
+Bearing this in mind, a resolution of $n=100, m_v=300, m_z=600$ allows our tree to faithfully reproduce the closed-form solution, which are presented in the numerical results in section \ref{sec:heston_tree_results}.
 
 \section{PINN Solution}
 
-\subsection{Variational Equation}
+\subsection{Variational equation}
 \label{sec:heston_variation_equation}
 
 We would now like to derive the variational equation for options on assets under the Heston model. Note that for a general process $X_t \in \mathbb R^d$ solving the Itô SDE
@@ -313,7 +265,7 @@ This is our infinitesimal generator $\mathcal L$ acting on smooth functions $f$.
 \begin{equation}
 \mathcal G[u] := ru - \frac{\partial u}{\partial t} + \mathcal Lu = 0
 \end{equation}
-with terminal condition $u(T, S, V) = g(S)$. This matches the PDE we had stated in the closed-form solution section \ref{eq:heston_feynman_kac_pde}.
+with terminal condition $u(T, S, V) = g(S)$. This matches the PDE we had stated in the closed-form solution in section \ref{eq:heston_feynman_kac_pde}.
 
 As a check, we can set $\kappa = 0$ and $\sigma = 0$ so that $\mathrm dV = 0$ and volatility becomes a constant, and our model collapses to what we have been working with before. Our generator becomes
 \begin{equation}
@@ -327,7 +279,7 @@ We have derived the variational equation for the European option for simplicity,
 \label{eq:heston_variational_inequality}
 \end{equation}
 
-\subsection{PINN Formulation}
+\subsection{PINN formulation}
 
 We can fit the variational equation (\ref{eq:heston_variational_inequality}) into the PINN framework established in section \ref{sec:pinns} which will serve as the PDE loss (\ref{eq:pinn_pde}), and all that is left is to set up the loss function and the relevant boundary conditions. It will be very similar to the Black-Scholes case, but as we have an additional dimension $V$ for the variance, we will need additional boundary conditions to ensure regularity in the variance dimension as well. These boundary conditions will be inspired by those given for the European call option in \cite{heston1993closed}, but we will adapt them in our study, as they exhibit different behaviour for American put options.
 
@@ -362,7 +314,7 @@ In practice, as we clearly cannot represent infinity, we will settle for large c
 
 The boundary conditions (2)-(5) together will form the boundary loss (\ref{eq:pinn_boundary}) for the PINN. By choosing relevant weights for each of these loss components (we could additionally set different values for different individual boundary components), we can ensure that the neural network learns the correct behaviour at the boundaries, which is crucial for the accuracy of the solution.
 
-\subsection{Numerical Results}
+\subsection{Numerical results}
 
 We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_american_put} for the American put.
 
@@ -465,7 +417,7 @@ This is close to the Heston model, with the diffusion $\tilde V = VB$ which give
 \end{align}
 which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, $\tilde \theta = B\theta$ and $\tilde \sigma = \bar \sigma \sqrt B$. The product of assets nearly gives a direct reduction to a one-dimensional Heston process, but the drift of $X$ contains $V$ which is a stochastic process itself. Thus for simplicity and for our benchmark, we will set $\rho = 0$ which means $B = A$ and the drift term becomes deterministic. As such, we are able to recover a one-dimensional Heston model for the product of assets $X$ with variance $\tilde V$ and drift $nr$.
 
-\subsection{Variational Equation}
+\subsection{Variational equation}
 
 Recall for a process $X_t \in \mathbb R^d$ solving $\mathrm dX_t = b(X_t)\mathrm dt + \sigma(X_t)\mathrm dW_t$, the infinitesimal generator $\mathcal L$ can be derived with Itô's formula \cite{pham2009continuous} on $f(x)$ to be
 \begin{equation}
@@ -482,14 +434,14 @@ In our case, we have a function $f = f(S_1, \dots, S_d, V)$, and we can derive t
 
 For any payoff $g(\cdot)$, we have, as before, the variational equation for an European option being
 \begin{equation}
-\mathcal G[f] := rf - \frac{\partial f}{\partial t} + \mathcal Lu = 0
+\mathcal G[f] := rf - \frac{\partial f}{\partial t} + \mathcal Lf = 0
 \end{equation}
 and for an American option, we can introduce the early stopping criterion and the variation equation becomes
 \begin{equation}
 \min (\mathcal G[f], f - g) = 0
 \end{equation}
 
-\subsection{PINN Formulation}
+\subsection{PINN formulation}
 
 This will be very similar to the one-dimensional case, but we will make a few modifications to account for the additional dimensions. The PDE loss will be the same as before, but the boundary conditions will include:
 
@@ -523,3 +475,31 @@ This will be very similar to the one-dimensional case, but we will make a few mo
     \caption{Neural network vs 1D reduction tree prices}
     \label{fig:heston_multi_vs}
 \end{figure}
+
+\section{Numerical Results}
+
+
+\subsection{Interpolating tree method}
+\label{sec:heston_tree_results}
+
+As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which allows a faithful approximation of closed form solution while keeping runtime low. Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $v_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/heston/heston_tree.png}
+    \caption{Call option prices by the Heston Tree}
+    \label{fig:heston_tree}
+\end{figure}
+
+We can see that the Heston tree does indeed replicate the closed form solution very closely to very small error. This gives us confidence in our implementation, and with an easy modification we can compute the American option prices which we will use as a benchmark.
+
+To compute the American option price with the tree model, all we need to do is to introduce the stopping condition at every node: we evaluate the intrinsic value of the option at each node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/heston/heston_tree_put_eu_vs_am.png}
+    \caption{American vs European option prices for the put}
+    \label{fig:heston_put_eu_vs_am}
+\end{figure}
+
+In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option price indeed bounds the American prices from below, as we would expect. We have confidence that our American prices are accurate since our binomial tree faithfully approximates the closed-form solution for European options. We will now use this as a benchmark for neural network approximations.
