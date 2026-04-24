@@ -516,8 +516,24 @@ We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluat
     \label{tab:bs_pinn_atm_price}
 \end{table}
 
+\subsection{Multi-dimensional PINN}
 
 \subsection{Free boundary}
+
+For the one-dimensional free boundary, we will first evaluate the free boundary from the tree benchmark. Here, the continuation values are extracted through a small modification to the tree algorithm, where we compute the price of the Bermudan option with the same parameters with possibility of exercise at every time step except for at $t=0$, effectively serving as a continuation value of the American option at $t=0$. This continuation value is compared with the intrinsic value (the payoff) like we introduced in equation (\ref{eq:free_boundary}) in the mathematical background. The left figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs, and here we use hard classification as binomial tree pricing is deterministic.
+
+We can see that the free boundary is correctly captured at glance, where we exercise the option when the asset price is sufficiently low, whose threshold increases as we get closer to maturity, consistent with the intuition that the option is losing time value.
+
+We now evaluate the free boundary from the PINN. The central figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs using the sigmoid distribution as described in equation (\ref{eq:continuation_probability_sigmoid}). We can see that the shape of the free boundary is similar to the tree benchmark, and with soft classification the lowest probability is around $0.4$, which is not unintuitive as in the exercise region, the continuation value is theoretically equal to the payoff, and hence we should be indifferent between exercising and continuing.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_continuation_probs.png}
+    \caption{Estimated continuation probabilities from PINN for the American put option}
+    \label{fig:bs_continuation_probs}
+\end{figure}
+
+To use the Gaussian method, we will first evaluate its validity by plotting the distribution of the standardised price estimates across all seeds in Figure \ref{fig:nn_price_distribution}, noting that as the variance is unknown and we use the sample variance, the standardised price estimates would follow a t-distribution with $n-1$ degrees of freedom where $n$ is the number of seeds.
 
 \begin{figure}[ht!]
     \centering
@@ -526,9 +542,6 @@ We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluat
     \label{fig:nn_price_distribution}
 \end{figure}
 
-\begin{figure}[ht!]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/black_scholes/nn_continuation_probs_sigmoid.png}
-    \caption{Free boundary for PINN}
-    \label{fig:free_boundary_pinn_1d}
-\end{figure}
+By looking at the histogram and the Q-Q plot, we can see that the distribution of the standardised price estimates is reasonably close to a t-distribution, with the exception of the tails. Nevertheless, we will proceed with evaluating the free boundary using the Gaussian method, and the right figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs. 
+
+We can see that the shape roughly corresponds to the free boundaries we have seen before, but this is a much noisier estimate, which puts into question the assumptions we have made. We are essentially assuming that the price estimates of the PINN are unbiased and normally distributed around the true price, which is quite strong and not true in practice, as we have already observed in Figure \ref{fig:bs_pinn_price_comparison} where we have zones where the PINN price is systematically above or below the tree price, suggesting bias.

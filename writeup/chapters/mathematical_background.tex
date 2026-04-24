@@ -122,6 +122,7 @@ which is achieved by an optimal stopping time $\tau^\star$ taking the form
 for some optimal exercise boundary $b^\star(\tau)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary. The illustration is based on the binomial tree solution on the American put option, which has the boundary
 \begin{equation}
     b^\star(\tau) = \sup\{S : c(\tau, S) = g(S)\}
+\label{eq:free_boundary}
 \end{equation}
 which is found using binary search here, and $c(t, S)$ is the continuation value of the option with payoff $g(S)$.
 
@@ -146,6 +147,7 @@ to smoothly transition the continuation probability from $0$ to $1$ as the value
 \begin{equation}
     P_\text{cont}(d) = s\left(\frac d \tau\right),
     \qquad d := \frac{c(t, S) - g(S)}{g(S)}
+\label{eq:continuation_probability_sigmoid}
 \end{equation}
 
 To tune the softness parameter, we can define a threshold $I \in (0.5, 1)$ such that we want the continuation probability to be $I$ at some relative difference $\epsilon > 0$, i.e. $P_\text{cont}(\epsilon) = I$, which we could solve with some simple algebraic manipulation to get
