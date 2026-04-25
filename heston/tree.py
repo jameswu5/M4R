@@ -333,7 +333,7 @@ class HestonTreeFast:
         self.information['exercise_type'] = exercise_type
         self.information['payoff_type'] = option_type
 
-    def price(self, V0, S0, k=0):
+    def price(self, V0, S0, k=0, continuation_value=False):
         """
         Prices the option given initial variance V0 and stock price S0 at time step k.
         Requires that build_tree() has been called first.
@@ -359,7 +359,7 @@ class HestonTreeFast:
         Z0 = np.atleast_2d(Z0)
 
         continuation = self.interpolate_price(V0, Z0, k)
-        if self.information['exercise_type'] == "european":
+        if self.information['exercise_type'] == "european" or continuation_value:
             price = continuation
         else:
             exercise = self.payoff(np.exp(Z0))
