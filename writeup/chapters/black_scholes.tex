@@ -603,3 +603,21 @@ By looking at the histogram and the Q-Q plot, we can see that the distribution o
 We can see that the shape roughly corresponds to the free boundaries we have seen before, but this is a much noisier estimate, which puts into question the assumptions we have made. We are essentially assuming that the price estimates of the PINN are unbiased and normally distributed around the true price, which is quite strong and not true in practice, as we have already observed in Figure \ref{fig:bs_pinn_price_comparison} where we have zones where the PINN price is systematically above or below the tree price, suggesting bias.
 
 \subsubsection{Two-dimensional case}
+
+Using the same methodology as the one-dimensional case, we plot our estimated free boundaries in Figure \ref{fig:bs_nd_continuation_probs}. This is done on the $S_1$-$S_2$ cross section at $t=0$, with the additional reference line of $S_1 \times S_2 = K$, which should be a continuation region as it is at the money and is worthless under immediate exercise.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_nd_continuation_probs.png}
+    \caption{Estimated continuation probabilities for 2-dimensional case with $S_1 \times S_2 = K$ reference line}
+    \label{fig:bs_nd_continuation_probs}
+\end{figure}
+
+We can see that both methods of estimating the continuation probabilities yield similar shapes to the binomial tree benchmark, with the Gaussian method being noisier than the sigmoid method. We can further examine the continuation probabilities over time along the $S_1 = S_2$ cross section, varying across time this time. This is shown in Figure \ref{fig:bs_nd_continuation_probs_time}, where we can see that the PINN has successfully captured the structure of the free boundary across time where $S_1 = S_2$.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_nd_continuation_probs_time.png}
+    \caption{Estimated continuation probabilities for 2-dimensional case on $S_1 = S_2$ cross section across time}
+    \label{fig:bs_nd_continuation_probs_time}
+\end{figure}
