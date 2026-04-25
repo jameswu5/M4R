@@ -469,32 +469,26 @@ In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option pric
 
 \subsection{One-dimensional PINN solution}
 
-We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_american_put} for the American put.
+We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_1d_comparison_heatmap} for the American put.
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put.png}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_heatmap.png}
     \caption{American put option prices}
-    \label{fig:heston_american_put}
+    \label{fig:heston_1d_comparison_heatmap}
 \end{figure}
 
-We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at greater volatilities. This can also be easily shown by fixing a volatility and plotting the approximated option value against the underlying, as shown in in Figure \ref{fig:heston_american_put_fixed_vol}.
+We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at lower volatilities. We can take slices of our three dimensional heatmap on the triple $(t, S, V)$ to get a better understanding of the performance, by fixing two of the variables at the default $(t=0, S=1.0, V=0.1)$ and plotting the option price against the other variable. This is shown in Figure \ref{fig:heston_1d_comparison_line}.
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=\textwidth]{../plots/heston/heston_american_put_fixed_vol.png}
-    \caption{American put option prices with volatility fixed}
-    \label{fig:heston_american_put_fixed_vol}
+    \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_line.png}
+    \caption{PINN vs tree prices varying across $S$, $V$ and $t$ parameters}
+    \label{fig:heston_1d_comparison_line}
 \end{figure}
 
-We can see that the tree prices are indeed well approximated by the Neural network, but the at-the-money options are underpriced for higher volatilities. This is due to the lack of a strict high initial variance boundary condition. We can plot the option prices with respect to initial variance in Figure \ref{fig:heston_american_put_vary_vol}. Our price does indeed increase with increasing initial variance, but not at the same rate.
+We can see that the PINN does indeed capture well the general shape and behaviour of the option price, especially for varying across $S$ and $V$ but it struggles a bit more with the term-structure. That said, it is still able to capture the theta decay with its monoticity, which is a good sign.
 
-\begin{figure}[h!]
-    \centering
-    \includegraphics[width=0.5\textwidth]{../plots/heston/heston_american_put_vary_vol.png}
-    \caption{At-the-money price with varying initial variance}
-    \label{fig:heston_american_put_vary_vol}
-\end{figure}
 
 \subsection{Multi-asset PINN solution}
 
