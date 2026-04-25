@@ -16,6 +16,9 @@ class BlackScholesPINN(PINN):
             'Smax_loss': []
         }
 
+        # Start tracking the (t=0, S=K) price during training to monitor convergence
+        self.atm_price = []
+
     def set_params(self, K, r, sigma, T, S_min, S_max):
         self.K = K
         self.r = r
@@ -67,6 +70,10 @@ class BlackScholesPINN(PINN):
             loss.backward()
             self.optimizer.step()
             self.scheduler.step()
+
+            self.atm_price.append(
+                self.model(torch.tensor([[0.0]]), torch.tensor([[self.K]]))
+            ).item()
 
             # Compute validation loss for early stopping
             variational_loss_val = self.__interior_loss(batch_size, t=val_t_interior, S=val_S_interior)

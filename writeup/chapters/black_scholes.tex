@@ -483,7 +483,16 @@ Overall, we can conclude that the tree benchmark yields very strong results agai
 
 \subsection{PINN results against tree benchmark}
 
-We will now train our PINN on the one-dimensional case and compare the results against the tree benchmark on the American put on the asset with parameters $K=1, r=0.1, \sigma=0.3, T=1$ across a range of possible initial asset prices $S_0 \in [0, 3]$. This will be done through a feedforward neural network with 3 hidden layers each of width 32, with learning rate 0.001, batch size 10000 with 30000 maximum epochs with early stopping patience of 500 epochs. We train 30 models with different random initialisation and compute the ensemble mean for our final price estimate.
+We will now train our PINN on the one-dimensional case and compare the results against the tree benchmark on the American put on the asset with parameters $K=1, r=0.1, \sigma=0.3, T=1$ across a range of possible initial asset prices $S_0 \in [0, 3]$. This will be done through a feedforward neural network with 3 hidden layers each of width 32, with learning rate 0.001, batch size 10000 with 30000 maximum epochs with early stopping patience of 500 epochs. We train 25 models with different random initialisation and compute the ensemble mean for our final price estimate.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_1d_train_loss.png}
+    \caption{Loss convergence for the one-dimensional PINN for one run}
+    \label{fig:bs_1d_train_loss}
+\end{figure}
+
+Figure \ref{fig:bs_1d_train_loss} shows the convergence of the loss function for one run, and we can see that the loss converges well, with each of them having similar magnitudes, converging in the order of $10^{-5}$.
 
 \begin{figure}[ht!]
     \centering
@@ -501,9 +510,9 @@ Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price ag
     \label{fig:bs_pinn_price_comparison_line}
 \end{figure}
 
-We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 30 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. That said, the tree price is not guaranteed to be the ground truth, and hence the bias could be due to the tree approximation as well, so we cannot conclude that the PINN is biased without further investigation.
+We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 30 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. 
 
-\begin{table}
+\begin{table}[h]
     \centering
     \begin{tabular}{|c|c|c|}
         \hline
@@ -515,6 +524,15 @@ We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluat
     \caption{PINN price at the money and initial time against tree benchmark}
     \label{tab:bs_pinn_atm_price}
 \end{table}
+
+We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across different training epochs, as shown in Figure \ref{fig:bs_1d_train_atm_price}. We can see that the price spikes above the tree price and then settles around the marked benchmark tree price but interestingly approaches it from below, confirming our suspicion that the PINN price is biased against the tree price. That said, the tree price is not guaranteed to be the ground truth.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=0.7\textwidth]{../plots/black_scholes/bs_1d_train_atm_price.png}
+    \caption{$f(0, K)$ across training epochs for one run}
+    \label{fig:bs_1d_train_atm_price}
+\end{figure}
 
 \subsection{Multi-dimensional PINN}
 

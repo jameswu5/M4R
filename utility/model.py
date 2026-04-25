@@ -142,7 +142,7 @@ class PINN(ABC):
     def train(self, batch_size, epochs, early_stopping):
         pass
 
-    def plot_losses(self, start_epoch=0, detailed=False):
+    def plot_losses(self, start_epoch=0, detailed=False, save_path=None):
         x = range(start_epoch, len(self.history['loss']))
         for key in self.history:
             if (key == 'loss') ^ (detailed):  # one or the other but not both = xor
@@ -153,6 +153,9 @@ class PINN(ABC):
         title = 'Total Loss' if not detailed else 'Loss Components'
         plt.title(title)
         plt.legend()
+
+        if save_path:
+            plt.savefig(save_path)
         plt.show()
 
     def predict(self, t, *S):
