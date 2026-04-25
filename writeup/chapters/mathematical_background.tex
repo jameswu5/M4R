@@ -133,11 +133,15 @@ which is found using binary search here, and $c(t, S)$ is the continuation value
     \label{fig:free_boundary}
 \end{figure}
 
+\subsubsection{Soft classification of the free boundary}
+
 This formulation describes a hard classification problem, where we classify points in the time-stock price space binarily to be either in the continuation region or the exercise region. However, our numerical solutions to the pricing problem are not exact and there is some level of error in the solution that comes from the Monte Carlo simulations upon the space, the numerical differentiation used in training and the early stopping in the training process. Therefore, it would be more intuitive to perform a soft classification instead, where we assign probabilities to points in the time-stock price space to be in the continuation region or the exercise region, which would give us a more intuitive visualisation of the free boundary and how it evolves over time. We will do this by extending hard classification: that is to say, the continuation region $A$ is
 \begin{equation}
     A = \{(t, S) : c(t, S) > g(S)\} \cup \{(t, S) : g(S) = 0\}
 \end{equation}
 where intuitively, the first set is those where the continuation value is greater than the early exercise value (and hence it is better to continue), and the second set is those where the payoff is zero, which are at-the-money and out-of-the-money options that are worthless under immediate exercise.
+
+\subsubsection{Sigmoid soft classification}
 
 We will consider two methods to extend the definition of the continuation region to a soft classification. The first one is to use a sigmoid function $s: \mathbb R \to (0, 1)$ defined as
 \begin{equation}
@@ -154,6 +158,8 @@ To tune the softness parameter, we can define a threshold $I \in (0.5, 1)$ such 
 \begin{equation}
     \tau = \frac{\epsilon}{\ln\left(\frac{I}{1 - I}\right)}
 \end{equation}
+
+\subsubsection{Gaussian noise soft classification}
 
 The second method is to assume Gaussianity of the noise in our estimate $\hat c$ of the continuation value, and that our approximated price is unbiased. In other words, we have
 \begin{equation}
@@ -278,7 +284,7 @@ where the PDE residual $\mathcal R_\theta$ is defined as
 \end{equation}
 We additionally use the sampled points $\{x_{ic}^i\}_{i=1}^{N_{ic}}$ from the initial condition domain, $\{(t_{bc}^i, x_{bc}^i)\}_{i=1}^{N_{bc}}$ from the boundary condition domain and $\{(t_r^i, x_r^i)\}_{i=1}^{N_r}$ from the PDE domain, sampled uniformly in their respective domains at each iteration of the gradient descent algorithm.
 
-There are different methods to choose the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$, such as using fixed weights or using adaptive weights that change during training. For simplicity, we will use fixed weights in the project.
+There are different methods to choose the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$, such as using fixed weights or using adaptive weights that change during training, which we will discuss in Section \ref{sec:adaptive_loss_weighting}.
 
 For our specific problem of option pricing, we can modify the above setup to fit our variational inequality formulation. The PDE to solve is dependent on the model for the asset dynamics, and the boundary conditions are given by the payoff function of the option. In general, we will have to solve a problem of the form
 \begin{align}
@@ -290,6 +296,27 @@ where $k$ indexes the $K$ different boundary conditions. This is very similar to
 \begin{equation}
     \mathcal R_\theta(t, x) = \min\left\{ \frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x), f_\theta(t, x) - g(x) \right\}
 \end{equation}
+
+With everything in place, we can train the neural network with gradient descent:
+\begin{equation}
+    \theta_{n+1} = \theta_n - \eta_n \nabla_\theta L(\theta_n)
+\end{equation}
+where $\eta_n$ is the learning rate at iteration $n$, either kept constant or decayed over time with a schedule.
+
+\subsection{Adaptive Loss Weighting}
+\label{sec:adaptive_loss_weighting}
+
+While keeping the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$ fixed is simple, it can be difficult to tune correctly and can lead to suboptimal performance. Ideally, we would like to balance the different loss components so that they are of the same order of magnitude, which can be achieved by using adaptive loss weighting methods, as proposed in \cite{wang2023expert}. The idea is to evaluate the contribution of each loss component on the total loss and adjust the weights accordingly to balance their contributions. In practice, we will use a moving average to prevent the weights from changing too rapidly, leading to instability in training. Mathematically, we compute the adaptive weights
+\begin{align*}
+    \hat\lambda_{r} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{r}(\theta)\|} \\\hat\lambda_{bc} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{bc}(\theta)\|} \\
+    \hat\lambda_{ic} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{ic}(\theta)\|} \\
+\end{align*}
+and update the global weights $\lambda = (\lambda_r, \lambda_{bc}, \lambda_{ic})$ with a smoothness $\alpha \in (0, 1)$ as a moving average
+\begin{equation}
+    \lambda_\text{new} = \alpha \hat\lambda_\text{old} + (1 - \alpha) \hat \lambda_\text{new}
+\end{equation}
+
+This is not performed at each iteration, but rather at a fixed frequency to prevent the weights from changing too rapidly. The literature \cite{wang2023expert} suggests to update the weights every $1000$ iterations with $\alpha=0.9$ in general.
 
 \section{Sobolev Deep Neural Networks}
 
