@@ -536,7 +536,45 @@ We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across
 
 \subsection{Multi-dimensional PINN}
 
+We move onto training a PINN on multiple assets, for simplicity and visualisation purposes, we will train a two-dimensional PINN on the put option on the product of two assets, with parameters $K=1, r=0.1, T=1$ with stock volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will be truncated to $[0, 3]$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S_1$-$S_2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence is not as significant when we take relative error into consideration.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_nd_price_comparison.png}
+    \caption{PINN vs tree price comparison heatmap across $S_1$-$S_2$ cross section at $t=0$}
+    \label{fig:bs_pinn_nd_price_comparison}
+\end{figure}
+
+
+We can zoom in on the $S_1\times S_2 = K$ cross section that we can see clearly in the heatmap, and plot the price along this cross section across time, shown in the left figure of Figure \ref{fig:bs_pinn_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and a model simplication we made. 
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|c|c|c|}
+        \hline
+        Tree price & PINN price & Relative error \\
+        \hline
+        0.0993 & 0.1060 $\pm$ 0.0048 & 6.75\% \\
+        \hline
+    \end{tabular}
+    \caption{Prices $f(0, \sqrt{K}, \sqrt{K})$ for the two-dimensional PINN against tree benchmark}
+    \label{tab:bs_pinn_nd_atm_price}
+\end{table}
+
+Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative error at the most sensitive point at the triple $(0, \sqrt{K}, \sqrt{K})$ is around $7\%$ which is considerably higher than the one-dimensional case, which is expected as we are now sampling across a much larger domain, and we are restrained by model capacity and training time due to personal hardware constraints, which is a common issue for multi-dimensional PINNs.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_nd_price_comparison_line.png}
+    \caption{PINN vs tree price comparison for at the money cross section and term structure}
+    \label{fig:bs_pinn_nd_price_comparison_line}
+\end{figure}
+
+We can also take the cross section at $S_1 = S_2$ to evaluate the term structure of the option price, as shown in the right figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN has managed to capture the theta decay of the option price, but the consistent bias of the price is evident here and the model struggles to capture the more rapid theta decay as we approach maturity. This may be due to the fact gamma approaches a dirac delta function at the money as we approach maturity, whose sharp feature is difficult for the model to capture when our samples are sparser in the expanded domain.
+
 \subsection{Free boundary}
+
+\subsubsection{One-dimensional case}
 
 For the one-dimensional free boundary, we will first evaluate the free boundary from the tree benchmark. Here, the continuation values are extracted through a small modification to the tree algorithm, where we compute the price of the Bermudan option with the same parameters with possibility of exercise at every time step except for at $t=0$, effectively serving as a continuation value of the American option at $t=0$. This continuation value is compared with the intrinsic value (the payoff) like we introduced in equation (\ref{eq:free_boundary}) in the mathematical background. The left figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs, and here we use hard classification as binomial tree pricing is deterministic.
 
@@ -563,3 +601,5 @@ To use the Gaussian method, we will first evaluate its validity by plotting the 
 By looking at the histogram and the Q-Q plot, we can see that the distribution of the standardised price estimates is reasonably close to a t-distribution, with the exception of the tails. Nevertheless, we will proceed with evaluating the free boundary using the Gaussian method, and the right figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs. 
 
 We can see that the shape roughly corresponds to the free boundaries we have seen before, but this is a much noisier estimate, which puts into question the assumptions we have made. We are essentially assuming that the price estimates of the PINN are unbiased and normally distributed around the true price, which is quite strong and not true in practice, as we have already observed in Figure \ref{fig:bs_pinn_price_comparison} where we have zones where the PINN price is systematically above or below the tree price, suggesting bias.
+
+\subsubsection{Two-dimensional case}
