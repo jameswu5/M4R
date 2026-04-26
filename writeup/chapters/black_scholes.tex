@@ -385,38 +385,76 @@ analogous to the one-dimensional case. Of course, this framework could be easily
 
 \section{Sobolev Deep Neural Networks}
 
+For the Black-Scholes model, we will additionally explore a different method to price American puts with neural networks, but this time instead of the traditional boundary conditions, we will work with fractional Sobolev norms to construct our los function. This is because it has been shown that conditional on the loss converging to $0$, the neural network will converge to the true solution \cite{zhao2025fractional}, which is a stronger guarantee than just pointwise convergence. Additionally, the loss function components no longer depend on the payoff and is applicable for all situations, a desirable property for a general method.
+
+The theory of Sobolev spaces is rich and we will not attempt to cover all the details, to avoid diverting attention from the main focus of the project. However, we make particular use of fractional Sobolev spaces, which are a generalisation of the integer order Sobolev spaces.
+
+\subsection{Sobolev spaces}
+
+Throughout this section, let $\Omega \subset \mathbb R^n$ be an open bounded set with Lipschitz boundary, on which our target function is defined, and let $p \in [1, +\infty)$ be the integrability parameter. Recall the Lebesgue space
+\begin{equation}
+    L^p(\Omega) := \left \{u: \Omega \to \mathbb R : u \text{ is measurable and } \int_\Omega |u(x)|^p \,\mathrm dx < \infty\right\}
+\end{equation}
+and the integer order Sobolev space $W^{m, p}(\Omega)$ for $m \in \mathbb N$ \cite{adams2003sobolev},
+\begin{equation}
+    W^{m, p}(\Omega) := \left\{u \in L^p(\Omega) : D^\alpha u \in L^p(\Omega), \ |\alpha| \le m\right\},
+\end{equation}
+where $D^\alpha u$ denotes the weak derivative of $u$ with respect to the multi-index $\alpha$.
+
+The fractional Sobolev space $W^{s, p}(\Omega)$ is defined with the fractional exponent $s \in (0, 1)$ as \cite{di2012hitchhikers}:
+\begin{equation}
+    W^{s, p}(\Omega) := \left\{u \in L^p(\Omega) : \frac{|u(x) - u(y)|}{|x-y|^{\frac np + s}} \in L^p(\Omega \times \Omega)\right\},
+\end{equation}
+which can be interpreted as an intermediate Banach space between $L^p(\Omega)$ and $W^{1, p}(\Omega)$, endowed with the norm
+\begin{align}
+    \|u\|^p_{W^{s, p}(\Omega)} &= \|u\|^p_{L^p(\Omega)} + [u]^p_{W^{s, p}(\Omega)} \\
+    &= \int_\Omega |u|^p \,\mathrm dx + \int_\Omega \int_\Omega \frac{|u(x)-u(y)|^p}{|x-y|^{n+sp}}\,\mathrm dx \, \mathrm dy,
+\end{align}
+where we have used the \textit{Gagliardo seminorm} of $u$:
+\begin{equation}
+    [u]_{W^{s, p}(\Omega)} := \left( \int_\Omega \int_\Omega \frac{|u(x)-u(y)|^p}{|x-y|^{n+sp}}\,\mathrm dx \, \mathrm dy\right)^{\frac 1p}.
+\end{equation}
+
+We can extend this definition to non-integer $s > 1$. In the decomposition $s = m + \sigma$ with $m \in \mathbb N$ and $\sigma \in (0, 1)$, we define
+\begin{equation}
+    W^{s, p}(\Omega) := \left \{ u \in W^{m, p}(\Omega) : D^\alpha u \in W^{\sigma, p}(\Omega), \ |\alpha| = m \right\}
+\end{equation}
+endowed with the natural norm
+\begin{equation}
+    \|u\|^p_{W^{s,p}(\Omega)} := \|u\|^p_{W^{m,p}(\Omega)} + \sum_{|\alpha| = m} [D^\alpha u]^p_{W^{\sigma, p}(\Omega)}.
+\end{equation}
+
+In the special case $p=2$, the fractional Sobolev space becomes a Hilbert space, which we denote $H^s(\Omega) := W^{s, 2}(\Omega)$. This is the specific case we will be working with in our loss construction.
+
+
 \subsection{Model}
 
-Suppose we would like to price an option on $k$ assets $\bm S = (S^1, \dots, S^k)$. As asset prices are theoretically unbounded, we truncate it in our model. Thus the domain of the target function can be chosen to be
-
+Suppose we would like to price an option on $k$ assets $\bm S = (S^1, \dots, S^k)$. As asset prices are theoretically unbounded, we truncate it in our model. Thus the domain of the target function can be chosen to be the open set
 \begin{equation}
     \Omega = (S_\text{min}^1, S_\text{max}^1) \times \cdots \times (S_\text{min}^k, S_\text{max}^k)
 \end{equation}
 
 In our study we will make the simplification that $S_\text{min}^i = S_\text{min}^j$ and $S_\text{max}^i = S_\text{max}^j$ for all $i \ne j$, which we can call $a$ and $b$ respectively. Our spaces would consequently have the definitions
-
 \begin{equation}
-    \Omega = (a, b)^n \qquad \Omega_T = (0, T) \times \Omega \qquad \Sigma = (0, T) \times \partial \Omega
+    \Omega = (a, b)^k \qquad \Omega_T = (0, T) \times \Omega \qquad \Sigma = (0, T) \times \partial \Omega
 \end{equation}
-
 where $\partial \Omega =: \Gamma$ is the boundary of $\Omega$, a hyper-rectangle. We will use the representation
-
 \begin{equation}
-    \Gamma = \bigcup_{i=1}^n \big(\{x \in [a, b]^n : x_i = a\} \cup \{x \in [a, b]^n : x_i = b\} \big)
+    \Gamma = \bigcup_{i=1}^k \big(\{x \in [a, b]^k : x_i = a\} \cup \{x \in [a, b]^k : x_i = b\} \big)
 \end{equation}
-which is not the simplest, but it is useful as it is decomposed into faces, which is useful when we would like to use the norm derivative later. Note that in the one-dimensional case, this reduces simply to the points $\{a, b\}$.
+which is not the simplest, but it is useful as it is decomposed into faces, which is useful when we would like to use the norm derivative later. Note that in the one-dimensional case, this reduces simply to the points $\Gamma = \{a, b\}$.
 
 \subsection{Loss function}
-Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 \lambda_iJ_i$, each of which ensures regulation of a specific aspect of our function.
+Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 \lambda_iJ_i$, each of which ensures regulation of a specific aspect of our function. We will use $k=2$ in our experiments, but the loss construction is applicable for any $k$.
 
 \begin{enumerate}
     \item The variational loss, which is as before, controlling the accuracy of our function in the interior of our domain:
     \begin{equation}
-        J_1 = \|\min \{\mathcal G[f], f-g\}\|^2_{L^2(\Omega_T), \mu_1}
+        J_1 = \|\min \{\mathcal G[f], f-g\}\|^2_{L^2(\Omega_T)}
     \end{equation}
     \item The energy loss: before we were only controlling the L2 norm of the payoff, but we require the option value to equal the payoff as a function and not just pointwise. Thus we need to incorporate the gradient into the loss so that the spatial slope of the payoff is respected.
     \begin{equation}
-        J_2 = \|f(0, \cdot) - g(\cdot) \|^2_{H^1(\Omega), \mu_2}
+        J_2 = \|f(0, \cdot) - g(\cdot) \|^2_{H^1(\Omega)}
     \end{equation}
     where we have the norm defined as
     \begin{equation}
@@ -426,20 +464,20 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     \begin{equation}\nabla d = \big(\partial_{x_1}d, \dots, \partial_{x_k}d\big)\end{equation}
     \item The Dirichlet trace loss:
     \begin{equation}
-        J_3 =\|f(t, x) - g( x)\|^2_{H^{\frac 34, \frac 32}(\Sigma), \mu_3}
+        J_3 =\|f(t, x) - g( x)\|^2_{H^{\frac 34, \frac 32}(\Sigma)}
     \end{equation}
     where
     \begin{align}
-        \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{2}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
+        \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{k}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
     \end{align}
-    The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent $2$ is equal to $2\theta + k - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $k$ the dimension. Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
+    The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent is equal to $2\theta + k - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $k$ the dimension (so would be $2$ in two dimensions). Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
     \item The Neumann trace loss:
     \begin{equation}
-        J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma), \mu_4}
+        J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
     where the norm derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ given that $x_{i^\star} \in \{a, b\}$ and $x_{i} \in (a, b)$ for $i \ne i^\star$. Rigorously, we require the sign but in practice this is not necessary, as we will square in the end. The fractional norm is thus written
     \begin{align}
-        \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^2}\,\mathrm d\sigma(x)\mathrm d(y)\mathrm dt
+        \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^k}\,\mathrm d\sigma(x)\mathrm d(y)\mathrm dt
     \end{align}
     because $H^{0, 0} = L^2$.
 \end{enumerate}
