@@ -102,17 +102,19 @@ class BlackScholesSobolev(PINN):
 
     def __anneal_weights(self, unweighted_losses: dict, alpha: float):
         params = list(self.model.parameters())
-        total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
-        total_grads = torch.autograd.grad(
-            total_loss, params, retain_graph=True, create_graph=True, allow_unused=True
+        # Use the PDE residual loss gradient as the reference (Wang et al. 2021).
+        # Using the total loss here makes all lambda_hat values equal after
+        # normalisation, so the annealing would have no effect.
+        pde_grads = torch.autograd.grad(
+            unweighted_losses['pde'], params, retain_graph=True, create_graph=False, allow_unused=True
         )
-        peak_grad = max(g.abs().max().item() for g in total_grads if g is not None)
+        peak_grad = max(g.abs().max().item() for g in pde_grads if g is not None)
 
         new_weights = {}
         for name, loss in unweighted_losses.items():
             weighted_loss = self.loss_weights[name] * loss
             grads = torch.autograd.grad(
-                weighted_loss, params, retain_graph=True, create_graph=True, allow_unused=True
+                weighted_loss, params, retain_graph=True, create_graph=False, allow_unused=True
             )
             grad_tensors = [g for g in grads if g is not None]
             mean_grad = (
@@ -185,7 +187,7 @@ class BlackScholesSobolev(PINN):
         """
         S_interior = S_interior.detach().requires_grad_(True)
         batch = S_interior.shape[0]
-        ones = torch.ones(batch, 1)
+        ones = torch.ones(batch, 1, device=S_interior.device, dtype=S_interior.dtype)
 
         # ------------------------------------------------------------------
         # J2: H^1 norm of u(T, S) = v(T, S) - g(S) at t = T
