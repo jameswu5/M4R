@@ -592,7 +592,7 @@ We can see especially in Figure \ref{fig:bs_sobolev_pinn_price_comparison_line} 
     \label{fig:bs_sobolev_pinn_price_comparison_line}
 \end{figure}
 
-Overall this method is promising, but it may require more careful training and tuning to get the best results. However, our vanilla PINN implementation already yields good results for this problem, so we will not further explore this method for the multi-dimensional case, but it was interesting nonetheless to see how we could construct the loss function from another angle altogether.
+Overall this method is promising, but it may require more careful training and tuning to get better results as presented in \cite{zhao2025fractional}, who demonstrated its effectiveness through extensive training on the GPU with much larger networks, which is beyond my scope. With the one-dimensional case already underperforming the vanilla PINN, it is unsurprising that the multi-dimensional case yielded me less accurate results, so for the multi-dimensional case and studies on the free boundary, I will only present the results for the vanilla PINN, which is already a good method for this problem. That said, it was interesting nonetheless to see how we could construct the loss function from another angle altogether, without relying on manual boundary conditions.
 
 
 \subsection{Multi-dimensional PINN}
