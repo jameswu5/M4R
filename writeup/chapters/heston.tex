@@ -133,7 +133,7 @@ Where $\text{snap}_{i_3, i_4}^{\mathcal S} : \mathbb R^2 \to \mathcal S \subset 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=0.55\textwidth]{../plots/heston/tree_illustration.png}
-    \caption{Interpolation illustration (adapted from \cite{vellekoop2009tree})}
+    \caption[Heston Tree interpolation illustration]{Interpolation illustration (adapted from \cite{vellekoop2009tree})}
     \label{fig:tree_illustration}
 \end{figure}
 
@@ -450,7 +450,7 @@ As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which al
 \begin{figure}[h]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_tree.png}
-    \caption{Call option prices by the Heston Tree}
+    \caption[Heston tree call option prices]{Call option prices by the Heston Tree}
     \label{fig:heston_tree}
 \end{figure}
 
@@ -461,7 +461,7 @@ To compute the American option price with the tree model, all we need to do is t
 \begin{figure}[h]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_tree_put_eu_vs_am.png}
-    \caption{American vs European option prices for the put}
+    \caption[Heston tree: American vs European put options]{American vs European option prices for the put}
     \label{fig:heston_put_eu_vs_am}
 \end{figure}
 
@@ -474,7 +474,7 @@ We are now ready to train the neural network to price our option. We choose to u
 \begin{figure}[h!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_heatmap.png}
-    \caption{American put option prices}
+    \caption[Heston PINN vs tree: 1D comparison heatmap]{American put option prices by the PINN and the tree across $S$ and $V$ parameters at time $t=0$}
     \label{fig:heston_1d_comparison_heatmap}
 \end{figure}
 
@@ -483,7 +483,7 @@ We can see that the neural network indeed faithfully reproduces the solution app
 \begin{figure}[h!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_line.png}
-    \caption{PINN vs tree prices varying across $S$, $V$ and $t$ parameters}
+    \caption[Heston PINN vs tree varying $S$, $V$ and $t$]{PINN vs tree prices varying across $S$, $V$ and $t$ parameters}
     \label{fig:heston_1d_comparison_line}
 \end{figure}
 
@@ -498,6 +498,6 @@ We can see that the PINN does indeed capture well the general shape and behaviou
 \begin{figure}[h!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_continuation_probs.png}
-    \caption{Continuation probabilities for the American put option on the $S$-$V$ plane}
+    \caption[Heston PINN continuation probabilities (1D)]{Continuation probabilities for the American put option on the $S$-$V$ plane}
     \label{fig:heston_1d_continuation_probs}
 \end{figure}

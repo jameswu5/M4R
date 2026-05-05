@@ -306,7 +306,7 @@ where $\mathrm R$ is the correlation matrix, we can plot the histogram of final 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\textwidth]{../plots/black_scholes/gbm_histogram.png}
-    \caption{Histogram of final prices for product of assets and equivalent asset}
+    \caption[Asset product price histogram]{Histogram of final prices for product of assets and equivalent asset}
     \label{fig:gbm_histogram}
 \end{figure}
 
@@ -495,7 +495,7 @@ First, we will evaluate the tree's accuracy on the most sensitive point, which i
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/tree_convergence.png}
-    \caption{Tree convergence at $t=0, S=K$ over different depths}
+    \caption[Tree convergence at $t=0, S=K$]{Tree convergence at $t=0, S=K$ over different depths}
     \label{fig:tree_convergence}
 \end{figure}
 
@@ -504,7 +504,7 @@ Evaluating the tree price against the closed-form solution for different initial
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/tree_vs_closed.png}
-    \caption{Comparison of tree and closed-form prices for European put option with varying initial asset price}
+    \caption[Tree vs closed-form: varying $S$]{Comparison of tree and closed-form prices for European put option with varying initial asset price}
     \label{fig:tree_vs_closed}
 \end{figure}
 
@@ -513,7 +513,7 @@ We can see that the tree price also closely tracks the term structure of the opt
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/tree_vs_closed_time.png}
-    \caption{Comparison of tree and closed-form prices for European put option with varying time}
+    \caption[Tree vs closed-form: varying $t$]{Comparison of tree and closed-form prices for European put option with varying time}
     \label{fig:tree_vs_closed_time}
 \end{figure}
 
@@ -526,7 +526,7 @@ We will now train our PINN on the one-dimensional case and compare the results a
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_1d_train_loss.png}
-    \caption{Loss convergence for the one-dimensional PINN for one run}
+    \caption[1D PINN loss convergence]{Loss convergence for the one-dimensional PINN for one run}
     \label{fig:bs_1d_train_loss}
 \end{figure}
 
@@ -535,7 +535,7 @@ Figure \ref{fig:bs_1d_train_loss} shows the convergence of the loss function for
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison.png}
-    \caption{PINN vs tree price comparison heatmap across domain}
+    \caption[PINN vs tree heatmap]{PINN vs tree price comparison heatmap across domain}
     \label{fig:bs_pinn_price_comparison}
 \end{figure}
 
@@ -544,7 +544,7 @@ Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price ag
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison_line.png}
-    \caption{Price comparison for varying underlying price, and for term structure at $S=K$}
+    \caption[PINN vs tree: varying $S$ and term structure]{Price comparison for varying underlying price, and for term structure at $S=K$}
     \label{fig:bs_pinn_price_comparison_line}
 \end{figure}
 
@@ -568,7 +568,7 @@ We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=0.7\textwidth]{../plots/black_scholes/bs_1d_train_atm_price.png}
-    \caption{$f(0, K)$ across training epochs for one run}
+    \caption[Training epochs for $f(0, K)$]{$f(0, K)$ across training epochs for one run}
     \label{fig:bs_1d_train_atm_price}
 \end{figure}
 
@@ -579,7 +579,7 @@ We will now train a PINN with the Sobolev loss function, with the same model arc
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison.png}
-    \caption{Sobolev PINN vs tree price comparison heatmap across domain}
+    \caption[Sobolev PINN vs tree heatmap]{Sobolev PINN vs tree price comparison heatmap across domain}
     \label{fig:bs_sobolev_pinn_price_comparison}
 \end{figure}
 
@@ -588,7 +588,7 @@ We can see especially in Figure \ref{fig:bs_sobolev_pinn_price_comparison_line} 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison_line.png}
-    \caption{Price comparison for varying underlying price, and for term structure at $S=K$ with the Sobolev PINN}
+    \caption[Sobolev PINN vs tree: varying $S$ and term structure]{Price comparison for varying underlying price, and for term structure at $S=K$ with the Sobolev PINN}
     \label{fig:bs_sobolev_pinn_price_comparison_line}
 \end{figure}
 
@@ -602,7 +602,7 @@ We move onto training a PINN on multiple assets, for simplicity and visualisatio
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_nd_price_comparison.png}
-    \caption{PINN vs tree price comparison heatmap across $S_1$-$S_2$ cross section at $t=0$}
+    \caption[PINN vs tree: $S_1$-$S_2$ heatmap at $t=0$]{PINN vs tree price comparison heatmap across $S_1$-$S_2$ cross section at $t=0$}
     \label{fig:bs_pinn_nd_price_comparison}
 \end{figure}
 
@@ -627,7 +627,7 @@ Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative e
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_nd_price_comparison_line.png}
-    \caption{PINN vs tree price comparison for at the money cross section and term structure}
+    \caption[PINN vs tree: at the money and term structure]{PINN vs tree price comparison for at the money cross section and term structure}
     \label{fig:bs_pinn_nd_price_comparison_line}
 \end{figure}
 
@@ -646,7 +646,7 @@ We now evaluate the free boundary from the PINN. The central figure in Figure \r
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_continuation_probs.png}
-    \caption{Estimated continuation probabilities from PINN for the American put option}
+    \caption[PINN continuation probabilities (1D)]{Estimated continuation probabilities from PINN for the American put option}
     \label{fig:bs_continuation_probs}
 \end{figure}
 
@@ -655,7 +655,7 @@ To use the Gaussian method, we will first evaluate its validity by plotting the 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/nn_price_distribution.png}
-    \caption{Distribution of standardised neural network price estimates across 25 runs}
+    \caption[Price estimate distribution (25 runs)]{Distribution of standardised neural network price estimates across 25 runs}
     \label{fig:nn_price_distribution}
 \end{figure}
 
@@ -670,7 +670,7 @@ Using the same methodology as the one-dimensional case, we plot our estimated fr
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_nd_continuation_probs.png}
-    \caption{Estimated continuation probabilities for 2-dimensional case with $S_1 \times S_2 = K$ reference line}
+    \caption[2D continuation probabilities: $S_1\times S_2=K$]{Estimated continuation probabilities for 2-dimensional case with $S_1 \times S_2 = K$ reference line}
     \label{fig:bs_nd_continuation_probs}
 \end{figure}
 
@@ -679,6 +679,6 @@ We can see that both methods of estimating the continuation probabilities yield 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_nd_continuation_probs_time.png}
-    \caption{Estimated continuation probabilities for 2-dimensional case on $S_1 = S_2$ cross section across time}
+    \caption[2D continuation probabilities: $S_1 = S_2$ slice]{Estimated continuation probabilities for 2-dimensional case on $S_1 = S_2$ cross section across time}
     \label{fig:bs_nd_continuation_probs_time}
 \end{figure}
