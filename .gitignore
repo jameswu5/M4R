@@ -216,6 +216,7 @@ resources/
 *.blg
 *.fls
 *.fdb_latexmk
+*.lof
 *.log
 *.out
 *.toc
