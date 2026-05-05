@@ -572,6 +572,29 @@ We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across
     \label{fig:bs_1d_train_atm_price}
 \end{figure}
 
+\subsection{Sobolev PINN results}
+
+We will now train a PINN with the Sobolev loss function, with the same model architecture and training setup as the vanilla PINN, and compare the results against the tree benchmark. We can see from Figure \ref{fig:bs_sobolev_pinn_price_comparison} that the Sobolev PINN price also gets close to the tree price across the domain, but the inaccuracy here is more significant than the vanilla PINN, especially at the $(t, S) = (0, K)$ point, which is arguably the most important point. However, considering that the loss function isn't manufactured from the payoff function, we can see that this method could be effective for more general problems where boundary conditions are not as straightforward to implement, and the price is still in the right ballpark.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison.png}
+    \caption{Sobolev PINN vs tree price comparison heatmap across domain}
+    \label{fig:bs_sobolev_pinn_price_comparison}
+\end{figure}
+
+We can see especially in Figure \ref{fig:bs_sobolev_pinn_price_comparison_line} that the Sobolev PINN manages to capture the term structure of the option price with the theta collapse as we approach maturity, and the error is more significant due to a hump in the price against asset price around the strike price. This suggests that the model is capable of a good fit across the domain, but may be undertrained or have too small a capacity.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison_line.png}
+    \caption{Price comparison for varying underlying price, and for term structure at $S=K$ with the Sobolev PINN}
+    \label{fig:bs_sobolev_pinn_price_comparison_line}
+\end{figure}
+
+Overall this method is promising, but it may require more careful training and tuning to get the best results. However, our vanilla PINN implementation already yields good results for this problem, so we will not further explore this method for the multi-dimensional case, but it was interesting nonetheless to see how we could construct the loss function from another angle altogether.
+
+
 \subsection{Multi-dimensional PINN}
 
 We move onto training a PINN on multiple assets, for simplicity and visualisation purposes, we will train a two-dimensional PINN on the put option on the product of two assets, with parameters $K=1, r=0.1, T=1$ with stock volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will be truncated to $[0, 3]$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S_1$-$S_2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence is not as significant when we take relative error into consideration.
