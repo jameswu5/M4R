@@ -474,7 +474,7 @@ We are now ready to train the neural network to price our option. We choose to u
 \begin{figure}[h!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_heatmap.png}
-    \caption[Heston PINN vs tree: 1D comparison heatmap]{American put option prices by the PINN and the tree across $S$ and $V$ parameters at time $t=0$}
+    \caption[Heston 1D PINN vs tree comparison heatmap]{American put option prices by the PINN and the tree across $S$ and $V$ parameters at time $t=0$}
     \label{fig:heston_1d_comparison_heatmap}
 \end{figure}
 
@@ -483,7 +483,7 @@ We can see that the neural network indeed faithfully reproduces the solution app
 \begin{figure}[h!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_line.png}
-    \caption[Heston PINN vs tree varying $S$, $V$ and $t$]{PINN vs tree prices varying across $S$, $V$ and $t$ parameters}
+    \caption[Heston 1D PINN vs tree varying $S$, $V$ and $t$]{PINN vs tree prices varying across $S$, $V$ and $t$ parameters}
     \label{fig:heston_1d_comparison_line}
 \end{figure}
 
@@ -492,6 +492,25 @@ We can see that the PINN does indeed capture well the general shape and behaviou
 
 \subsection{Multi-asset PINN solution}
 
+The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. I choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will neglect taking an ensemble average and just present the results from one run. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction. Figure \ref{fig:heston_nd_comparison_heatmap_tV} shows the heatmap of the option prices across the $S_1$-$S_2$ plane with the time fixed at $t=0$ and initial variance fixed at $V=V_0=0.04$.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/heston/heston_nd_comparison_heatmap_tV.png}
+    \caption[Heston nD PINN vs tree comparison heatmap (fixed $t, V$)]{American put option prices by the PINN and the tree across $S_1$ and $S_2$ with time and variance fixed at $t=0$ and $V=0.04$}
+    \label{fig:heston_nd_comparison_heatmap_tV}
+\end{figure}
+
+We can see that the fit is good in the money and out of the money but struggles much more at the money, which is expected as the option price is more sensitive, and we are now in a four-dimensional input space and hence accuracy is more difficult to achieve. We will zoom in on the at the money region by fixing $t=0$ and $S_1=S_2=\sqrt{K}$ and plotting the option price across $V$, which is shown in Figure \ref{fig:heston_nd_comparison_heatmap_tS}.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/heston/heston_nd_comparison_heatmap_tS.png}
+    \caption[Heston nD PINN vs tree comparison heatmap (fixed $t$, $S_1=S_2$)]{American put option prices by the PINN and the tree across $S_1$ and $V$, with $t=0$ and $S_1=S_2=\sqrt{K}$}
+    \label{fig:heston_nd_comparison_heatmap_tS}
+\end{figure}
+
+We can see that the weakness of the PINN is along the strike price with $S_1=S_2=\sqrt{K}$, and the accuracy is better for lower volatilities. Overall, the results are okay, given that we are sacrificing some accuracy in order to be able to price along the whole input domain, but we will expect the PINN to struggle more with the estimating free boundaries correctly since there is a bias in the prices already. However, the shape of the free boundary should still be correct, so there is a bit of value of estimating the free boundaries, which we will do in the next section.
 
 \subsection{Free boundary}
 
