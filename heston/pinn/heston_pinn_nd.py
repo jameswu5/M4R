@@ -58,7 +58,7 @@ class HestonMultiAssetPINN(PINN):
             if i % 500 == 0:
                 print(f"Iteration {i} | Training Loss: {loss.item()} | Validation Loss: {val_loss.item()}")
 
-            if early_stopping and early_stopping.step(val_loss.item()):
+            if early_stopping and early_stopping.step(val_loss.item(), self.model):
                 print(f"Early stopping at epoch {i}")
                 break
 
