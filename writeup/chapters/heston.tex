@@ -514,9 +514,17 @@ We can see that the weakness of the PINN is along the strike price with $S_1=S_2
 
 \subsection{Free boundary}
 
+\subsubsection{One-dimensional case}
+
+We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as cross sections, where one variable will be fixed at their default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to 1 for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}
+
 \begin{figure}[h!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_continuation_probs.png}
     \caption[Heston PINN continuation probabilities (1D)]{Continuation probabilities for the American put option on the $S$-$V$ plane}
     \label{fig:heston_1d_continuation_probs}
 \end{figure}
+
+We can see that the continuation region is reasonably well approximated with both methods, and we additionally observe some noise near the boundary which is due to the Monte Carlo estimation of the continuation value. Unfortunately, the network struggles to capture the curvature characteristic of the free boundary, which is unsurprising as it doesn't price the option with perfect accuracy in all areas. That said, the results are promising against the benchmark, even though we have a patch of the continuation probabilities that are closer to one further in the money (at around $(S, V) = (0.4, 0.3)$), which is due to the bias in the option price in the corresponding region when we had our price comparison heatmaps in Figure \ref{fig:heston_1d_comparison_heatmap}.
+
+\subsubsection{Multi-asset case}
