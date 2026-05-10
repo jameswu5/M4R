@@ -346,6 +346,7 @@ where to simplify into the PINN framework as in (\ref{eq:pinn_pde}), we can defi
 
 \begin{equation}
     \mathcal L[v] = rv(t, \mathbf S) - \sum_{i=1}^k \frac{\partial v}{\partial S^i}(t, \mathbf S) rS^i - \frac 12 \sum_{i=1}^k \sum_{j=1}^k \frac{\partial^2 v}{\partial S^i \partial S^j}(t, \mathbf S) \sigma_i \sigma_j \rho_{ij} S^i S^j
+\label{eq:bs_operator_multi}
 \end{equation}
 
 and the problem reduces to the same variational inequality as in the one-dimensional case (\ref{eq:variational_inequality_bs_1d}), with a different operator $\mathcal L$.
@@ -682,3 +683,19 @@ We can see that both methods of estimating the continuation probabilities yield 
     \caption[2D continuation probabilities: $S_1 = S_2$ slice]{Estimated continuation probabilities for 2-dimensional case on $S_1 = S_2$ cross section across time}
     \label{fig:bs_nd_continuation_probs_time}
 \end{figure}
+
+
+\section{Different payoffs}
+To demonstrate the flexibility of our PINN framework, we will now shift our focus onto different payoffs on multiple assets as an extension. \cite{detemple2005american} explores a variety of different payoffs for American options on multiple assets, but that with a particularly interesting free boundary is an option on the maximum of two assets (and indeed, the minimum of two assets). To price these, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the maximum of two assets, the payoff function is given by $g(S_1, S_2) = (K - \max(S_1, S_2))^+$, and thus we must have the terminal boundary condition
+\begin{equation}
+    v(T, S_1, S_2) = (K - \max(S_1, S_2))^+
+\end{equation}
+When one of the assets is worthless, the maximum of the two assets is just the other asset, and thus we have
+\begin{equation}
+    v(t, 0, S_2) = v_\text{1D}(t, S_2) \qquad v(t, S_1, 0) = v_\text{1D}(t, S_1)
+\end{equation}
+where $v_\text{1D}$ is the price of the one-dimensional American put option on a single asset, which we can compute with the different methods we have already explored. Finally, when one of the assets is sufficiently high, the option is far out of the money and is worthless, and thus we have
+\begin{equation}
+    v(t, S_1, S_2) = 0 \qquad \text{ for } S_1 \gg K \text{ or } S_2 \gg K
+\end{equation}
+Together, these boundary conditions (alongside the variational inequality which remains the same with the operator $\mathcal L$ as in \ref{eq:bs_operator_multi}) form the PINN framework which we can train.

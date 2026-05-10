@@ -5,7 +5,7 @@ import torch
 from utility.model import PINN
 
 
-class BlackScholesMultiAssetPINN(PINN):
+class BSMultiPINN(PINN):
     def __init__(self, model_config, seed):
         super().__init__(model_config, seed)
         self.history = {
@@ -150,6 +150,9 @@ class BlackScholesMultiAssetPINN(PINN):
 
         return residual, f
 
+    def __payoff(self, S):
+        raise NotImplementedError("Must be implemented by subclass")
+
     def __interior_loss(self, batch_size, t=None, S=None, create_graph=True):
         if t is None or S is None:
             t, S = self.__sample_interior(batch_size)
@@ -159,17 +162,24 @@ class BlackScholesMultiAssetPINN(PINN):
         t.requires_grad_(True)
         S.requires_grad_(True)
 
-        zeros = torch.zeros((batch_size, 1))
-
         residual, f = self.__bs_residual(t, S, create_graph=create_graph)
-        S_prod = torch.prod(S, dim=1, keepdim=True)
-        g = torch.maximum(self.K - S_prod, zeros)
+        g = self.__payoff(S)
 
         variational_loss = torch.mean(
             torch.minimum(residual, f - g) ** 2
         )
 
         return variational_loss
+
+    def __boundary_loss(self, batch_size, t=None, S=None):
+        raise NotImplementedError("Must be implemented by subclass")
+
+
+class BSProductPINN(BSMultiPINN):
+    def __payoff(self, S):
+        S_prod = torch.prod(S, dim=1, keepdim=True)
+        payoff = torch.maximum(self.K - S_prod, torch.zeros_like(S_prod))
+        return payoff
 
     def __boundary_loss(self, batch_size, t=None, S=None):
         if t is None or S is None:
