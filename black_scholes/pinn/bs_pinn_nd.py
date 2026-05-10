@@ -1,11 +1,15 @@
 """PINN for solving the n-dimensional Black-Scholes PDE for American put options."""
 
+import numpy as np
 import torch
+from scipy.interpolate import RegularGridInterpolator
 
 from utility.model import PINN
+from abc import ABC, abstractmethod
+from black_scholes.tree.tree import binomial_tree_batch
 
 
-class BSMultiPINN(PINN):
+class BSMultiPINN(PINN, ABC):
     def __init__(self, model_config, seed):
         super().__init__(model_config, seed)
         self.history = {
@@ -28,12 +32,12 @@ class BSMultiPINN(PINN):
         self.n_assets = len(sigmas)
 
     def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9):
-        val_t_interior, val_S_interior = self.__sample_interior(batch_size)
-        val_t_boundary, val_S_boundary = self.__sample_boundary(batch_size)
+        val_t_interior, val_S_interior = self._sample_interior(batch_size)
+        val_t_boundary, val_S_boundary = self._sample_boundary(batch_size)
 
         for i in range(epochs):
-            variational_loss = self.__interior_loss(batch_size)
-            terminal_loss, Smin_loss, Smax_loss = self.__boundary_loss(batch_size)
+            variational_loss = self._interior_loss(batch_size)
+            terminal_loss, Smin_loss, Smax_loss = self._boundary_loss(batch_size)
 
             if i > 2000 and i % anneal_freq == 0:
                 unweighted_losses = {
@@ -42,17 +46,17 @@ class BSMultiPINN(PINN):
                     'Smin': Smin_loss,
                     'Smax': Smax_loss,
                 }
-                self.__anneal_weights(unweighted_losses, alpha)
+                self._anneal_weights(unweighted_losses, alpha)
 
-            loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss)
+            loss = self._process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss)
 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             self.scheduler.step()
 
-            variational_loss_val = self.__interior_loss(batch_size, t=val_t_interior, S=val_S_interior, create_graph=False)
-            terminal_loss_val, Smin_loss_val, Smax_loss_val = self.__boundary_loss(batch_size, t=val_t_boundary, S=val_S_boundary)
+            variational_loss_val = self._interior_loss(batch_size, t=val_t_interior, S=val_S_interior, create_graph=False)
+            terminal_loss_val, Smin_loss_val, Smax_loss_val = self._boundary_loss(batch_size, t=val_t_boundary, S=val_S_boundary)
             val_loss = variational_loss_val + terminal_loss_val + Smin_loss_val + Smax_loss_val
 
             if i % 500 == 0:
@@ -64,7 +68,7 @@ class BSMultiPINN(PINN):
                 early_stopping.restore(self.model)
                 break
 
-    def __anneal_weights(self, unweighted_losses: dict, alpha: float):
+    def _anneal_weights(self, unweighted_losses: dict, alpha: float):
         params = list(self.model.parameters())
 
         total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
@@ -89,7 +93,7 @@ class BSMultiPINN(PINN):
         total = sum(new_weights.values())
         self.loss_weights = {k: v / total for k, v in new_weights.items()}
 
-    def __process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, update_dict=True):
+    def _process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, update_dict=True):
         variational_loss *= self.loss_weights['variational']
         terminal_loss *= self.loss_weights['terminal']
         Smin_loss *= self.loss_weights['Smin']
@@ -106,15 +110,15 @@ class BSMultiPINN(PINN):
 
         return loss
 
-    def __sample_interior(self, batch_size):
+    def _sample_interior(self, batch_size):
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
         S = self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
         return t, S
 
-    def __sample_boundary(self, batch_size):
-        return self.__sample_interior(batch_size)
+    def _sample_boundary(self, batch_size):
+        return self._sample_interior(batch_size)
 
-    def __bs_residual(self, t, S, create_graph=True):
+    def _bs_residual(self, t, S, create_graph=True):
         batch_size = S.shape[0]
 
         f = self.model(t, S)
@@ -150,20 +154,21 @@ class BSMultiPINN(PINN):
 
         return residual, f
 
-    def __payoff(self, S):
+    @abstractmethod
+    def _payoff(self, S):
         raise NotImplementedError("Must be implemented by subclass")
 
-    def __interior_loss(self, batch_size, t=None, S=None, create_graph=True):
+    def _interior_loss(self, batch_size, t=None, S=None, create_graph=True):
         if t is None or S is None:
-            t, S = self.__sample_interior(batch_size)
+            t, S = self._sample_interior(batch_size)
 
         assert t.shape[0] == batch_size and S.shape[0] == batch_size
 
         t.requires_grad_(True)
         S.requires_grad_(True)
 
-        residual, f = self.__bs_residual(t, S, create_graph=create_graph)
-        g = self.__payoff(S)
+        residual, f = self._bs_residual(t, S, create_graph=create_graph)
+        g = self._payoff(S)
 
         variational_loss = torch.mean(
             torch.minimum(residual, f - g) ** 2
@@ -171,19 +176,20 @@ class BSMultiPINN(PINN):
 
         return variational_loss
 
-    def __boundary_loss(self, batch_size, t=None, S=None):
+    @abstractmethod
+    def _boundary_loss(self, batch_size, t=None, S=None):
         raise NotImplementedError("Must be implemented by subclass")
 
 
 class BSProductPINN(BSMultiPINN):
-    def __payoff(self, S):
+    def _payoff(self, S):
         S_prod = torch.prod(S, dim=1, keepdim=True)
         payoff = torch.maximum(self.K - S_prod, torch.zeros_like(S_prod))
         return payoff
 
-    def __boundary_loss(self, batch_size, t=None, S=None):
+    def _boundary_loss(self, batch_size, t=None, S=None):
         if t is None or S is None:
-            t, S = self.__sample_interior(batch_size)
+            t, S = self._sample_interior(batch_size)
 
         assert t.shape[0] == batch_size and S.shape[0] == batch_size
 
@@ -203,6 +209,7 @@ class BSProductPINN(BSMultiPINN):
             Smin_loss += torch.mean((
                 self.model(t, S_) - self.K
             )**2)
+        Smin_loss /= self.n_assets
 
         # S_max loss: at the upper boundary, the option value equals the intrinsic value.
         # With S_mins = 0, the product can still be near 0 when other assets are small, so
@@ -211,10 +218,135 @@ class BSProductPINN(BSMultiPINN):
         for i in range(self.n_assets):
             S_ = S.clone()
             S_[:, i] = self.S_maxs[i]
-            S_prod_ = torch.prod(S_, dim=1, keepdim=True)
-            g_ = torch.maximum(self.K - S_prod_, zeros)
+            g_ = self._payoff(S_)
             Smax_loss += torch.mean((
                 self.model(t, S_) - g_
             )**2)
+        Smax_loss /= self.n_assets
+
+        return terminal_loss, Smin_loss, Smax_loss
+
+
+class BSMaxPINN(BSMultiPINN):
+    def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300):
+        self.K = K
+        self.r = r
+        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # array of length n_assets
+        self.corr = torch.tensor(corr, dtype=torch.float32)  # n_assets x n_assets correlation matrix
+        self.T = T
+        self.S_mins = S_mins
+        self.S_maxs = S_maxs
+
+        self.n_assets = len(sigmas)
+        assert self.n_assets == 2, "BSMaxPINN is currently implemented only for 2 assets"
+
+        # Precompute American put price on a (t, S) grid for each asset and store
+        # a bilinear interpolator. Avoids running O(B * n_steps^2) tree evaluations
+        # per training batch; interpolation is O(B log n_grid) instead.
+        t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)  # avoid tau = 0 at T
+        self.interpolators = []
+        print("Precomputing boundary interpolation grids...")
+        for i in range(self.n_assets):
+            S_grid = np.linspace(S_mins[i], S_maxs[i], n_grid_S)
+            price_grid = np.zeros((n_grid_t, n_grid_S))
+            for j, t_val in enumerate(t_grid):
+                tau = T - t_val
+                price_grid[j] = binomial_tree_batch(
+                    S_grid, K, r, sigmas[i], tau, n=100,
+                    option_type="put", exercise_type="american"
+                )
+            interp = RegularGridInterpolator(
+                (t_grid, S_grid), price_grid,
+                method='linear', bounds_error=False, fill_value=None
+            )
+            self.interpolators.append(interp)
+        print("Done.")
+
+    def _payoff(self, S):
+        S_max, _ = torch.max(S, dim=1, keepdim=True)
+        payoff = torch.maximum(self.K - S_max, torch.zeros_like(S_max))
+        return payoff
+
+    def _boundary_loss(self, batch_size, t=None, S=None):
+        if t is None or S is None:
+            t, S = self._sample_interior(batch_size)
+
+        assert t.shape[0] == batch_size and S.shape[0] == batch_size
+
+        ones = torch.ones((batch_size, 1))
+
+        # Terminal condition: f(T, S) = payoff(S)
+        f_T = self.model(self.T * ones, S)
+        g = self._payoff(S)
+        terminal_loss = torch.mean((f_T - g) ** 2)
+
+        # S_min loss: when S_i = 0, max(S_0, S_1) = S_{1-i}, so the option reduces
+        # to an American put on asset (1-i) with its own volatility sigma[1-i].
+        Smin_loss = 0
+        t_numpy = t.squeeze().detach().numpy()  # (batch_size,)
+
+        for i in range(self.n_assets):
+            S_ = S.clone()
+            S_[:, i] = 0
+
+            S_other = S_[:, 1 - i].detach().numpy().ravel()  # (batch_size,)
+            points = np.stack([t_numpy, S_other], axis=1)    # (batch_size, 2)
+            v_put = torch.tensor(
+                self.interpolators[1 - i](points), dtype=torch.float32
+            ).unsqueeze(1)
+            Smin_loss += torch.mean((self.model(t, S_) - v_put) ** 2)
+        Smin_loss /= self.n_assets
+
+        # S_max loss: if any S_i is very large, then f(t, S) = intrinsic value
+        Smax_loss = 0
+        for i in range(self.n_assets):
+            S_ = S.clone()
+            S_[:, i] = self.S_maxs[i]
+            g_ = self._payoff(S_)
+            Smax_loss += torch.mean((self.model(t, S_) - g_) ** 2)
+        Smax_loss /= self.n_assets
+
+        return terminal_loss, Smin_loss, Smax_loss
+
+
+class BSMinPINN(BSMultiPINN):
+    def _payoff(self, S):
+        S_min, _ = torch.min(S, dim=1, keepdim=True)
+        payoff = torch.maximum(self.K - S_min, torch.zeros_like(S_min))
+        return payoff
+
+    def _boundary_loss(self, batch_size, t=None, S=None):
+        if t is None or S is None:
+            t, S = self._sample_interior(batch_size)
+
+        assert t.shape[0] == batch_size and S.shape[0] == batch_size
+
+        ones = torch.ones((batch_size, 1))
+
+        # Terminal condition: f(T, S) = payoff(S)
+        f_T = self.model(self.T * ones, S)
+        g = self._payoff(S)
+        terminal_loss = torch.mean((f_T - g) ** 2)
+
+        # S_min loss: if any S_1 = 0, then f(t, S) = K
+
+        Smin_loss = 0
+        for i in range(self.n_assets):
+            S_ = S.clone()
+            S_[:, i] = 0
+            Smin_loss += torch.mean((
+                self.model(t, S_) - self.K
+            )**2)
+        Smin_loss /= self.n_assets
+
+        # S_max loss: if any S_i is very large, then f(t, S) = 0
+        Smax_loss = 0
+        for i in range(self.n_assets):
+            S_ = S.clone()
+            S_[:, i] = self.S_maxs[i]
+            Smax_loss += torch.mean((
+                self.model(t, S_)
+            )**2)
+        Smax_loss /= self.n_assets
 
         return terminal_loss, Smin_loss, Smax_loss
