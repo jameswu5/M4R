@@ -228,7 +228,7 @@ class BSProductPINN(BSMultiPINN):
 
 
 class BSMaxPINN(BSMultiPINN):
-    def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300):
+    def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300, compute_interpolators=True):
         self.K = K
         self.r = r
         self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # array of length n_assets
@@ -243,24 +243,25 @@ class BSMaxPINN(BSMultiPINN):
         # Precompute American put price on a (t, S) grid for each asset and store
         # a bilinear interpolator. Avoids running O(B * n_steps^2) tree evaluations
         # per training batch; interpolation is O(B log n_grid) instead.
-        t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)  # avoid tau = 0 at T
-        self.interpolators = []
-        print("Precomputing boundary interpolation grids...")
-        for i in range(self.n_assets):
-            S_grid = np.linspace(S_mins[i], S_maxs[i], n_grid_S)
-            price_grid = np.zeros((n_grid_t, n_grid_S))
-            for j, t_val in enumerate(t_grid):
-                tau = T - t_val
-                price_grid[j] = binomial_tree_batch(
-                    S_grid, K, r, sigmas[i], tau, n=100,
-                    option_type="put", exercise_type="american"
+        if compute_interpolators:
+            t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)  # avoid tau = 0 at T
+            self.interpolators = []
+            print("Precomputing boundary interpolation grids...")
+            for i in range(self.n_assets):
+                S_grid = np.linspace(S_mins[i], S_maxs[i], n_grid_S)
+                price_grid = np.zeros((n_grid_t, n_grid_S))
+                for j, t_val in enumerate(t_grid):
+                    tau = T - t_val
+                    price_grid[j] = binomial_tree_batch(
+                        S_grid, K, r, sigmas[i], tau, n=100,
+                        option_type="put", exercise_type="american"
+                    )
+                interp = RegularGridInterpolator(
+                    (t_grid, S_grid), price_grid,
+                    method='linear', bounds_error=False, fill_value=None
                 )
-            interp = RegularGridInterpolator(
-                (t_grid, S_grid), price_grid,
-                method='linear', bounds_error=False, fill_value=None
-            )
-            self.interpolators.append(interp)
-        print("Done.")
+                self.interpolators.append(interp)
+            print("Done.")
 
     def _payoff(self, S):
         S_max, _ = torch.max(S, dim=1, keepdim=True)
@@ -310,7 +311,7 @@ class BSMaxPINN(BSMultiPINN):
 
 
 class BSMinPINN(BSMultiPINN):
-    def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300):
+    def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300, compute_interpolators=True):
         self.K = K
         self.r = r
         self.sigmas = torch.tensor(sigmas, dtype=torch.float32)
@@ -325,24 +326,25 @@ class BSMinPINN(BSMultiPINN):
         # Precompute American put price on a (t, S) grid for each asset.
         # When S_i -> S_maxs[i], the min collapses to S_{1-i}, so the option
         # reduces to an American put on asset (1-i) with volatility sigma[1-i].
-        t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)
-        self.interpolators = []
-        print("Precomputing boundary interpolation grids...")
-        for i in range(self.n_assets):
-            S_grid = np.linspace(S_mins[i], S_maxs[i], n_grid_S)
-            price_grid = np.zeros((n_grid_t, n_grid_S))
-            for j, t_val in enumerate(t_grid):
-                tau = T - t_val
-                price_grid[j] = binomial_tree_batch(
-                    S_grid, K, r, sigmas[i], tau, n=100,
-                    option_type="put", exercise_type="american"
+        if compute_interpolators:
+            t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)
+            self.interpolators = []
+            print("Precomputing boundary interpolation grids...")
+            for i in range(self.n_assets):
+                S_grid = np.linspace(S_mins[i], S_maxs[i], n_grid_S)
+                price_grid = np.zeros((n_grid_t, n_grid_S))
+                for j, t_val in enumerate(t_grid):
+                    tau = T - t_val
+                    price_grid[j] = binomial_tree_batch(
+                        S_grid, K, r, sigmas[i], tau, n=100,
+                        option_type="put", exercise_type="american"
+                    )
+                interp = RegularGridInterpolator(
+                    (t_grid, S_grid), price_grid,
+                    method='linear', bounds_error=False, fill_value=None
                 )
-            interp = RegularGridInterpolator(
-                (t_grid, S_grid), price_grid,
-                method='linear', bounds_error=False, fill_value=None
-            )
-            self.interpolators.append(interp)
-        print("Done.")
+                self.interpolators.append(interp)
+            print("Done.")
 
     def _payoff(self, S):
         S_min, _ = torch.min(S, dim=1, keepdim=True)
