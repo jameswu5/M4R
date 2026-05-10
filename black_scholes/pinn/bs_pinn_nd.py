@@ -310,6 +310,40 @@ class BSMaxPINN(BSMultiPINN):
 
 
 class BSMinPINN(BSMultiPINN):
+    def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300):
+        self.K = K
+        self.r = r
+        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)
+        self.corr = torch.tensor(corr, dtype=torch.float32)
+        self.T = T
+        self.S_mins = S_mins
+        self.S_maxs = S_maxs
+
+        self.n_assets = len(sigmas)
+        assert self.n_assets == 2, "BSMinPINN is currently implemented only for 2 assets"
+
+        # Precompute American put price on a (t, S) grid for each asset.
+        # When S_i -> S_maxs[i], the min collapses to S_{1-i}, so the option
+        # reduces to an American put on asset (1-i) with volatility sigma[1-i].
+        t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)
+        self.interpolators = []
+        print("Precomputing boundary interpolation grids...")
+        for i in range(self.n_assets):
+            S_grid = np.linspace(S_mins[i], S_maxs[i], n_grid_S)
+            price_grid = np.zeros((n_grid_t, n_grid_S))
+            for j, t_val in enumerate(t_grid):
+                tau = T - t_val
+                price_grid[j] = binomial_tree_batch(
+                    S_grid, K, r, sigmas[i], tau, n=100,
+                    option_type="put", exercise_type="american"
+                )
+            interp = RegularGridInterpolator(
+                (t_grid, S_grid), price_grid,
+                method='linear', bounds_error=False, fill_value=None
+            )
+            self.interpolators.append(interp)
+        print("Done.")
+
     def _payoff(self, S):
         S_min, _ = torch.min(S, dim=1, keepdim=True)
         payoff = torch.maximum(self.K - S_min, torch.zeros_like(S_min))
@@ -328,25 +362,29 @@ class BSMinPINN(BSMultiPINN):
         g = self._payoff(S)
         terminal_loss = torch.mean((f_T - g) ** 2)
 
-        # S_min loss: if any S_1 = 0, then f(t, S) = K
-
+        # S_min loss: when S_i = 0, min(S) = 0 so the put is worth K immediately.
         Smin_loss = 0
         for i in range(self.n_assets):
             S_ = S.clone()
             S_[:, i] = 0
-            Smin_loss += torch.mean((
-                self.model(t, S_) - self.K
-            )**2)
+            Smin_loss += torch.mean((self.model(t, S_) - self.K) ** 2)
         Smin_loss /= self.n_assets
 
-        # S_max loss: if any S_i is very large, then f(t, S) = 0
+        # S_max loss: when S_i -> S_maxs[i], min(S_0, S_1) = S_{1-i}, so the
+        # option reduces to an American put on asset (1-i) with sigma[1-i].
         Smax_loss = 0
+        t_numpy = t.squeeze().detach().numpy()  # (batch_size,)
+
         for i in range(self.n_assets):
             S_ = S.clone()
             S_[:, i] = self.S_maxs[i]
-            Smax_loss += torch.mean((
-                self.model(t, S_)
-            )**2)
+
+            S_other = S_[:, 1 - i].detach().numpy().ravel()   # (batch_size,)
+            points = np.stack([t_numpy, S_other], axis=1)     # (batch_size, 2)
+            v_put = torch.tensor(
+                self.interpolators[1 - i](points), dtype=torch.float32
+            ).unsqueeze(1)
+            Smax_loss += torch.mean((self.model(t, S_) - v_put) ** 2)
         Smax_loss /= self.n_assets
 
         return terminal_loss, Smin_loss, Smax_loss
