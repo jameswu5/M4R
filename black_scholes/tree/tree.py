@@ -74,20 +74,31 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
     Continuation value set to True effectively is a Bermudan option with exercise opportunities at each time step except the root,
     useful for computing continuation values.
 
-    S : array of shape (B,)
+    S : float or array of shape (B,)
+    T : float or array of shape (B,)
+    S and T are broadcast against each other; B = max(len(S), len(T)).
     Returns: prices of shape (B,)
     """
 
-    S = np.asarray(S)
-    B = S.shape[0]
+    S = np.atleast_1d(np.asarray(S, dtype=float))
+    T = np.atleast_1d(np.asarray(T, dtype=float))
+    B = max(len(S), len(T))
+    if len(S) == 1:
+        S = np.broadcast_to(S, (B,))
+    if len(T) == 1:
+        T = np.broadcast_to(T, (B,))
 
-    dt = T / n                         # shape (B,)
-    u = np.exp(sigma * np.sqrt(dt))    # shape (B,)
-    d = 1.0 / u
-    p = (np.exp(r * dt) - d) / (u - d)
+    dt = T / n                              # (B,)
+    u = np.exp(sigma * np.sqrt(dt))         # (B,)
+    d = 1.0 / u                             # (B,)
+    p = (np.exp(r * dt) - d) / (u - d)     # (B,)
 
     assert np.all((p > 0) & (p < 1))
-    # assert 0 < p < 1, f"Risk-neutral probability p must be between 0 and 1 [params: S={S}, K={K}, r={r}, sigma={sigma}, T={T}, n={n}]"
+
+    # Reshape to (B, 1) for broadcasting against (B, i) tree slices
+    d_bc = d[:, None]
+    p_bc = p[:, None]
+    discount_bc = np.exp(-r * dt)[:, None]  # (B, 1)
 
     # Compute binomial price tree
     # price_tree[b, i, j] = price of path j at time i for batch b
@@ -95,7 +106,7 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
     price_tree[:, 0, 0] = S
 
     for i in range(1, n+1):
-        price_tree[:, i, :i] = price_tree[:, i-1, :i] * d
+        price_tree[:, i, :i] = price_tree[:, i-1, :i] * d_bc
         price_tree[:, i, i] = price_tree[:, i-1, i-1] * u
 
     # Compute option value at maturity
@@ -107,9 +118,9 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
 
     # Backward induction to calculate option price
     for i in range(n-1, -1, -1):
-        option_tree[:, i, :i+1] = np.exp(-r * dt) * (
-            p * option_tree[:, i+1, 1:i+2]
-            + (1 - p) * option_tree[:, i+1, :i+1]
+        option_tree[:, i, :i+1] = discount_bc * (
+            p_bc * option_tree[:, i+1, 1:i+2]
+            + (1 - p_bc) * option_tree[:, i+1, :i+1]
         )
 
         # Bermudan option
@@ -142,15 +153,14 @@ class BinomialTree:
 
     def predict(self, t, S, continuation_value=False):
         """
-        t : float
+        t : float or array of shape (B,)
         S : float or array of shape (B,)
+        t and S are broadcast against each other; B = max(len(t), len(S)).
         continuation_value : bool, optional
             If True, return continuation values instead of option prices.
-        Returns: price or array of prices of shape (B,)
+        Returns: array of prices of shape (B,)
         """
-        tau = self.T - t
-        if np.isscalar(S):
-            S = np.array([S])
+        tau = self.T - np.asarray(t)
         return binomial_tree_batch(
             S, self.K, self.r, self.sigma,
             tau, self.n_steps, self.option_type, self.exercise_type,
@@ -159,7 +169,7 @@ class BinomialTree:
 
 
 def test_batch():
-    S_vals = np.array([70, 80, 90, 100, 110, 120, 130])
+    S = 100
     K = 100
     r = 0.05
     sigma = 0.2
@@ -168,13 +178,26 @@ def test_batch():
     option_type = 'put'
     exercise_type = 'american'
 
-    single_prices = []
+    S_vals = np.array([70, 80, 90, 100, 110, 120, 130])
+    t_vals = np.linspace(0, T-1e-2, 20)
+
+    # Test S_vals batch
+    single_prices_S = []
     for S_i in S_vals:
         price, _, _ = binomial_tree(S_i, K, r, sigma, T, n, option_type, exercise_type)
-        single_prices.append(price)
-    batch_prices = binomial_tree_batch(S_vals, K, r, sigma, T, n, option_type, exercise_type)
-    assert np.allclose(single_prices, batch_prices), "Batch prices do not match single prices"
-    print("Batch pricing test passed.")
+        single_prices_S.append(price)
+    batch_prices_S = binomial_tree_batch(S_vals, K, r, sigma, T, n, option_type, exercise_type)
+    assert np.allclose(single_prices_S, batch_prices_S), "Batch prices do not match single prices"
+    print("S Batch pricing test passed.")
+
+    # Test t_vals batch
+    single_prices_t = []
+    for t_i in t_vals:
+        price, _, _ = binomial_tree(S, K, r, sigma, T - t_i, n, option_type, exercise_type)
+        single_prices_t.append(price)
+    batch_prices_t = binomial_tree_batch(S, K, r, sigma, T - t_vals, n, option_type, exercise_type)
+    assert np.allclose(single_prices_t, batch_prices_t), "Batch prices do not match single prices"
+    print("t Batch pricing test passed.")
 
 
 if __name__ == "__main__":
