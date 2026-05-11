@@ -685,17 +685,39 @@ We can see that both methods of estimating the continuation probabilities yield 
 \end{figure}
 
 
-\section{Different payoffs}
-To demonstrate the flexibility of our PINN framework, we will now shift our focus onto different payoffs on multiple assets as an extension. \cite{detemple2005american} explores a variety of different payoffs for American options on multiple assets, but that with a particularly interesting free boundary is an option on the maximum of two assets (and indeed, the minimum of two assets). To price these, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the maximum of two assets, the payoff function is given by $g(S_1, S_2) = (K - \max(S_1, S_2))^+$, and thus we must have the terminal boundary condition
+\section{Minimum of two assets}
+To demonstrate the flexibility of our PINN framework, we will now shift our focus onto different payoffs on multiple assets as an extension. \cite{detemple2005american} explores a variety of different payoffs for American options on multiple assets, but that with a particularly interesting free boundary is the one of the call on the maximum of two assets. We will deal with the analogous case for the put on the minimum of two assets.
+
+To price this, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the minimum of two assets, the payoff function is given by $g(S_1, S_2) = (K - \min(S_1, S_2))^+$, and thus we must have the terminal boundary condition
 \begin{equation}
-    v(T, S_1, S_2) = (K - \max(S_1, S_2))^+
+    v(T, S_1, S_2) = (K - \min(S_1, S_2))^+
 \end{equation}
-When one of the assets is worthless, the maximum of the two assets is just the other asset, and thus we have
+When one of the assets is very high (i.e., $S_1 \to \infty$ or $S_2 \to \infty$), the minimum of the two assets is just the other asset, and thus we have
 \begin{equation}
-    v(t, 0, S_2) = v_\text{1D}(t, S_2) \qquad v(t, S_1, 0) = v_\text{1D}(t, S_1)
+    v(t, \infty, S_2) = v_\text{1D}(t, S_2) \qquad v(t, S_1, \infty) = v_\text{1D}(t, S_1)
 \end{equation}
-where $v_\text{1D}$ is the price of the one-dimensional American put option on a single asset, which we can compute with the different methods we have already explored. Finally, when one of the assets is sufficiently high, the option is far out of the money and is worthless, and thus we have
+where $v_\text{1D}$ is the price of the one-dimensional American put option on a single asset, which we can compute with the different methods we have already explored. Finally, when one of the assets is worthless, the minimum of the two assets is just the worthless asset, and hence the value will be $K$ as we should exercise immediately. Thus, the boundary condition would be
 \begin{equation}
-    v(t, S_1, S_2) = 0 \qquad \text{ for } S_1 \gg K \text{ or } S_2 \gg K
+    v(t, S_1, S_2) = K \qquad \text{ for } S_1 = 0 \text{ or } S_2 = 0
 \end{equation}
 Together, these boundary conditions (alongside the variational inequality which remains the same with the operator $\mathcal L$ as in \ref{eq:bs_operator_multi}) form the PINN framework which we can train.
+
+In Figure \ref{fig:bs_min_heatmap}, we can see that our PINN yields results that are in line with our expectations. We expect to see some symmetry along the $S_1 = S_2$ line as the payoff is symmetric in the two assets. I introduce some asymmetry by training the network where $S_2$ has a higher constant volatility than $S_1$.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_min_heatmap.png}
+    \caption[Put on minimum of two assets heatmap]{Heatmap for the put on the minimum of two assets across the $S_1$-$S_2$ cross section at $t=0$, and the $S_1$-$t$ cross section with $S_1=S_2$}
+    \label{fig:bs_min_heatmap}
+\end{figure}
+
+We can also see that the term structure is somewhat captured by the contour lines of the right figure of Figure \ref{fig:bs_min_heatmap}, where the price decays as we approach maturity. I train the model with a high volatility of $(\sigma_1, \sigma_2) = (0.4, 0.5)$ to make the theta decay more significant. This also gives us a clearer evolution of the free boundary, which we see in Figure \ref{fig:bs_min_continuation_probs}, where we can see that not only the continuation region is a mirror image of the theoretical result described in \cite{detemple2005american} as we would expect, but the PINN also captures the shrinking nature of the continuation region as we approach maturity, consistent with the intuition that the option loses time value and the region would close entirely, leaving only the box $\{(S_1, S_2) : S_1 \ge K, S_2 \ge K\}$ as the continuation region at maturity.
+
+\begin{figure}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_min_continuation_prob.png}
+    \caption[Put on minimum of two assets continuation probabilities]{Continuation probabilities for the put on the minimum of two assets across the $S_1$-$S_2$ cross section with varying $t$}
+    \label{fig:bs_min_continuation_probs}
+\end{figure}
+
+Overall, this demonstrates the capacity of our PINN approach to pricing options and we can see that the framework is flexible enough to be applied to different payoffs with minimal adjustments, yielding convincing results that are consistent with theoretical results. For the next step, we will move onto a different model, the Heston model, which injects randomness into the volatility, which is a more realistic assumption.
