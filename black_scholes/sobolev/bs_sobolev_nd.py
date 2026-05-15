@@ -19,6 +19,26 @@ class BlackScholesSobolevMultiAsset(PINN):
         }
 
     def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs):
+        """
+        Set the multi-asset Black-Scholes model parameters.
+
+        Parameters
+        ----------
+        K : float
+            Strike price of the option.
+        r : float
+            Risk-free interest rate (annualised).
+        sigmas : array-like of float, length n_assets
+            Volatility of each underlying asset (annualised).
+        corr : array-like of float, shape (n_assets, n_assets)
+            Correlation matrix between asset log-returns.
+        T : float
+            Time to expiry (in years).
+        S_mins : array-like of float, length n_assets
+            Lower spatial boundary for each asset's price.
+        S_maxs : array-like of float, length n_assets
+            Upper spatial boundary for each asset's price.
+        """
         self.K = K
         self.r = r
         self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # (n_assets,)
@@ -32,10 +52,28 @@ class BlackScholesSobolevMultiAsset(PINN):
         """
         Train using the Sobolev-norm loss: PDE complementarity + J2 + J3 + J4.
 
-        J2  — H^1 norm of u(T, ·) at the terminal time
-        J3  — H^{3/4} fractional-in-time, L^2-in-space norm on the lateral boundary
-        J4  — H^{1/4} fractional-in-time norm for the outward normal derivative on
-              the lateral boundary faces
+        The total loss combines four terms that together enforce the solution
+        to lie in the appropriate Sobolev space:
+
+        * **J2** — H^1 norm of ``u(T, ·)`` at the terminal time.
+        * **J3** — H^{3/4} fractional-in-time, H^1-in-space mixed norm on the
+          lateral boundary.
+        * **J4** — H^{1/4} fractional-in-time norm of the outward normal
+          derivative on the lateral boundary faces.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of samples per training batch.
+        epochs : int
+            Maximum number of training epochs.
+        early_stopping : EarlyStopping
+            Early stopping callback; training halts and the best model is
+            restored when the validation loss stops improving.
+        anneal_freq : int, optional
+            Number of epochs between loss weight updates (default 500).
+        alpha : float, optional
+            EMA smoothing factor for loss reweighting (default 0.9).
         """
         self.loss_weights = {
             'pde': 0.25,
@@ -89,6 +127,27 @@ class BlackScholesSobolevMultiAsset(PINN):
     # ------------------------------------------------------------------
 
     def __process_loss(self, pde_loss, J2, J3, J4, update_dict=True):
+        """
+        Apply loss weights, sum the components, and optionally record to history.
+
+        Parameters
+        ----------
+        pde_loss : torch.Tensor
+            Interior PDE complementarity loss.
+        J2 : torch.Tensor
+            H^1 terminal boundary loss.
+        J3 : torch.Tensor
+            Mixed Sobolev lateral boundary loss.
+        J4 : torch.Tensor
+            Normal-derivative lateral boundary loss.
+        update_dict : bool, optional
+            If True (default), append each weighted loss to ``self.history``.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Scalar weighted total loss.
+        """
         w_pde = self.loss_weights['pde'] * pde_loss
         w_J2  = self.loss_weights['J2']  * J2
         w_J3  = self.loss_weights['J3']  * J3
@@ -103,7 +162,22 @@ class BlackScholesSobolevMultiAsset(PINN):
         return loss
 
     def __anneal_weights(self, unweighted_losses: dict, alpha: float):
-        """Gradient-norm-based loss reweighting (learning-rate annealing)."""
+        """
+        Update loss weights using gradient-based learning rate annealing.
+
+        Each weight is rescaled so that the gradient magnitudes of all loss
+        terms are approximately equal, then smoothed with an exponential moving
+        average and renormalised to sum to one.
+
+        Parameters
+        ----------
+        unweighted_losses : dict
+            Mapping from loss name to its unweighted scalar ``torch.Tensor``.
+            Keys must match those in ``self.loss_weights``.
+        alpha : float
+            EMA smoothing factor in ``[0, 1)``.  Higher values retain more of
+            the current weight; lower values adapt more aggressively.
+        """
         params = list(self.model.parameters())
         total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
         total_grads = torch.autograd.grad(
@@ -128,15 +202,67 @@ class BlackScholesSobolevMultiAsset(PINN):
         self.loss_weights = {k: v / total for k, v in new_weights.items()}
 
     def __sample_time_pairs(self, batch_size):
+        """
+        Sample pairs of distinct time coordinates from the interior of ``[0, T]``.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of pairs to sample.
+
+        Returns
+        -------
+        t1 : torch.Tensor, shape (batch_size, 1)
+            First time coordinate of each pair.
+        t2 : torch.Tensor, shape (batch_size, 1)
+            Second time coordinate of each pair, guaranteed to differ from
+            ``t1`` by at least ``epsilon``.
+        """
         t1, t2, _, _ = self.sampler.uniform_pair(
             0, self.T, batch_size, 1, epsilon=0.01, boundary=False
         )
         return t1, t2
 
     def __sample_S_interior(self, batch_size):
+        """
+        Sample asset-price coordinates uniformly from the interior domain.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of points to sample.
+
+        Returns
+        -------
+        S : torch.Tensor, shape (batch_size, n_assets)
+            Asset prices, each column sampled from ``[S_mins[i], S_maxs[i]]``.
+        """
         return self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
 
     def __sample_S_boundary_pairs(self, batch_size):
+        """
+        Sample pairs of asset-price coordinates on or near the spatial boundary.
+
+        Each pair ``(S1, S2)`` has at least one point on a boundary face, with
+        the corresponding face index recorded so the outward normal derivative
+        can be extracted in ``__sobolev_loss``.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of pairs to sample.
+
+        Returns
+        -------
+        S1 : torch.Tensor, shape (batch_size, n_assets)
+            First asset-price point of each pair.
+        S2 : torch.Tensor, shape (batch_size, n_assets)
+            Second asset-price point of each pair.
+        face1 : array-like of int, length batch_size
+            Index of the boundary face (asset dimension) on which ``S1`` lies.
+        face2 : array-like of int, length batch_size
+            Index of the boundary face (asset dimension) on which ``S2`` lies.
+        """
         S1, S2, face1, face2 = self.sampler.uniform_pair(
             self.S_mins, self.S_maxs, batch_size, self.n_assets,
             epsilon=0.01, boundary=True
@@ -145,10 +271,25 @@ class BlackScholesSobolevMultiAsset(PINN):
 
     def __bs_residual(self, t, S):
         """
-        n-dimensional Black-Scholes PDE residual (forward-time convention):
-            L[v] = -v_t - r * sum_i(S_i * v_{S_i})
-                   - 0.5 * sum_{i,j}(sigma_i sigma_j rho_{ij} S_i S_j v_{S_i S_j})
-                   + r * v
+        Evaluate the n-dimensional Black-Scholes PDE residual at collocation points.
+
+        Computes ``L[v] = -v_t - r sum_i(S_i v_{S_i})
+        - 0.5 sum_{i,j}(sigma_i sigma_j rho_{ij} S_i S_j v_{S_i S_j}) + r v``
+        via automatic differentiation, assembling the full Hessian row-by-row.
+
+        Parameters
+        ----------
+        t : torch.Tensor, shape (N, 1)
+            Time coordinates.  Must have ``requires_grad=True``.
+        S : torch.Tensor, shape (N, n_assets)
+            Asset-price coordinates.  Must have ``requires_grad=True``.
+
+        Returns
+        -------
+        residual : torch.Tensor, shape (N, 1)
+            PDE residual at each collocation point.
+        v : torch.Tensor, shape (N, 1)
+            Network output (option price) at each collocation point.
         """
         batch_size = S.shape[0]
         v = self.model(t, S)
@@ -178,7 +319,25 @@ class BlackScholesSobolevMultiAsset(PINN):
         return residual, v
 
     def __pde_loss(self, t, S):
-        """American put complementarity loss: mean(min(L[v], v - g)^2)."""
+        """
+        Compute the American put complementarity loss.
+
+        Enforces ``min(L[v], v - g) = 0`` in the least-squares sense, where
+        ``L[v]`` is the Black-Scholes residual and ``g = max(K - prod(S), 0)``
+        is the product-put intrinsic value.
+
+        Parameters
+        ----------
+        t : torch.Tensor, shape (N, 1)
+            Time coordinates (detached; ``requires_grad`` is set internally).
+        S : torch.Tensor, shape (N, n_assets)
+            Asset-price coordinates (detached; ``requires_grad`` is set internally).
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Scalar mean-squared complementarity loss.
+        """
         t = t.detach().requires_grad_(True)
         S = S.detach().requires_grad_(True)
 
@@ -193,11 +352,53 @@ class BlackScholesSobolevMultiAsset(PINN):
                        s_time_J3=0.75, s_space_J3=1.5,
                        s_time_J4=0.25, s_space_J4=0.5):
         """
-        Sobolev regularity losses for u = v - g, g(S) = max(K - prod(S), 0).
+        Compute Sobolev regularity losses for ``u = v - g``.
 
-        J2  — H^1 norm of u at t=T (terminal condition residual)
-        J3  — H^{s_time_J3, s_space_J3} mixed norm on the lateral boundary Sigma
-        J4  — H^{s_time_J4, s_space_J4} norm of the outward normal derivative on Sigma
+        All three terms operate on the residual ``u = v - g`` where
+        ``g(S) = max(K - prod(S), 0)`` is the product-put intrinsic value.
+
+        * **J2** — H^1 norm of ``u(T, S)`` on the interior: L^2 value term
+          plus L^2 norm of the spatial gradient.
+        * **J3** — Mixed H^{s_time_J3, s_space_J3} norm on the lateral
+          boundary: L^2 value, time Gagliardo seminorm, H^1 gradient L^2
+          norm, and spatial Gagliardo seminorm of the gradient.
+        * **J4** — H^{s_time_J4, s_space_J4} norm of the outward normal
+          derivative on the lateral boundary: L^2 term, time Gagliardo
+          seminorm, and spatial Gagliardo seminorm.
+
+        Parameters
+        ----------
+        t1 : torch.Tensor, shape (N, 1)
+            First time coordinate of each sample pair.
+        t2 : torch.Tensor, shape (N, 1)
+            Second time coordinate of each sample pair.
+        S_interior : torch.Tensor, shape (N, n_assets)
+            Interior asset-price coordinates for computing J2.
+        S1_boundary : torch.Tensor, shape (N, n_assets)
+            First boundary asset-price point of each pair (for J3 and J4).
+        S2_boundary : torch.Tensor, shape (N, n_assets)
+            Second boundary asset-price point of each pair (for J3 and J4).
+        face1 : array-like of int, length N
+            Boundary face index for each ``S1_boundary`` point.
+        face2 : array-like of int, length N
+            Boundary face index for each ``S2_boundary`` point.
+        s_time_J3 : float, optional
+            Fractional time Sobolev exponent for J3 (default 0.75).
+        s_space_J3 : float, optional
+            Fractional space Sobolev exponent for J3 (default 1.5).
+        s_time_J4 : float, optional
+            Fractional time Sobolev exponent for J4 (default 0.25).
+        s_space_J4 : float, optional
+            Fractional space Sobolev exponent for J4 (default 0.5).
+
+        Returns
+        -------
+        J2 : torch.Tensor
+            Scalar H^1 terminal loss.
+        J3 : torch.Tensor
+            Scalar mixed Sobolev lateral boundary loss.
+        J4 : torch.Tensor
+            Scalar normal-derivative lateral boundary loss.
         """
         d = self.n_assets
         device = S_interior.device

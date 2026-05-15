@@ -18,6 +18,24 @@ class BlackScholesSobolev(PINN):
         }
 
     def set_params(self, K, r, sigma, T, S_min, S_max):
+        """
+        Set the Black-Scholes model parameters.
+
+        Parameters
+        ----------
+        K : float
+            Strike price of the option.
+        r : float
+            Risk-free interest rate (annualised).
+        sigma : float
+            Volatility of the underlying asset (annualised).
+        T : float
+            Time to expiry (in years).
+        S_min : float
+            Minimum asset price used as the lower spatial boundary.
+        S_max : float
+            Maximum asset price used as the upper spatial boundary.
+        """
         self.K = K
         self.r = r
         self.sigma = sigma
@@ -30,12 +48,19 @@ class BlackScholesSobolev(PINN):
         Train with Sobolev regularity losses J2, J3, J4 and automatic loss
         reweighting via learning rate annealing.
 
-        Args:
-            batch_size (int): Number of samples per training batch.
-            epochs (int): Maximum number of training epochs.
-            early_stopping (EarlyStopping): Early stopping mechanism.
-            anneal_freq (int): Frequency of loss reweighting updates.
-            alpha (float): EMA smoothing factor for loss reweighting.
+        Parameters
+        ----------
+        batch_size : int
+            Number of samples per training batch.
+        epochs : int
+            Maximum number of training epochs.
+        early_stopping : EarlyStopping
+            Early stopping callback; training halts and the best model is
+            restored when the validation loss stops improving.
+        anneal_freq : int, optional
+            Number of epochs between loss weight updates (default 500).
+        alpha : float, optional
+            EMA smoothing factor for loss reweighting (default 0.9).
         """
         self.loss_weights = {
             'pde': 0.25,
@@ -87,6 +112,27 @@ class BlackScholesSobolev(PINN):
     # ------------------------------------------------------------------
 
     def __process_loss(self, pde_loss, J2, J3, J4, update_dict=True):
+        """
+        Apply loss weights, sum the components, and optionally record to history.
+
+        Parameters
+        ----------
+        pde_loss : torch.Tensor
+            Interior PDE complementarity loss.
+        J2 : torch.Tensor
+            H^1 terminal boundary loss.
+        J3 : torch.Tensor
+            H^{3/4} fractional-in-time lateral boundary loss.
+        J4 : torch.Tensor
+            H^{1/4} fractional-in-time normal-derivative lateral boundary loss.
+        update_dict : bool, optional
+            If True (default), append each weighted loss to ``self.history``.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Scalar weighted total loss.
+        """
         w_pde = self.loss_weights['pde'] * pde_loss
         w_J2  = self.loss_weights['J2']  * J2
         w_J3  = self.loss_weights['J3']  * J3
@@ -101,6 +147,23 @@ class BlackScholesSobolev(PINN):
         return loss
 
     def __anneal_weights(self, unweighted_losses: dict, alpha: float):
+        """
+        Update loss weights using gradient-based learning rate annealing.
+
+        Uses the PDE residual gradient as the reference peak (Wang et al. 2021)
+        rather than the total loss gradient, since rescaling all terms relative
+        to the total would produce equal ``lambda_hat`` values and leave the
+        weights unchanged after normalisation.
+
+        Parameters
+        ----------
+        unweighted_losses : dict
+            Mapping from loss name to its unweighted scalar ``torch.Tensor``.
+            Keys must match those in ``self.loss_weights``.
+        alpha : float
+            EMA smoothing factor in ``[0, 1)``.  Higher values retain more of
+            the current weight; lower values adapt more aggressively.
+        """
         params = list(self.model.parameters())
         # Use the PDE residual loss gradient as the reference (Wang et al. 2021).
         # Using the total loss here makes all lambda_hat values equal after
@@ -127,23 +190,65 @@ class BlackScholesSobolev(PINN):
         self.loss_weights = {k: v / total for k, v in new_weights.items()}
 
     def __sample_time_pairs(self, batch_size):
-        """Sample pairs (t1, t2) in [0, T] with |t1 - t2| >= 0.01."""
+        """
+        Sample pairs of distinct time coordinates from the interior of ``[0, T]``.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of pairs to sample.
+
+        Returns
+        -------
+        t1 : torch.Tensor, shape (batch_size, 1)
+            First time coordinate of each pair.
+        t2 : torch.Tensor, shape (batch_size, 1)
+            Second time coordinate of each pair, guaranteed to differ from
+            ``t1`` by at least ``0.01``.
+        """
         t1, t2, _, _ = self.sampler.uniform_pair(
             0, self.T, batch_size, 1, epsilon=0.01, boundary=False
         )
         return t1, t2
 
     def __sample_S(self, batch_size):
+        """
+        Sample asset-price coordinates uniformly from ``[S_min, S_max]``.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of points to sample.
+
+        Returns
+        -------
+        S : torch.Tensor, shape (batch_size, 1)
+            Asset prices sampled from the spatial domain.
+        """
         return self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
 
     def __bs_residual(self, t, S):
         """
-        Black-Scholes PDE residual (forward-time convention):
-            L[f] = -f_t - rS f_S - 0.5 sigma^2 S^2 f_SS + r f
+        Evaluate the Black-Scholes PDE residual at given collocation points.
 
-        For the European BS PDE  f_t + rS f_S + 0.5 sigma^2 S^2 f_SS - r f = 0,
-        we have L[f] = 0, so the sign convention is correct for forward time
-        where t = 0 is today and t = T is expiry.
+        Computes ``L[f] = -f_t - r S f_S - 0.5 sigma^2 S^2 f_SS + r f`` via
+        automatic differentiation.  For the European BS PDE,
+        ``f_t + r S f_S + 0.5 sigma^2 S^2 f_SS - r f = 0``, so ``L[f] = 0``
+        under the forward-time convention (``t = 0`` today, ``t = T`` at expiry).
+
+        Parameters
+        ----------
+        t : torch.Tensor, shape (N, 1)
+            Time coordinates.  Must have ``requires_grad=True``.
+        S : torch.Tensor, shape (N, 1)
+            Asset-price coordinates.  Must have ``requires_grad=True``.
+
+        Returns
+        -------
+        residual : torch.Tensor, shape (N, 1)
+            PDE residual at each collocation point.
+        f : torch.Tensor, shape (N, 1)
+            Network output (option price) at each collocation point.
         """
         f = self.model(t, S)
         f_t, f_S = torch.autograd.grad(
@@ -162,7 +267,23 @@ class BlackScholesSobolev(PINN):
 
     def __pde_loss(self, t, S):
         """
-        American put complementarity loss.
+        Compute the American put complementarity loss.
+
+        Enforces ``min(L[f], f - g) = 0`` in the least-squares sense, where
+        ``L[f]`` is the Black-Scholes residual and ``g = max(K - S, 0)`` is
+        the put's intrinsic value.
+
+        Parameters
+        ----------
+        t : torch.Tensor, shape (N, 1)
+            Time coordinates (detached; ``requires_grad`` is set internally).
+        S : torch.Tensor, shape (N, 1)
+            Asset-price coordinates (detached; ``requires_grad`` is set internally).
+
+        Returns
+        -------
+        pde_loss : torch.Tensor
+            Scalar mean-squared complementarity loss.
         """
         t = t.detach().requires_grad_(True)
         S = S.detach().requires_grad_(True)
@@ -177,13 +298,38 @@ class BlackScholesSobolev(PINN):
 
     def __sobolev_loss(self, t1, t2, S_interior):
         """
-        Three Sobolev regularity terms for the 1-D Black-Scholes problem,
-        where u = v - g and g(S) = max(K - S, 0).
+        Compute Sobolev regularity losses for ``u = v - g``.
 
-        J2  — H^1 norm of u(T, ·) on the interior (terminal condition)
-        J3  — H^{3/4} in time, L^2 in space, on the lateral boundary
-        J4  — H^{1/4} in time, L^2 in space, for the normal derivative
-              ∂u/∂S on the lateral boundary
+        All three terms operate on the residual ``u = v - g`` where
+        ``g(S) = max(K - S, 0)`` is the put's intrinsic value.
+
+        * **J2** — H^1 norm of ``u(T, S)`` on the interior: L^2 value term
+          plus L^2 norm of ``du/dS``.
+        * **J3** — H^{3/4} fractional-in-time norm on the lateral boundary
+          ``{S_min, S_max}``: L^2 value plus Gagliardo seminorm with exponent
+          ``1 + 2 * 0.75 = 2.5``.
+        * **J4** — H^{1/4} fractional-in-time norm of the outward normal
+          derivative ``du/dS`` on ``{S_min, S_max}``: L^2 term, time Gagliardo
+          seminorm with exponent ``1 + 2 * 0.25 = 1.5``, and a spatial
+          difference term across the two boundary faces.
+
+        Parameters
+        ----------
+        t1 : torch.Tensor, shape (N, 1)
+            First time coordinate of each sample pair.
+        t2 : torch.Tensor, shape (N, 1)
+            Second time coordinate of each sample pair.
+        S_interior : torch.Tensor, shape (N, 1)
+            Interior asset-price coordinates for computing J2.
+
+        Returns
+        -------
+        J2 : torch.Tensor
+            Scalar H^1 terminal loss.
+        J3 : torch.Tensor
+            Scalar H^{3/4}-in-time lateral boundary loss.
+        J4 : torch.Tensor
+            Scalar H^{1/4}-in-time normal-derivative lateral boundary loss.
         """
         S_interior = S_interior.detach().requires_grad_(True)
         batch = S_interior.shape[0]

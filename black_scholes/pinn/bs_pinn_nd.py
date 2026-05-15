@@ -21,6 +21,26 @@ class BSMultiPINN(PINN, ABC):
         }
 
     def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs):
+        """
+        Set the multi-asset Black-Scholes model parameters.
+
+        Parameters
+        ----------
+        K : float
+            Strike price of the option.
+        r : float
+            Risk-free interest rate (annualised).
+        sigmas : array-like of float, length n_assets
+            Volatility of each underlying asset (annualised).
+        corr : array-like of float, shape (n_assets, n_assets)
+            Correlation matrix between asset log-returns.
+        T : float
+            Time to expiry (in years).
+        S_mins : array-like of float, length n_assets
+            Lower spatial boundary for each asset's price.
+        S_maxs : array-like of float, length n_assets
+            Upper spatial boundary for each asset's price.
+        """
         self.K = K
         self.r = r
         self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # array of length n_assets
@@ -32,6 +52,23 @@ class BSMultiPINN(PINN, ABC):
         self.n_assets = len(sigmas)
 
     def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9):
+        """
+        Train the PINN model with automatic loss reweighting via learning rate annealing.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of samples per training batch.
+        epochs : int
+            Maximum number of training epochs.
+        early_stopping : EarlyStopping
+            Early stopping callback; training halts and the best model is
+            restored when the validation loss stops improving.
+        anneal_freq : int, optional
+            Number of epochs between loss weight updates (default 500).
+        alpha : float, optional
+            EMA smoothing factor for loss reweighting (default 0.9).
+        """
         val_t_interior, val_S_interior = self._sample_interior(batch_size)
         val_t_boundary, val_S_boundary = self._sample_boundary(batch_size)
 
@@ -69,6 +106,22 @@ class BSMultiPINN(PINN, ABC):
                 break
 
     def _anneal_weights(self, unweighted_losses: dict, alpha: float):
+        """
+        Update loss weights using gradient-based learning rate annealing.
+
+        Each weight is rescaled so that the gradient magnitudes of all loss
+        terms are approximately equal, then smoothed with an exponential moving
+        average and renormalised to sum to one.
+
+        Parameters
+        ----------
+        unweighted_losses : dict
+            Mapping from loss name to its unweighted scalar ``torch.Tensor``.
+            Keys must match those in ``self.loss_weights``.
+        alpha : float
+            EMA smoothing factor in ``[0, 1)``.  Higher values retain more of
+            the current weight; lower values adapt more aggressively.
+        """
         params = list(self.model.parameters())
 
         total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
@@ -94,6 +147,27 @@ class BSMultiPINN(PINN, ABC):
         self.loss_weights = {k: v / total for k, v in new_weights.items()}
 
     def _process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, update_dict=True):
+        """
+        Apply loss weights, sum the components, and optionally record to history.
+
+        Parameters
+        ----------
+        variational_loss : torch.Tensor
+            Interior variational (PDE) loss term.
+        terminal_loss : torch.Tensor
+            Terminal boundary condition loss at ``t = T``.
+        Smin_loss : torch.Tensor
+            Boundary condition loss at the lower spatial boundaries.
+        Smax_loss : torch.Tensor
+            Boundary condition loss at the upper spatial boundaries.
+        update_dict : bool, optional
+            If True (default), append each weighted loss to ``self.history``.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Scalar weighted total loss.
+        """
         variational_loss *= self.loss_weights['variational']
         terminal_loss *= self.loss_weights['terminal']
         Smin_loss *= self.loss_weights['Smin']
@@ -111,14 +185,72 @@ class BSMultiPINN(PINN, ABC):
         return loss
 
     def _sample_interior(self, batch_size):
+        """
+        Sample collocation points uniformly from the interior of the domain.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of points to sample.
+
+        Returns
+        -------
+        t : torch.Tensor, shape (batch_size, 1)
+            Time coordinates sampled from ``[0, T]``.
+        S : torch.Tensor, shape (batch_size, n_assets)
+            Asset-price coordinates, each column sampled from
+            ``[S_mins[i], S_maxs[i]]``.
+        """
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
         S = self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
         return t, S
 
     def _sample_boundary(self, batch_size):
+        """
+        Sample points for evaluating the boundary conditions.
+
+        Delegates to ``_sample_interior``; specific boundaries are enforced by
+        fixing the appropriate coordinates inside ``_boundary_loss``.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of points to sample.
+
+        Returns
+        -------
+        t : torch.Tensor, shape (batch_size, 1)
+            Time coordinates sampled from ``[0, T]``.
+        S : torch.Tensor, shape (batch_size, n_assets)
+            Asset-price coordinates sampled from the interior domain.
+        """
         return self._sample_interior(batch_size)
 
     def _bs_residual(self, t, S, create_graph=True):
+        """
+        Evaluate the multi-asset Black-Scholes PDE residual at collocation points.
+
+        Computes ``-f_t - r sum_i(S_i f_{S_i}) - 0.5 sum_{i,j}(sigma_i sigma_j
+        rho_{ij} S_i S_j f_{S_i S_j}) + r f`` via automatic differentiation,
+        where the full Hessian ``f_SS`` is assembled row-by-row.
+
+        Parameters
+        ----------
+        t : torch.Tensor, shape (N, 1)
+            Time coordinates.  Must have ``requires_grad=True``.
+        S : torch.Tensor, shape (N, n_assets)
+            Asset-price coordinates.  Must have ``requires_grad=True``.
+        create_graph : bool, optional
+            If True (default), retain the computation graph for higher-order
+            gradients during training.  Set to False for validation passes.
+
+        Returns
+        -------
+        residual : torch.Tensor, shape (N, 1)
+            PDE residual at each collocation point.
+        f : torch.Tensor, shape (N, 1)
+            Network output (option price) at each collocation point.
+        """
         batch_size = S.shape[0]
 
         f = self.model(t, S)
@@ -156,9 +288,48 @@ class BSMultiPINN(PINN, ABC):
 
     @abstractmethod
     def _payoff(self, S):
+        """
+        Compute the option's intrinsic (exercise) payoff for a batch of prices.
+
+        Parameters
+        ----------
+        S : torch.Tensor, shape (N, n_assets)
+            Asset prices at which to evaluate the payoff.
+
+        Returns
+        -------
+        payoff : torch.Tensor, shape (N, 1)
+            Intrinsic value ``max(K - g(S), 0)`` for each sample, where
+            ``g(S)`` is the subclass-specific function of the asset prices.
+        """
         raise NotImplementedError("Must be implemented by subclass")
 
     def _interior_loss(self, batch_size, t=None, S=None, create_graph=True):
+        """
+        Compute the variational interior loss for the American put constraint.
+
+        The loss enforces ``min(L[f], f - g) = 0`` in the least-squares sense,
+        where ``L[f]`` is the Black-Scholes operator residual and ``g`` is the
+        intrinsic payoff returned by ``_payoff``.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of collocation points to sample if ``t`` and ``S`` are not
+            provided.
+        t : torch.Tensor, shape (batch_size, 1), optional
+            Pre-sampled time coordinates.  If ``None``, new points are drawn.
+        S : torch.Tensor, shape (batch_size, n_assets), optional
+            Pre-sampled asset-price coordinates.  If ``None``, new points are
+            drawn.
+        create_graph : bool, optional
+            Passed to ``_bs_residual``; set to False for validation passes.
+
+        Returns
+        -------
+        variational_loss : torch.Tensor
+            Scalar mean-squared variational loss.
+        """
         if t is None or S is None:
             t, S = self._sample_interior(batch_size)
 
@@ -178,16 +349,81 @@ class BSMultiPINN(PINN, ABC):
 
     @abstractmethod
     def _boundary_loss(self, batch_size, t=None, S=None):
+        """
+        Compute boundary condition losses for terminal and spatial boundaries.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of collocation points to sample if ``t`` and ``S`` are not
+            provided.
+        t : torch.Tensor, shape (batch_size, 1), optional
+            Pre-sampled time coordinates.  If ``None``, new points are drawn.
+        S : torch.Tensor, shape (batch_size, n_assets), optional
+            Pre-sampled asset-price coordinates.  If ``None``, new points are
+            drawn.
+
+        Returns
+        -------
+        terminal_loss : torch.Tensor
+            Scalar MSE loss for the terminal condition at ``t = T``.
+        Smin_loss : torch.Tensor
+            Scalar MSE loss averaged over the lower spatial boundaries.
+        Smax_loss : torch.Tensor
+            Scalar MSE loss averaged over the upper spatial boundaries.
+        """
         raise NotImplementedError("Must be implemented by subclass")
 
 
 class BSProductPINN(BSMultiPINN):
     def _payoff(self, S):
+        """
+        Compute the product-put payoff ``max(K - prod(S), 0)``.
+
+        Parameters
+        ----------
+        S : torch.Tensor, shape (N, n_assets)
+            Asset prices at which to evaluate the payoff.
+
+        Returns
+        -------
+        payoff : torch.Tensor, shape (N, 1)
+            Intrinsic value based on the product of all asset prices.
+        """
         S_prod = torch.prod(S, dim=1, keepdim=True)
         payoff = torch.maximum(self.K - S_prod, torch.zeros_like(S_prod))
         return payoff
 
     def _boundary_loss(self, batch_size, t=None, S=None):
+        """
+        Compute boundary condition losses for the product-put option.
+
+        Three conditions are enforced:
+
+        * **Terminal**: ``f(T, S) = max(K - prod(S), 0)``
+        * **S_min**: ``f(t, S) = K`` when any ``S_i = 0`` (product collapses to zero)
+        * **S_max**: ``f(t, S) = max(K - prod(S), 0)`` when any ``S_i = S_maxs[i]``
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of collocation points to sample if ``t`` and ``S`` are not
+            provided.
+        t : torch.Tensor, shape (batch_size, 1), optional
+            Pre-sampled time coordinates.  If ``None``, new points are drawn.
+        S : torch.Tensor, shape (batch_size, n_assets), optional
+            Pre-sampled asset-price coordinates.  If ``None``, new points are
+            drawn.
+
+        Returns
+        -------
+        terminal_loss : torch.Tensor
+            Scalar MSE loss for the terminal condition at ``t = T``.
+        Smin_loss : torch.Tensor
+            Scalar MSE loss averaged over all lower spatial boundaries.
+        Smax_loss : torch.Tensor
+            Scalar MSE loss averaged over all upper spatial boundaries.
+        """
         if t is None or S is None:
             t, S = self._sample_interior(batch_size)
 
@@ -229,6 +465,40 @@ class BSProductPINN(BSMultiPINN):
 
 class BSMaxPINN(BSMultiPINN):
     def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300, compute_interpolators=True):
+        """
+        Set model parameters and precompute boundary interpolation grids.
+
+        When ``S_i = 0``, ``max(S_0, S_1) = S_{1-i}``, so the option reduces
+        to an American put on asset ``1-i``.  A bilinear interpolator over a
+        precomputed ``(t, S)`` price grid is built for each asset so that
+        these boundary values can be evaluated in ``O(B log n_grid)`` per
+        batch rather than running the binomial tree every iteration.
+
+        Parameters
+        ----------
+        K : float
+            Strike price of the option.
+        r : float
+            Risk-free interest rate (annualised).
+        sigmas : array-like of float, length 2
+            Volatility of each underlying asset (annualised).
+        corr : array-like of float, shape (2, 2)
+            Correlation matrix between the two asset log-returns.
+        T : float
+            Time to expiry (in years).
+        S_mins : array-like of float, length 2
+            Lower spatial boundary for each asset's price.
+        S_maxs : array-like of float, length 2
+            Upper spatial boundary for each asset's price.
+        n_grid_t : int, optional
+            Number of time points in the precomputed grid (default 100).
+        n_grid_S : int, optional
+            Number of asset-price points per asset in the precomputed grid
+            (default 300).
+        compute_interpolators : bool, optional
+            If True (default), build the boundary interpolators.  Set to
+            False to skip the precomputation (e.g. when loading a saved model).
+        """
         self.K = K
         self.r = r
         self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # array of length n_assets
@@ -264,11 +534,54 @@ class BSMaxPINN(BSMultiPINN):
             print("Done.")
 
     def _payoff(self, S):
+        """
+        Compute the max-put payoff ``max(K - max(S), 0)``.
+
+        Parameters
+        ----------
+        S : torch.Tensor, shape (N, n_assets)
+            Asset prices at which to evaluate the payoff.
+
+        Returns
+        -------
+        payoff : torch.Tensor, shape (N, 1)
+            Intrinsic value based on the maximum of all asset prices.
+        """
         S_max, _ = torch.max(S, dim=1, keepdim=True)
         payoff = torch.maximum(self.K - S_max, torch.zeros_like(S_max))
         return payoff
 
     def _boundary_loss(self, batch_size, t=None, S=None):
+        """
+        Compute boundary condition losses for the max-put option.
+
+        Three conditions are enforced:
+
+        * **Terminal**: ``f(T, S) = max(K - max(S), 0)``
+        * **S_min**: when ``S_i = 0``, the option reduces to an American put
+          on asset ``1-i``; values are looked up from a precomputed interpolator.
+        * **S_max**: ``f(t, S) = max(K - max(S), 0)`` when any ``S_i = S_maxs[i]``
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of collocation points to sample if ``t`` and ``S`` are not
+            provided.
+        t : torch.Tensor, shape (batch_size, 1), optional
+            Pre-sampled time coordinates.  If ``None``, new points are drawn.
+        S : torch.Tensor, shape (batch_size, n_assets), optional
+            Pre-sampled asset-price coordinates.  If ``None``, new points are
+            drawn.
+
+        Returns
+        -------
+        terminal_loss : torch.Tensor
+            Scalar MSE loss for the terminal condition at ``t = T``.
+        Smin_loss : torch.Tensor
+            Scalar MSE loss averaged over all lower spatial boundaries.
+        Smax_loss : torch.Tensor
+            Scalar MSE loss averaged over all upper spatial boundaries.
+        """
         if t is None or S is None:
             t, S = self._sample_interior(batch_size)
 
@@ -312,6 +625,39 @@ class BSMaxPINN(BSMultiPINN):
 
 class BSMinPINN(BSMultiPINN):
     def set_params(self, K, r, sigmas, corr, T, S_mins, S_maxs, n_grid_t=100, n_grid_S=300, compute_interpolators=True):
+        """
+        Set model parameters and precompute boundary interpolation grids.
+
+        When ``S_i -> S_maxs[i]``, ``min(S_0, S_1) = S_{1-i}``, so the option
+        reduces to an American put on asset ``1-i``.  A bilinear interpolator
+        over a precomputed ``(t, S)`` price grid is built for each asset so
+        that these boundary values can be evaluated efficiently during training.
+
+        Parameters
+        ----------
+        K : float
+            Strike price of the option.
+        r : float
+            Risk-free interest rate (annualised).
+        sigmas : array-like of float, length 2
+            Volatility of each underlying asset (annualised).
+        corr : array-like of float, shape (2, 2)
+            Correlation matrix between the two asset log-returns.
+        T : float
+            Time to expiry (in years).
+        S_mins : array-like of float, length 2
+            Lower spatial boundary for each asset's price.
+        S_maxs : array-like of float, length 2
+            Upper spatial boundary for each asset's price.
+        n_grid_t : int, optional
+            Number of time points in the precomputed grid (default 100).
+        n_grid_S : int, optional
+            Number of asset-price points per asset in the precomputed grid
+            (default 300).
+        compute_interpolators : bool, optional
+            If True (default), build the boundary interpolators.  Set to
+            False to skip the precomputation (e.g. when loading a saved model).
+        """
         self.K = K
         self.r = r
         self.sigmas = torch.tensor(sigmas, dtype=torch.float32)
@@ -347,11 +693,55 @@ class BSMinPINN(BSMultiPINN):
             print("Done.")
 
     def _payoff(self, S):
+        """
+        Compute the min-put payoff ``max(K - min(S), 0)``.
+
+        Parameters
+        ----------
+        S : torch.Tensor, shape (N, n_assets)
+            Asset prices at which to evaluate the payoff.
+
+        Returns
+        -------
+        payoff : torch.Tensor, shape (N, 1)
+            Intrinsic value based on the minimum of all asset prices.
+        """
         S_min, _ = torch.min(S, dim=1, keepdim=True)
         payoff = torch.maximum(self.K - S_min, torch.zeros_like(S_min))
         return payoff
 
     def _boundary_loss(self, batch_size, t=None, S=None):
+        """
+        Compute boundary condition losses for the min-put option.
+
+        Three conditions are enforced:
+
+        * **Terminal**: ``f(T, S) = max(K - min(S), 0)``
+        * **S_min**: when ``S_i = 0``, ``min(S) = 0`` so the put is worth
+          ``K`` immediately; enforces ``f(t, S) = K``.
+        * **S_max**: when ``S_i -> S_maxs[i]``, the option reduces to an
+          American put on asset ``1-i``; values from a precomputed interpolator.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of collocation points to sample if ``t`` and ``S`` are not
+            provided.
+        t : torch.Tensor, shape (batch_size, 1), optional
+            Pre-sampled time coordinates.  If ``None``, new points are drawn.
+        S : torch.Tensor, shape (batch_size, n_assets), optional
+            Pre-sampled asset-price coordinates.  If ``None``, new points are
+            drawn.
+
+        Returns
+        -------
+        terminal_loss : torch.Tensor
+            Scalar MSE loss for the terminal condition at ``t = T``.
+        Smin_loss : torch.Tensor
+            Scalar MSE loss averaged over all lower spatial boundaries.
+        Smax_loss : torch.Tensor
+            Scalar MSE loss averaged over all upper spatial boundaries.
+        """
         if t is None or S is None:
             t, S = self._sample_interior(batch_size)
 
