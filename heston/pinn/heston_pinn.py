@@ -5,6 +5,8 @@ from utility.model import PINN
 
 
 class HestonPINN(PINN):
+    """Physics-informed neural network for pricing a 1D American put under the Heston stochastic volatility model."""
+
     def __init__(self, model_config, seed):
         super().__init__(model_config, seed)
 
@@ -20,24 +22,24 @@ class HestonPINN(PINN):
 
     def set_params(self, K, r, T, kappa, theta, sigma, rho, S_min, S_max, V_min, V_max):
         """
-        Set the Heston model parameters.
+        Set the Heston model and domain parameters.
 
         Parameters
         ----------
         K : float
-            Strike price of the option.
+            Strike price.
         r : float
-            Risk-free interest rate (annualised).
+            Risk-free rate (annualised).
         T : float
             Time to expiry (in years).
         kappa : float
-            Speed of mean reversion of the variance process.
+            Mean reversion speed of the variance process.
         theta : float
-            Long-run mean of the variance process.
+            Long-run mean variance.
         sigma : float
             Volatility of variance (vol-of-vol).
         rho : float
-            Correlation between the asset and variance Brownian motions.
+            Correlation between asset and variance Brownian motions.
         S_min : float
             Lower spatial boundary for the asset price.
         S_max : float
@@ -61,17 +63,16 @@ class HestonPINN(PINN):
 
     def train(self, batch_size, epochs, early_stopping):
         """
-        Train the PINN model using equal loss weights (no annealing).
+        Train the PINN using equal loss weights (no annealing).
 
         Parameters
         ----------
         batch_size : int
-            Number of samples per training batch.
+            Collocation points per training batch.
         epochs : int
-            Maximum number of training epochs.
+            Maximum training epochs.
         early_stopping : EarlyStopping
-            Early stopping callback; training halts and the best model is
-            restored when the validation loss stops improving.
+            Halts training and restores best model when validation loss stagnates.
         """
         # Create held-out validation set for early stopping
         val_t_interior, val_S_interior, val_V_interior = self.__sample_interior(batch_size)
@@ -101,31 +102,7 @@ class HestonPINN(PINN):
                 break
 
     def __process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss, update_dict=True):
-        """
-        Apply loss weights, sum the components, and optionally record to history.
-
-        Parameters
-        ----------
-        variational_loss : torch.Tensor
-            Interior variational (PDE) loss term.
-        terminal_loss : torch.Tensor
-            Terminal boundary condition loss at ``t = T``.
-        Smin_loss : torch.Tensor
-            Boundary condition loss at ``S = S_min``.
-        Smax_loss : torch.Tensor
-            Boundary condition loss at ``S = S_max``.
-        Vmin_loss : torch.Tensor
-            Boundary condition loss at ``V = 0``.
-        Vmax_loss : torch.Tensor
-            Boundary condition loss at ``V = V_inf``.
-        update_dict : bool, optional
-            If True (default), append each weighted loss to ``self.history``.
-
-        Returns
-        -------
-        total_loss : torch.Tensor
-            Scalar weighted total loss.
-        """
+        """Apply loss weights, sum, and optionally append to history."""
         variational_loss *= self.loss_weights['variational']
         terminal_loss *= self.loss_weights['terminal']
         Smin_loss *= self.loss_weights['Smin']
@@ -147,75 +124,18 @@ class HestonPINN(PINN):
         return total_loss
 
     def __sample_interior(self, batch_size):
-        """
-        Sample collocation points uniformly from the interior domain.
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of points to sample.
-
-        Returns
-        -------
-        t : torch.Tensor, shape (batch_size, 1)
-            Time coordinates sampled from ``[0, T]``.
-        S : torch.Tensor, shape (batch_size, 1)
-            Asset-price coordinates sampled from ``[S_min, S_max]``.
-        V : torch.Tensor, shape (batch_size, 1)
-            Variance coordinates sampled from ``[V_min, V_max]``.
-        """
+        """Sample (t, S, V) collocation points uniformly from the domain interior."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
         S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
         V = self.sampler.uniform(self.V_min, self.V_max, (batch_size, 1))
         return t, S, V
 
     def __sample_boundary(self, batch_size):
-        """
-        Sample points for evaluating the boundary conditions.
-
-        Delegates to ``__sample_interior``; specific boundaries are enforced by
-        fixing the appropriate coordinates inside ``__boundary_loss``.
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of points to sample.
-
-        Returns
-        -------
-        t : torch.Tensor, shape (batch_size, 1)
-            Time coordinates sampled from ``[0, T]``.
-        S : torch.Tensor, shape (batch_size, 1)
-            Asset-price coordinates sampled from the interior domain.
-        V : torch.Tensor, shape (batch_size, 1)
-            Variance coordinates sampled from the interior domain.
-        """
+        """Sample (t, S, V) points for boundary condition evaluation."""
         return self.__sample_interior(batch_size)
 
     def __heston_residual(self, t, S, V):
-        """
-        Evaluate the Heston PDE residual at given collocation points.
-
-        Computes ``L[f] = -f_t - r S f_S - kappa(theta - V) f_V
-        - 0.5(S^2 V f_SS + 2 rho sigma S V f_SV + sigma^2 V f_VV) + r f``
-        via automatic differentiation.
-
-        Parameters
-        ----------
-        t : torch.Tensor, shape (N, 1)
-            Time coordinates.  Must have ``requires_grad=True``.
-        S : torch.Tensor, shape (N, 1)
-            Asset-price coordinates.  Must have ``requires_grad=True``.
-        V : torch.Tensor, shape (N, 1)
-            Variance coordinates.  Must have ``requires_grad=True``.
-
-        Returns
-        -------
-        residual : torch.Tensor, shape (N, 1)
-            PDE residual at each collocation point.
-        f : torch.Tensor, shape (N, 1)
-            Network output (option price) at each collocation point.
-        """
+        """Evaluate the Heston PDE residual at (t, S, V) via automatic differentiation."""
         f = self.model(t, S, V)
 
         f_t, f_S, f_V = torch.autograd.grad(
@@ -253,32 +173,7 @@ class HestonPINN(PINN):
         return residual, f
 
     def __interior_loss(self, batch_size, t=None, S=None, V=None):
-        """
-        Compute the variational interior loss for the American put constraint.
-
-        Enforces ``min(L[f], f - g) = 0`` in the least-squares sense, where
-        ``L[f]`` is the Heston PDE residual and ``g = max(K - S, 0)`` is the
-        intrinsic payoff.
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of collocation points to sample if ``t``, ``S``, or ``V``
-            are not provided.
-        t : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled time coordinates.  If ``None``, new points are drawn.
-        S : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled asset-price coordinates.  If ``None``, new points are
-            drawn.
-        V : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled variance coordinates.  If ``None``, new points are
-            drawn.
-
-        Returns
-        -------
-        variational_loss : torch.Tensor
-            Scalar mean-squared variational loss.
-        """
+        """Mean-squared variational complementarity loss min(L[f], f-g)^2 on the interior."""
         if t is None or S is None or V is None:
             t, S, V = self.__sample_interior(batch_size)
 
@@ -298,44 +193,7 @@ class HestonPINN(PINN):
         return variational_loss
 
     def __boundary_loss(self, batch_size, t=None, S=None, V=None):
-        """
-        Compute the boundary condition losses for the Heston put option.
-
-        Five conditions are enforced:
-
-        * **Terminal**: ``f(T, S, V) = max(K - S, 0)``
-        * **S_min**: ``f(t, S_min, V) = K - S_min`` (deep in-the-money)
-        * **S_max**: ``f(t, S_max, V) = 0`` (deep out-of-the-money)
-        * **V_min**: ``f(t, S, 0) = max(K - S, 0)`` (zero vol = intrinsic value)
-        * **V_max**: ``f(t, S, V_inf) = K`` (infinite vol ≈ strike)
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of collocation points to sample if ``t``, ``S``, or ``V``
-            are not provided.
-        t : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled time coordinates.  If ``None``, new points are drawn.
-        S : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled asset-price coordinates.  If ``None``, new points are
-            drawn.
-        V : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled variance coordinates.  If ``None``, new points are
-            drawn.
-
-        Returns
-        -------
-        terminal_loss : torch.Tensor
-            Scalar MSE loss for the terminal condition at ``t = T``.
-        Smin_loss : torch.Tensor
-            Scalar MSE loss for the lower asset-price boundary.
-        Smax_loss : torch.Tensor
-            Scalar MSE loss for the upper asset-price boundary.
-        Vmin_loss : torch.Tensor
-            Scalar MSE loss for the zero-variance boundary.
-        Vmax_loss : torch.Tensor
-            Scalar MSE loss for the infinite-variance boundary.
-        """
+        """MSE losses for the five Heston boundary conditions."""
         if t is None or S is None or V is None:
             t, S, V = self.__sample_boundary(batch_size)
 

@@ -4,32 +4,27 @@ from scipy.stats import norm
 
 def black_scholes(S, K, r, sigma, T, option_type="put"):
     """
-    Compute the Black-Scholes analytical price for a European option.
+    Analytical Black-Scholes price for a European call or put.
 
     Parameters
     ----------
     S : float or array-like
-        Current price of the underlying asset.
+        Current asset price.
     K : float
-        Strike price of the option.
+        Strike price.
     r : float
-        Risk-free interest rate (annualised).
+        Risk-free rate (annualised).
     sigma : float
-        Volatility of the underlying asset (annualised).
+        Volatility (annualised).
     T : float or array-like
         Time to expiry (in years).
     option_type : {'put', 'call'}, optional
-        Type of the option (default ``'put'``).
+        Type of option (default 'put').
 
     Returns
     -------
     price : float or ndarray
-        Black-Scholes option price.
-
-    Raises
-    ------
-    ValueError
-        If ``option_type`` is not ``'call'`` or ``'put'``.
+        Option price.
     """
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
@@ -43,34 +38,7 @@ def black_scholes(S, K, r, sigma, T, option_type="put"):
 
 
 def delta(S, K, r, sigma, T, option_type="put"):
-    """
-    Compute the Black-Scholes delta (first derivative of price w.r.t. S).
-
-    Parameters
-    ----------
-    S : float or array-like
-        Current price of the underlying asset.
-    K : float
-        Strike price of the option.
-    r : float
-        Risk-free interest rate (annualised).
-    sigma : float
-        Volatility of the underlying asset (annualised).
-    T : float or array-like
-        Time to expiry (in years).
-    option_type : {'put', 'call'}, optional
-        Type of the option (default ``'put'``).
-
-    Returns
-    -------
-    delta : float or ndarray
-        Rate of change of option price with respect to the underlying price.
-
-    Raises
-    ------
-    ValueError
-        If ``option_type`` is not ``'call'`` or ``'put'``.
-    """
+    """Black-Scholes delta (dP/dS) for a European option."""
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
 
     if option_type == "call":
@@ -82,68 +50,13 @@ def delta(S, K, r, sigma, T, option_type="put"):
 
 
 def gamma(S, K, r, sigma, T, option_type="put"):
-    """
-    Compute the Black-Scholes gamma (second derivative of price w.r.t. S).
-
-    Gamma is identical for calls and puts; ``option_type`` is accepted for
-    interface consistency but has no effect on the result.
-
-    Parameters
-    ----------
-    S : float or array-like
-        Current price of the underlying asset.
-    K : float
-        Strike price of the option.
-    r : float
-        Risk-free interest rate (annualised).
-    sigma : float
-        Volatility of the underlying asset (annualised).
-    T : float or array-like
-        Time to expiry (in years).
-    option_type : {'put', 'call'}, optional
-        Ignored; present for interface consistency (default ``'put'``).
-
-    Returns
-    -------
-    gamma : float or ndarray
-        Rate of change of delta with respect to the underlying price.
-    """
+    """Black-Scholes gamma (d²P/dS²) for a European option; identical for calls and puts."""
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     return norm.pdf(d1) / (S * sigma * np.sqrt(T))
 
 
 def theta(S, K, r, sigma, T, option_type="put"):
-    """
-    Compute the Black-Scholes theta (first derivative of price w.r.t. time).
-
-    Returns the rate of change of the option price with respect to calendar
-    time (not time-to-expiry), so theta is typically negative.
-
-    Parameters
-    ----------
-    S : float or array-like
-        Current price of the underlying asset.
-    K : float
-        Strike price of the option.
-    r : float
-        Risk-free interest rate (annualised).
-    sigma : float
-        Volatility of the underlying asset (annualised).
-    T : float or array-like
-        Time to expiry (in years).
-    option_type : {'put', 'call'}, optional
-        Type of the option (default ``'put'``).
-
-    Returns
-    -------
-    theta : float or ndarray
-        Rate of change of option price with respect to time (per year).
-
-    Raises
-    ------
-    ValueError
-        If ``option_type`` is not ``'call'`` or ``'put'``.
-    """
+    """Black-Scholes theta (dP/dt) with respect to calendar time for a European option."""
     d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
 
@@ -159,39 +72,31 @@ def theta(S, K, r, sigma, T, option_type="put"):
 
 def implied_volatility(price, S, K, r, T, option_type="put", tol=1e-6, max_iterations=1000):
     """
-    Compute implied volatility via Newton-Raphson root finding.
-
-    Inverts the Black-Scholes formula to find the volatility ``sigma`` that
-    reproduces the observed market ``price``.
+    Implied volatility by Newton-Raphson inversion of the Black-Scholes formula.
 
     Parameters
     ----------
     price : float
         Observed market price of the option.
     S : float
-        Current price of the underlying asset.
+        Current asset price.
     K : float
-        Strike price of the option.
+        Strike price.
     r : float
-        Risk-free interest rate (annualised).
+        Risk-free rate (annualised).
     T : float
         Time to expiry (in years).
     option_type : {'put', 'call'}, optional
-        Type of the option (default ``'put'``).
+        Type of option (default 'put').
     tol : float, optional
-        Convergence tolerance on the price difference (default ``1e-6``).
+        Convergence tolerance on the price residual (default 1e-6).
     max_iterations : int, optional
-        Maximum number of Newton-Raphson iterations (default 1000).
+        Maximum Newton-Raphson iterations (default 1000).
 
     Returns
     -------
     sigma : float
         Implied volatility (annualised).
-
-    Raises
-    ------
-    ValueError
-        If the algorithm does not converge within ``max_iterations``.
     """
     sigma = 0.2
     for _ in range(max_iterations):
@@ -209,6 +114,8 @@ def implied_volatility(price, S, K, r, T, option_type="put", tol=1e-6, max_itera
 
 
 class BlackScholes:
+    """Black-Scholes pricer for a European option with fixed model parameters."""
+
     def __init__(self, K, r, sigma, T, option_type):
         self.K = K
         self.r = r
@@ -218,19 +125,19 @@ class BlackScholes:
 
     def price(self, t, S):
         """
-        Compute the Black-Scholes price at calendar time ``t`` and asset price ``S``.
+        Evaluate the Black-Scholes price at calendar time t and asset price S.
 
         Parameters
         ----------
         t : float or array-like
-            Current calendar time (in years); time-to-expiry is ``T - t``.
+            Calendar time in years; time-to-expiry is T - t.
         S : float or array-like
-            Current price of the underlying asset.
+            Current asset price.
 
         Returns
         -------
         price : float or ndarray
-            Black-Scholes option price.
+            Option price.
         """
         tau = self.T - t
         return black_scholes(S, self.K, self.r, self.sigma, tau, self.option_type)

@@ -8,31 +8,30 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     Parameters
     ----------
     S : float
-        Current price of the underlying asset.
+        Current asset price.
     K : float
-        Strike price of the option.
+        Strike price.
     r : float
-        Risk-free interest rate (annualised).
+        Risk-free rate (annualised).
     sigma : float
-        Volatility of the underlying asset (annualised).
+        Volatility (annualised).
     T : float
         Time to expiry (in years).
     n : int
-        Number of time steps in the binomial tree.
+        Number of time steps.
     option_type : {'put', 'call'}, optional
-        Type of the option (default ``'put'``).
+        Type of option (default 'put').
     exercise_type : {'american', 'european'}, optional
-        Exercise style of the option (default ``'american'``).
+        Exercise style (default 'american').
 
     Returns
     -------
     price : float
         Option price at time 0.
     price_tree : ndarray, shape (n+1, n+1)
-        Asset prices at each node; ``price_tree[i, j]`` is the price after
-        ``i`` steps with ``j`` up-moves.
+        Asset prices at each node.
     option_tree : ndarray, shape (n+1, n+1)
-        Option values at each node after backward induction.
+        Option values after backward induction.
     """
 
     assert option_type in ['call', 'put'], "option_type must be 'call' or 'put'"
@@ -81,39 +80,36 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
 
 def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="american", continuation_value=False):
     """
-    Vectorised Cox-Ross-Rubinstein binomial tree for batch pricing.
+    Vectorised CRR binomial tree for pricing a batch of options.
 
-    ``S`` and ``T`` are broadcast against each other so a batch of prices or
-    maturities can be evaluated in a single call without a Python loop.
+    S and T are broadcast against each other; B = max(len(S), len(T)).
 
     Parameters
     ----------
     S : float or array-like of shape (B,)
-        Current asset prices.  Broadcast with ``T``; ``B = max(len(S), len(T))``.
+        Asset prices, broadcast with T.
     K : float
-        Strike price of the option.
+        Strike price.
     r : float
-        Risk-free interest rate (annualised).
+        Risk-free rate (annualised).
     sigma : float
-        Volatility of the underlying asset (annualised).
+        Volatility (annualised).
     T : float or array-like of shape (B,)
-        Times to expiry (in years).  Broadcast with ``S``.
+        Times to expiry (in years), broadcast with S.
     n : int
-        Number of time steps in the binomial tree.
+        Number of time steps.
     option_type : {'put', 'call'}, optional
-        Type of the option (default ``'put'``).
+        Type of option (default 'put').
     exercise_type : {'american', 'european'}, optional
-        Exercise style of the option (default ``'american'``).
+        Exercise style (default 'american').
     continuation_value : bool, optional
-        If True, suppress early exercise at the root node, returning the
-        continuation value rather than the option price.  This effectively
-        prices a Bermudan option with exercise at all nodes except ``t = 0``,
-        which is useful for computing continuation values (default False).
+        If True, suppress early exercise at the root node and return the
+        continuation value (default False).
 
     Returns
     -------
     prices : ndarray, shape (B,)
-        Option prices (or continuation values) for each element of the batch.
+        Option prices or continuation values.
     """
 
     S = np.atleast_1d(np.asarray(S, dtype=float))
@@ -177,6 +173,8 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
 
 
 class BinomialTree:
+    """Stateful CRR binomial tree pricer for batch evaluations at varying (t, S)."""
+
     def __init__(self, K, r, sigma, T, n_steps, option_type="put", exercise_type="american"):
         self.K = K
         self.r = r
@@ -189,23 +187,21 @@ class BinomialTree:
 
     def predict(self, t, S, continuation_value=False):
         """
-        Price the option at calendar time ``t`` and asset price ``S``.
+        Price the option at calendar time t and asset price S.
 
         Parameters
         ----------
         t : float or array-like of shape (B,)
-            Current calendar time (in years); time-to-expiry is ``T - t``.
-            Broadcast with ``S``; ``B = max(len(t), len(S))``.
+            Calendar time in years; time-to-expiry is T - t. Broadcast with S.
         S : float or array-like of shape (B,)
-            Current asset prices.  Broadcast with ``t``.
+            Asset prices, broadcast with t.
         continuation_value : bool, optional
-            If True, return continuation values instead of option prices
-            (default False).
+            If True, return continuation values rather than option prices (default False).
 
         Returns
         -------
         prices : ndarray, shape (B,)
-            Option prices (or continuation values) for each element of the batch.
+            Option prices or continuation values.
         """
         tau = self.T - np.asarray(t)
         return binomial_tree_batch(

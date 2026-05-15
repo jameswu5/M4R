@@ -6,6 +6,8 @@ from utility.model import PINN
 
 
 class BlackScholesPINN(PINN):
+    """Physics-informed neural network for pricing an American put under the 1D Black-Scholes model."""
+
     def __init__(self, model_config, seed):
         super().__init__(model_config, seed)
         self.history = {
@@ -21,22 +23,22 @@ class BlackScholesPINN(PINN):
 
     def set_params(self, K, r, sigma, T, S_min, S_max):
         """
-        Set the Black-Scholes model parameters.
+        Set the Black-Scholes model and domain parameters.
 
         Parameters
         ----------
         K : float
-            Strike price of the option.
+            Strike price.
         r : float
-            Risk-free interest rate (annualised).
+            Risk-free rate (annualised).
         sigma : float
-            Volatility of the underlying asset (annualised).
+            Volatility (annualised).
         T : float
             Time to expiry (in years).
         S_min : float
-            Minimum asset price used as the lower spatial boundary.
+            Lower spatial boundary for the asset price.
         S_max : float
-            Maximum asset price used as the upper spatial boundary.
+            Upper spatial boundary for the asset price.
         """
         self.K = K
         self.r = r
@@ -47,21 +49,20 @@ class BlackScholesPINN(PINN):
 
     def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9):
         """
-        Train the PINN model with automatic loss reweighting via learning rate annealing.
+        Train with automatic loss reweighting via gradient-norm annealing.
 
         Parameters
         ----------
         batch_size : int
-            Number of samples per training batch.
+            Collocation points per training batch.
         epochs : int
-            Maximum number of training epochs.
+            Maximum training epochs.
         early_stopping : EarlyStopping
-            Early stopping callback; training halts and the best model is
-            restored when the validation loss stops improving.
+            Halts training and restores best model when validation loss stagnates.
         anneal_freq : int, optional
-            Number of epochs between loss weight updates (default 500).
+            Epochs between loss weight updates (default 500).
         alpha : float, optional
-            EMA smoothing factor for loss reweighting (default 0.9).
+            EMA smoothing factor for loss weight updates (default 0.9).
         """
 
         self.loss_weights = {
@@ -118,27 +119,7 @@ class BlackScholesPINN(PINN):
                 break
 
     def __process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, update_dict=True):
-        """
-        Apply loss weights, sum the components, and optionally record to history.
-
-        Parameters
-        ----------
-        variational_loss : torch.Tensor
-            Interior variational (PDE) loss term.
-        terminal_loss : torch.Tensor
-            Terminal boundary condition loss at ``t = T``.
-        Smin_loss : torch.Tensor
-            Boundary condition loss at ``S = S_min``.
-        Smax_loss : torch.Tensor
-            Boundary condition loss at ``S = S_max``.
-        update_dict : bool, optional
-            If True (default), append each weighted loss to ``self.history``.
-
-        Returns
-        -------
-        loss : torch.Tensor
-            Scalar weighted total loss.
-        """
+        """Apply loss weights, sum, and optionally append to history."""
         variational_loss *= self.loss_weights['variational']
         terminal_loss *= self.loss_weights['terminal']
         Smin_loss *= self.loss_weights['Smin']
@@ -156,22 +137,7 @@ class BlackScholesPINN(PINN):
         return loss
 
     def __anneal_weights(self, unweighted_losses: dict, alpha: float):
-        """
-        Update loss weights using gradient-based learning rate annealing.
-
-        Each weight is rescaled so that the gradient magnitudes of all loss
-        terms are approximately equal, then smoothed with an exponential moving
-        average and renormalised to sum to one.
-
-        Parameters
-        ----------
-        unweighted_losses : dict
-            Mapping from loss name to its unweighted scalar ``torch.Tensor``.
-            Keys must match those in ``self.loss_weights``.
-        alpha : float
-            EMA smoothing factor in ``[0, 1)``.  Higher values retain more of
-            the current weight; lower values adapt more aggressively.
-        """
+        """Rescale loss weights by gradient-norm ratios, apply EMA, and renormalise."""
         params = list(self.model.parameters())
 
         total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
@@ -200,70 +166,19 @@ class BlackScholesPINN(PINN):
         self.loss_weights = {k: v / total for k, v in new_weights.items()}
 
     def __sample_interior(self, batch_size):
-        """
-        Sample collocation points uniformly from the interior of the domain.
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of points to sample.
-
-        Returns
-        -------
-        t : torch.Tensor, shape (batch_size, 1)
-            Time coordinates sampled from ``[0, T]``.
-        S : torch.Tensor, shape (batch_size, 1)
-            Asset-price coordinates sampled from ``[S_min, S_max]``.
-        """
+        """Sample (t, S) collocation points uniformly from the domain interior."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
         S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
         return t, S
 
     def __sample_boundary(self, batch_size):
-        """
-        Sample points for evaluating the boundary conditions.
-
-        Points are drawn uniformly from the same ``(t, S)`` range as the
-        interior; the specific boundary (terminal, S_min, S_max) is enforced
-        by fixing the appropriate coordinate inside ``__boundary_loss``.
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of points to sample.
-
-        Returns
-        -------
-        t : torch.Tensor, shape (batch_size, 1)
-            Time coordinates sampled from ``[0, T]``.
-        S : torch.Tensor, shape (batch_size, 1)
-            Asset-price coordinates sampled from ``[S_min, S_max]``.
-        """
+        """Sample (t, S) points for boundary condition evaluation."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
         S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, 1))
         return t, S
 
     def __bs_residual(self, t, S):
-        """
-        Evaluate the Black-Scholes PDE residual at given collocation points.
-
-        Computes ``-f_t - r S f_S - 0.5 sigma^2 S^2 f_SS + r f`` via
-        automatic differentiation, where ``f`` is the network output.
-
-        Parameters
-        ----------
-        t : torch.Tensor, shape (N, 1)
-            Time coordinates.  Must have ``requires_grad=True``.
-        S : torch.Tensor, shape (N, 1)
-            Asset-price coordinates.  Must have ``requires_grad=True``.
-
-        Returns
-        -------
-        residual : torch.Tensor, shape (N, 1)
-            PDE residual at each collocation point.
-        f : torch.Tensor, shape (N, 1)
-            Network output (option price) at each collocation point.
-        """
+        """Evaluate the Black-Scholes PDE residual at (t, S) via automatic differentiation."""
         f = self.model(t, S)
         f_t, f_S = torch.autograd.grad(
             f, (t, S), grad_outputs=torch.ones_like(f), create_graph=True
@@ -277,29 +192,7 @@ class BlackScholesPINN(PINN):
         return residual, f
 
     def __interior_loss(self, batch_size, t=None, S=None):
-        """
-        Compute the variational interior loss for the American put constraint.
-
-        The loss enforces ``min(L[f], f - g) = 0`` in the least-squares sense,
-        where ``L[f]`` is the Black-Scholes operator residual and
-        ``g = max(K - S, 0)`` is the intrinsic value (early-exercise payoff).
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of collocation points to sample if ``t`` and ``S`` are not
-            provided.
-        t : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled time coordinates.  If ``None``, new points are drawn.
-        S : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled asset-price coordinates.  If ``None``, new points are
-            drawn.
-
-        Returns
-        -------
-        variational_loss : torch.Tensor
-            Scalar mean-squared variational loss.
-        """
+        """Mean-squared variational complementarity loss min(L[f], f-g)^2 on the interior."""
         # If t and S are provided, use them instead of sampling new points
         if t is None or S is None:
             t, S = self.__sample_interior(batch_size)
@@ -319,35 +212,7 @@ class BlackScholesPINN(PINN):
         return variational_loss
 
     def __boundary_loss(self, batch_size, t=None, S=None):
-        """
-        Compute the boundary condition losses for terminal and spatial boundaries.
-
-        Three conditions are enforced:
-
-        * **Terminal**: ``f(T, S) = max(K - S, 0)``
-        * **S_min**: ``f(t, 0) = K`` (put approaches strike as S → 0)
-        * **S_max**: ``f(t, S_max) = 0`` (put is worthless deep out-of-the-money)
-
-        Parameters
-        ----------
-        batch_size : int
-            Number of collocation points to sample if ``t`` and ``S`` are not
-            provided.
-        t : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled time coordinates.  If ``None``, new points are drawn.
-        S : torch.Tensor, shape (batch_size, 1), optional
-            Pre-sampled asset-price coordinates.  If ``None``, new points are
-            drawn.
-
-        Returns
-        -------
-        terminal_loss : torch.Tensor
-            Scalar MSE loss for the terminal condition at ``t = T``.
-        Smin_loss : torch.Tensor
-            Scalar MSE loss for the lower spatial boundary at ``S = 0``.
-        Smax_loss : torch.Tensor
-            Scalar MSE loss for the upper spatial boundary at ``S = S_max``.
-        """
+        """MSE losses for the terminal, S_min, and S_max boundary conditions."""
         # If t and S are provided, use them instead of sampling new points
         if t is None or S is None:
             t, S = self.__sample_boundary(batch_size)
