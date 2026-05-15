@@ -3,6 +3,42 @@ from scipy.integrate import quad
 
 
 def characteristic_function(u, S0, r, T, kappa, theta, sigma, rho, v0, j):
+    """
+    Evaluate the Heston characteristic function for the risk-neutral probabilities.
+
+    Computes ``phi_j(u)`` as derived by Heston (1993), used to obtain the
+    risk-neutral probabilities ``P1`` and ``P2`` via numerical integration.
+
+    Parameters
+    ----------
+    u : float or complex
+        Fourier argument.
+    S0 : float
+        Current asset price.
+    r : float
+        Risk-free interest rate (annualised).
+    T : float
+        Time to expiry (in years).
+    kappa : float
+        Speed of mean reversion of the variance process.
+    theta : float
+        Long-run mean of the variance process.
+    sigma : float
+        Volatility of variance (vol-of-vol).
+    rho : float
+        Correlation between asset and variance Brownian motions.
+    v0 : float
+        Initial variance.
+    j : {1, 2}
+        Index selecting which characteristic function to evaluate:
+        ``j=1`` gives ``phi_1`` (used for ``P1``), ``j=2`` gives ``phi_2``
+        (used for ``P2``).
+
+    Returns
+    -------
+    phi : complex
+        Value of the characteristic function at ``u``.
+    """
     i = 1j
     a = kappa * theta
     b = kappa - rho * sigma if j == 1 else kappa
@@ -16,6 +52,38 @@ def characteristic_function(u, S0, r, T, kappa, theta, sigma, rho, v0, j):
 
 
 def heston_call_price(S0, K, T, r, kappa, theta, sigma, rho, v0):
+    """
+    Compute the Heston model European call price by numerical integration.
+
+    Uses the semi-analytical formula of Heston (1993), integrating the
+    characteristic function via ``scipy.integrate.quad``.
+
+    Parameters
+    ----------
+    S0 : float
+        Current asset price.
+    K : float
+        Strike price of the option.
+    T : float
+        Time to expiry (in years).
+    r : float
+        Risk-free interest rate (annualised).
+    kappa : float
+        Speed of mean reversion of the variance process.
+    theta : float
+        Long-run mean of the variance process.
+    sigma : float
+        Volatility of variance (vol-of-vol).
+    rho : float
+        Correlation between asset and variance Brownian motions.
+    v0 : float
+        Initial variance.
+
+    Returns
+    -------
+    call_price : float
+        European call option price under the Heston model.
+    """
     def integrand(u, j):
         phi = characteristic_function(u, S0, r, T, kappa, theta, sigma, rho, v0, j)
         return np.real(np.exp(-1j * u * np.log(K)) * phi / (1j * u))
@@ -27,6 +95,45 @@ def heston_call_price(S0, K, T, r, kappa, theta, sigma, rho, v0):
 
 
 def heston_closed_price(S0, K, T, r, kappa, theta, sigma, rho, v0, option_type='call'):
+    """
+    Compute the Heston model European option price for calls or puts.
+
+    Obtains the call price analytically and derives the put price via
+    put-call parity.
+
+    Parameters
+    ----------
+    S0 : float
+        Current asset price.
+    K : float
+        Strike price of the option.
+    T : float
+        Time to expiry (in years).
+    r : float
+        Risk-free interest rate (annualised).
+    kappa : float
+        Speed of mean reversion of the variance process.
+    theta : float
+        Long-run mean of the variance process.
+    sigma : float
+        Volatility of variance (vol-of-vol).
+    rho : float
+        Correlation between asset and variance Brownian motions.
+    v0 : float
+        Initial variance.
+    option_type : {'call', 'put'}, optional
+        Type of the option (default ``'call'``).
+
+    Returns
+    -------
+    price : float
+        European option price under the Heston model.
+
+    Raises
+    ------
+    ValueError
+        If ``option_type`` is not ``'call'`` or ``'put'``.
+    """
     call_price = heston_call_price(S0, K, T, r, kappa, theta, sigma, rho, v0)
     if option_type == "call":
         return call_price
@@ -48,11 +155,24 @@ class HestonClosed:
 
     def price(self, V, S, t=0, option_type='put'):
         """
-        Prices a European option under the Heston model using the closed-form solution.
+        Price a European option under the Heston model.
 
-        V: variance at time t
-        S: underlying price at time t
-        t: time elapsed since time 0 (default 0)
+        Parameters
+        ----------
+        V : float
+            Variance of the underlying asset at time ``t``.
+        S : float
+            Price of the underlying asset at time ``t``.
+        t : float, optional
+            Calendar time elapsed since time 0 (default 0); time-to-expiry
+            is computed as ``T - t``.
+        option_type : {'put', 'call'}, optional
+            Type of the option (default ``'put'``).
+
+        Returns
+        -------
+        price : float
+            European option price under the Heston model.
         """
         T = self.T - t
         return heston_closed_price(S, self.K, T, self.r, self.kappa, self.theta, self.sigma, self.rho, V, option_type)

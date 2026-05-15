@@ -28,8 +28,29 @@ class HestonTree:
 
     def build_grid(self, V_min, V_max, mv, Z_min, Z_max, mz):
         """
-        Builds a grid of shape (n, mx, my, 2)
-        V_min, V_max, Z_min, Z_max have shape (n,)
+        Build a uniformly-spaced ``(V, Z)`` grid for each time step.
+
+        Parameters
+        ----------
+        V_min : ndarray, shape (n,)
+            Minimum variance at each time step.
+        V_max : ndarray, shape (n,)
+            Maximum variance at each time step.
+        mv : int
+            Number of variance grid points per time step.
+        Z_min : ndarray, shape (n,)
+            Minimum log-price at each time step.
+        Z_max : ndarray, shape (n,)
+            Maximum log-price at each time step.
+        mz : int
+            Number of log-price grid points per time step.
+
+        Returns
+        -------
+        grid : ndarray, shape (n, mv, mz, 2)
+            ``grid[k, i, j, 0]`` is the variance and ``grid[k, i, j, 1]``
+            is the log-price at time step ``k``, variance index ``i``, and
+            log-price index ``j``.
         """
         n = V_min.shape[0]
 
@@ -50,29 +71,73 @@ class HestonTree:
 
     def v_next(self, y, v, z):
         """
-        Evolves v according to the Euler scheme
+        Advance the variance by one Euler step.
 
-        y: +1 or -1
-        v: current variance
-        z: current log-price (not used here but kept for symmetry)
+        Parameters
+        ----------
+        y : {+1, -1}
+            Brownian increment direction for the variance.
+        v : float or ndarray
+            Current variance.
+        z : float or ndarray
+            Current log-price (unused; kept for interface symmetry with
+            ``z_next``).
+
+        Returns
+        -------
+        v_new : float or ndarray
+            Variance at the next time step.
         """
         return v + self.kappa * (self.theta - np.maximum(v, 0)) * self.dt + y * self.sigma * np.sqrt(np.maximum(v, 0) * self.dt)
 
     def z_next(self, y, v, z):
         """
-        Evolves z according to the Euler scheme
+        Advance the log-price by one Euler step.
 
-        y: +1 or -1
-        v: current variance
-        z: current log-price (not used here but kept for symmetry)
+        Parameters
+        ----------
+        y : {+1, -1}
+            Brownian increment direction for the log-price.
+        v : float or ndarray
+            Current variance.
+        z : float or ndarray
+            Current log-price (unused in the update formula; kept for
+            interface symmetry with ``v_next``).
+
+        Returns
+        -------
+        z_new : float or ndarray
+            Log-price at the next time step.
         """
         return z + (self.r - 0.5 * v) * self.dt + y * np.sqrt(np.maximum(v, 0) * self.dt)
 
     def interpolate_price(self, v, z, k, VZ_grid, price_grid):
         """
-        Interpolates the price at time step k-1 by computing weighted sum of
-        four closest points of space at time step k for variance v and log-price z
-        No discounting done here
+        Compute the expected discounted option value by interpolation.
+
+        Evaluates the four stochastic branches ``(y1, y2) in {±1}^2``, advances
+        ``(v, z)`` by one Euler step along each branch, and returns the
+        probability-weighted sum of bilinearly-interpolated prices from the
+        grid at step ``k``.  Discounting is not applied here.
+
+        Parameters
+        ----------
+        v : float
+            Current variance.
+        z : float
+            Current log-price.
+        k : int
+            Target time-step index in ``VZ_grid`` and ``price_grid`` (i.e.
+            the step *after* the current one).
+        VZ_grid : ndarray, shape (n, mv, mz, 2)
+            Space grid produced by ``build_grid``.
+        price_grid : ndarray, shape (n, mv, mz)
+            Option values on the grid.
+
+        Returns
+        -------
+        expected_value : float
+            Probability-weighted interpolated option value (undiscounted).
         """
         v_points = VZ_grid[k, :, 0, 0]
         z_points = VZ_grid[k, 0, :, 1]
@@ -111,10 +176,26 @@ class HestonTree:
 
     def build_tree(self, V0_min, V0_max, S0_min, S0_max, verbose=False):
         """
-        Builds the Heston tree within the specified bounds for initial variance and stock price.
-        Constructs the price tree using backward induction.
+        Build the Heston price tree and store the grids internally.
 
-        Doesn't return anything but saves the grids internally.
+        Traces the extreme up/down paths to determine the bounding box of
+        ``(V, Z)`` at each time step, builds a uniform space grid, then
+        fills option values by backward induction using bilinear interpolation.
+        Results are stored in ``self.VZ_grid`` and ``self.price_grid``.
+
+        Parameters
+        ----------
+        V0_min : float
+            Minimum initial variance for the pricing domain.
+        V0_max : float
+            Maximum initial variance for the pricing domain.
+        S0_min : float
+            Minimum initial asset price for the pricing domain.
+        S0_max : float
+            Maximum initial asset price for the pricing domain.
+        verbose : bool, optional
+            If True, print progress at each backward-induction step
+            (default False).
         """
         # Save the bounds
         self.V0_min = V0_min
@@ -171,9 +252,30 @@ class HestonTree:
 
     def price(self, V0, S0, k=0):
         """
-        Prices the option given initial variance V0 and stock price S0 with horizon T.
-        Requires that build_tree() has been called first.
-        Also requires V0 and S0 to be within the specified bounds when build_tree() was called.
+        Price the option at initial variance ``V0`` and asset price ``S0``.
+
+        Parameters
+        ----------
+        V0 : float
+            Initial variance.  Must lie within the bounds passed to
+            ``build_tree``.
+        S0 : float
+            Initial asset price.  Must lie within the bounds passed to
+            ``build_tree``.
+        k : int, optional
+            Time-step index at which to evaluate the price (default 0,
+            i.e. the root of the tree).
+
+        Returns
+        -------
+        price : float
+            Option price at time step ``k``.
+
+        Raises
+        ------
+        ValueError
+            If ``build_tree`` has not been called, or if ``V0`` or ``S0``
+            are outside the bounds specified when building the tree.
         """
         if not self.tree_built:
             raise ValueError("Tree not built yet. Call build_tree() first.")
@@ -209,6 +311,27 @@ class HestonTreeFast:
         }
 
     def build_grid(self, V_min, V_max, Z_min, Z_max):
+        """
+        Build a uniformly-spaced ``(V, Z)`` grid for each time step.
+
+        Parameters
+        ----------
+        V_min : ndarray, shape (n,)
+            Minimum variance at each time step.
+        V_max : ndarray, shape (n,)
+            Maximum variance at each time step.
+        Z_min : ndarray, shape (n,)
+            Minimum log-price at each time step.
+        Z_max : ndarray, shape (n,)
+            Maximum log-price at each time step.
+
+        Returns
+        -------
+        grid : ndarray, shape (n, mv, mz, 2)
+            ``grid[k, i, j, 0]`` is the variance and ``grid[k, i, j, 1]``
+            is the log-price at time step ``k``, variance index ``i``, and
+            log-price index ``j``.
+        """
         u_v = np.linspace(0.0, 1.0, self.mv)
         u_z = np.linspace(0.0, 1.0, self.mz)
 
@@ -224,6 +347,24 @@ class HestonTreeFast:
         return grid
 
     def interpolate_price(self, v, z, k):
+        """
+        Bilinearly interpolate the option price grid at ``(v, z)`` and time step ``k``.
+
+        Parameters
+        ----------
+        v : float or ndarray
+            Variance value(s) at which to interpolate.
+        z : float or ndarray
+            Log-price value(s) at which to interpolate.
+        k : int
+            Time-step index into ``self.VZ_grid`` and ``self.price_grid``.
+
+        Returns
+        -------
+        price : float or ndarray
+            Bilinearly interpolated option price(s).  Out-of-bounds values
+            are clamped to the nearest grid boundary.
+        """
         Vmin = self.VZ_grid[k, 0, 0, 0]
         Zmin = self.VZ_grid[k, 0, 0, 1]
 
@@ -253,6 +394,36 @@ class HestonTreeFast:
         )
 
     def build_tree(self, V0_min, V0_max, S0_min, S0_max, option_type="call", exercise_type="european"):
+        """
+        Build the Heston price tree using vectorised backward induction.
+
+        Traces extreme paths to bound ``(V, Z)`` at each step, builds a
+        uniform space grid, then fills option values backwards using fully
+        vectorised bilinear interpolation over the four stochastic branches.
+        Results are stored internally in ``self.VZ_grid``, ``self.price_grid``,
+        and ``self.information``.
+
+        Parameters
+        ----------
+        V0_min : float
+            Minimum initial variance for the pricing domain.
+        V0_max : float
+            Maximum initial variance for the pricing domain.
+        S0_min : float
+            Minimum initial asset price for the pricing domain.
+        S0_max : float
+            Maximum initial asset price for the pricing domain.
+        option_type : {'call', 'put'}, optional
+            Type of the option (default ``'call'``).
+        exercise_type : {'european', 'american'}, optional
+            Exercise style; American options apply early-exercise at each
+            node (default ``'european'``).
+
+        Raises
+        ------
+        ValueError
+            If ``option_type`` or ``exercise_type`` is not recognised.
+        """
         self.V0_min = V0_min
         self.V0_max = V0_max
         self.S0_min = S0_min
@@ -335,10 +506,38 @@ class HestonTreeFast:
 
     def price(self, V0, S0, k=0, continuation_value=False):
         """
-        Prices the option given initial variance V0 and stock price S0 at time step k.
-        Requires that build_tree() has been called first.
+        Price the option at initial variance ``V0`` and asset price ``S0``.
 
-        Allows one of V0 and S0 to be a vector, enabling batch pricing. The other must be a scalar.
+        One of ``V0`` or ``S0`` may be a vector to enable batch pricing; the
+        other must be a scalar.
+
+        Parameters
+        ----------
+        V0 : float or array-like
+            Initial variance.  Must lie within the bounds passed to
+            ``build_tree``.
+        S0 : float or array-like
+            Initial asset price.  Must lie within the bounds passed to
+            ``build_tree``.
+        k : int, optional
+            Time-step index at which to evaluate (default 0, i.e. the root).
+        continuation_value : bool, optional
+            If True, return the continuation value without applying early
+            exercise, regardless of ``exercise_type`` (default False).
+
+        Returns
+        -------
+        price : float or ndarray
+            Option price(s).  Returns a scalar when both inputs are scalar,
+            otherwise a flattened array.
+
+        Raises
+        ------
+        RuntimeError
+            If ``build_tree`` has not been called.
+        ValueError
+            If ``V0`` or ``S0`` are outside the bounds specified when building
+            the tree.
         """
 
         if not self.information['tree_built']:
