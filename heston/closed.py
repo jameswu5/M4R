@@ -2,58 +2,33 @@ import numpy as np
 from scipy.integrate import quad
 
 
-def characteristic_function(u, S0, r, T, kappa, theta, sigma, rho, v0, j):
+def characteristic_function(omega, S0, r, T, kappa, theta, sigma, rho, v0, j):
     """
     Heston characteristic function phi_j(u) for j=1 or j=2.
     """
     i = 1j
+    u = 1/2 if j == 1 else -1/2
     a = kappa * theta
     b = kappa - rho * sigma if j == 1 else kappa
-    d = np.sqrt((rho * sigma * i * u - b)**2 - sigma**2 * ((3 - 2*j) * i * u - u**2))
-    g = (b - rho * sigma * i * u + d) / (b - rho * sigma * i * u - d)
+    d = np.sqrt((rho * sigma * i * omega - b)**2 - sigma**2 * (2 * u * i * omega - omega**2))
+    g = (b - rho * sigma * i * omega - d) / (b - rho * sigma * i * omega + d)  # heston trap
 
-    C = r * i * u * T + a / sigma**2 * ((b - rho * sigma * i * u + d) * T - 2 * np.log((1 - g * np.exp(d * T)) / (1 - g)))
-    D = (b - rho * sigma * i * u + d) / sigma**2 * ((1 - np.exp(d * T)) / (1 - g * np.exp(d * T)))
+    C = r * i * omega * T + a / sigma**2 * ((b - rho * sigma * i * omega - d) * T - 2 * np.log((1 - g * np.exp(-d * T)) / (1 - g)))
+    D = (b - rho * sigma * i * omega - d) / sigma**2 * ((1 - np.exp(-d * T)) / (1 - g * np.exp(-d * T)))
 
-    return np.exp(C + D * v0 + i * u * np.log(S0))
+    return np.exp(C + D * v0 + i * omega * np.log(S0))
 
 
 def heston_call_price(S0, K, T, r, kappa, theta, sigma, rho, v0):
     """
     Heston European call price by semi-analytical integration of the characteristic function.
-
-    Parameters
-    ----------
-    S0 : float
-        Current asset price.
-    K : float
-        Strike price.
-    T : float
-        Time to expiry (in years).
-    r : float
-        Risk-free rate (annualised).
-    kappa : float
-        Mean reversion speed of the variance process.
-    theta : float
-        Long-run mean of the variance process.
-    sigma : float
-        Volatility of variance (vol-of-vol).
-    rho : float
-        Correlation between asset and variance Brownian motions.
-    v0 : float
-        Initial variance.
-
-    Returns
-    -------
-    call_price : float
-        European call price.
     """
-    def integrand(u, j):
-        phi = characteristic_function(u, S0, r, T, kappa, theta, sigma, rho, v0, j)
-        return np.real(np.exp(-1j * u * np.log(K)) * phi / (1j * u))
+    def integrand(omega, j):
+        phi = characteristic_function(omega, S0, r, T, kappa, theta, sigma, rho, v0, j)
+        return np.real(np.exp(-1j * omega * np.log(K)) * phi / (1j * omega))
 
-    P1 = 0.5 + (1 / np.pi) * quad(lambda u: integrand(u, 1), 0, 100)[0]
-    P2 = 0.5 + (1 / np.pi) * quad(lambda u: integrand(u, 2), 0, 100)[0]
+    P1 = 0.5 + (1 / np.pi) * quad(lambda omega: integrand(omega, 1), 0, 100)[0]
+    P2 = 0.5 + (1 / np.pi) * quad(lambda omega: integrand(omega, 2), 0, 100)[0]
 
     return S0 * P1 - K * np.exp(-r * T) * P2
 
