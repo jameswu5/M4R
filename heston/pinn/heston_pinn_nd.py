@@ -217,12 +217,8 @@ class HestonMultiAssetPINN(PINN):
         S_prod = torch.prod(S, dim=1, keepdim=True)
         g = torch.maximum(self.K - S_prod, zeros)
 
-        # variational_loss = torch.mean(
-        #     torch.minimum(residual, f - g) ** 2
-        # )
-
         variational_loss = torch.mean(
-            self.__fischer_burmeister(residual, f - g) ** 2
+            torch.minimum(residual, f - g) ** 2
         )
 
         return variational_loss
@@ -268,7 +264,7 @@ class HestonMultiAssetPINN(PINN):
         Vmin_loss = torch.mean((f_Vmin - g) ** 2)
 
         # Vmax loss: f(t, S, v_inf) = K
-        V_inf = ones * self.V_max * 100
+        V_inf = ones * self.V_max * 2
         f_Vinf = self.model(t, *S_list, V_inf)
         Vmax_loss = torch.mean((f_Vinf - self.K) ** 2)
 
