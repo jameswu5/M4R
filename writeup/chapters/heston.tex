@@ -322,14 +322,17 @@ The boundary conditions (2)-(5) together will form the boundary loss (\ref{eq:pi
 
 \section{Multi-asset PINN}
 
-With the neural network established, we are now ready to move on to pricing options on multiple assets. As with the Black-Scholes case, we will price the put on the product of multiple assets because we can find a one-dimensional reduction. Here, we will consider a simplified model. Suppose we have $n$ assets and our assets $S = (S_1, \dots, S_n)^\top$ are governed by the stochastic differential equations:
+With the neural network established, we are now ready to move on to pricing options on multiple assets. As with the Black-Scholes case, we will price the put on the product of multiple assets because we can find a one-dimensional reduction. Here, we will consider a simplified model.
+
+Let us have $n$ assets with price processes $S = (S_1, \dots, S_n)^\top$ which are correlated with each other with the $n \times n$ correlation matrix $\Sigma$. Suppose further we have a common variance process $V$ which is correlated with each of the assets. Then this process is governed by the stochastic differential equations:
 \begin{align}
-    \dd S &= \text{diag}(S)r \,\dd t + \sqrt V \text{diag}(S) \text{diag}(\sigma) \Sigma \,\dd W_1 \\
-    \dd V &= \kappa(\theta - V)\,\dd t + \bar \sigma \sqrt V \,\dd W_2
+    \dd S &= r\diag(S) \,\dd t + \sqrt V \diag(S) \diag(\sigma) L \,\dd W^1 \\
+    \dd V &= \kappa(\theta - V)\,\dd t + \bar \sigma \sqrt V \,\dd W^2
 \end{align}
-where we have the vector of iid Brownian motions $W_1 = (W_{1, 1}, \dots, W_{1, n})^\top$, variance vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the covariance matrix $\Sigma$, where for simplicity we will assume all cross-correlations $\Sigma_{ij} = \rho$ for $i \ne j$. Assume additionally that each asset is correlated with the variance process: $\dd W_{1, j} \dd W_2 =\rho_j \dd t$. Note that this means the asset $S_i$ satisfies
+where we have the vector of iid Brownian motions $W^1 = (W^{1, 1}, \dots, W^{1, n})^\top$, volatility vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the Cholesky decomposition of the correlation matrix $L$ such that $\Sigma = LL^\top$, which is guaranteed to exist as $\Sigma$ is positive semi-definite (more precisely, if $\Sigma \succ 0$ then $L$ exists and is unique, and if $\Sigma \succeq 0$ then $L$ exists but may not be unique). Assume additionally that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$. Note that this means the asset $S_i$ satisfies
+
 \begin{equation}
-    \dd S_i = S_i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n \Sigma_{ij}\,\dd W_{1, j}\right)
+    \dd S_i = S_i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n L_{ij}\,\dd W^{1, j}\right)
 \end{equation}
 
 To guarantee positiveness of the variance process, we will enforce the Feller condition on the parameters
@@ -345,15 +348,15 @@ Since we would like to find an equivalent formulation of the product of assets $
 
 Let $Y_i = \log S_i$. Then by Itô's lemma, we have
 \begin{align}
-    \dd Y_i &= \frac 1{S_i} \,\dd S_i - \frac 1{2S_i} \,\dd S_i\,\dd S_i \\
-    &= r\,\dd t + \sqrt V\sigma_i \sum_{j=1}^n \Sigma_{ij}\,\dd W_{1, j} - \frac 12 V \sigma_i^2 \,\dd t
+    \dd Y_i &= \frac 1{S_i} \,\dd S_i - \frac 1{2S_i^2} \,\dd S_i\,\dd S_i \\
+    &= r\,\dd t + \sqrt V\sigma_i \sum_{j=1}^n L_{ij}\,\dd W_{1, j} - \frac 12 V \sigma_i^2 \,\dd t
 \end{align}
 because cross-correlations are zero within $W_1$. We can collect terms to get
 \begin{equation}
-    \dd Y = \left (nr - \frac 12 V \sum_{i=1}^n \sigma_i^2\right) \,\dd t + \sqrt V \sum_{j=1}^n\sum_{i=1}^n \sigma_i\Sigma_{ij} \,\dd W_{1, j}
+    \dd Y = \left (nr - \frac 12 V \sum_{i=1}^n \sigma_i^2\right) \,\dd t + \sqrt V \sum_{j=1}^n\sum_{i=1}^n \sigma_i L_{ij} \,\dd W_{1, j}
 \end{equation}
 
-For ease of notation, let $A=\sum_{i=1}^n \sigma_i^2$ and $b_j = \sum_{i=1}^n\sigma_i\Sigma_{ij}$. Then we have
+For ease of notation, let $A=\sum_{i=1}^n \sigma_i^2$ and $b_j = \sum_{i=1}^n\sigma_i L_{ij}$. Then we have
 \begin{equation}
     \dd Y = \left(nr - \frac 12 VA\right) \,\dd t + \sqrt V \sum_{j=1}^n b_j \,\dd W_{1, j}
 \end{equation}
@@ -364,23 +367,20 @@ Now $Y$ has variance
 \end{equation}
 where we let $B := \sum_{j=1}^n b_j^2$ for convenience, we can rewrite $\dd Y$ with a new Brownian motion:
 \begin{equation}
-    \dd Y = \left(nr - \frac 12 VA\right)\,\dd t + \sqrt {VB} \,\dd W_X
+    \dd Y = \left(nr - \frac 12 VA\right)\,\dd t + \sqrt {VB} \,\dd W_X, \qquad \dd W_X = \frac{\sum_{j=1}^n b_j \,\dd W_{1, j}}{\sqrt B}
 \end{equation}
-where we have
-\begin{equation}
-    \dd W_X = \frac{\sum_{j=1}^n b_j \,\dd W_{1, j}}{\sqrt B}
-\end{equation}
-Using our correlation structure, we have
-\begin{equation}
-    b_j = \sigma_j + \rho \sum_{i \ne j} \sigma_i = (1-\rho)\sigma_j + \rho \underbrace{\sum_{i=1}^n \sigma_i}_{=: S_\sigma}
-\end{equation}
-So the sum of squares $B$ is just
-\begin{align}
-    B = \sum_{j=1}^n b_j^2 &= \sum_{j=1}^n \left((1-\rho)\sigma_j + \rho S_\sigma \right)^2 \\
-    &= (1-\rho)^2 A + S_\sigma^2(2\rho(1-\rho) + n\rho^2)
-\end{align}
 
-We now have all components to exponentiate to recover $X = e^Y$. Using Itô's lemma again, we have
+Note here that $B$ can be expressed directly in terms of $\Sigma$, independently of the choice of the Cholesky factor $L$
+\begin{equation}
+    B = \sum_{j=1}^n b_j^2 = \|\sigma^\top L\|^2 = \sigma^\top LL^\top \sigma = \sigma^\top \Sigma \sigma
+\end{equation}
+
+Using our equicorrelation structure $\Sigma_{ij} = \rho$ for $i \ne j$ and $\Sigma_{ii} = 1$, we have the nice simplification
+\begin{equation}
+    B = \sigma^\top\Sigma\sigma = (1-\rho)A + \rho \left(\sum_{i=1}^n \sigma_i\right)^2
+\end{equation}
+
+Now, we have everything we need to recover $X = e^Y$. Using Itô's lemma again, we have
 \begin{align}
     \dd X &= X\,\dd Y + \frac 12 X \,\dd Y\,\dd Y \\
     &= X\left( nr + \frac 12 V(B-A)\right)\,\dd t + X\sqrt{VB}\,\dd W_X
@@ -398,12 +398,11 @@ which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, 
 Recall for a process $X_t \in \mathbb R^n$ solving $\mathrm dX_t = b(X_t)\mathrm dt + \sigma(X_t)\mathrm dW_t$, the infinitesimal generator $\mathcal L$ can be derived with Itô's formula \cite{pham2009continuous} on $f(x)$ to be
 \begin{equation}
 \mathcal{L}[f](x)
-= \sum_{i=1}^n b_i\frac{\partial f}{\partial x_i}
+= \sum_{i=1}^n \big(b(x)\big)_i \frac{\partial f}{\partial x_i}
 + \frac12 \sum_{i=1}^n\sum_{j=1}^n
-\Sigma_{ij} \frac{\partial ^2 f}{\partial x_i\partial x_j}
+\left(\sigma(x)\sigma(x)^\top\right)_{ij} \frac{\partial ^2 f}{\partial x_i\partial x_j}
 \label{eq:generator_general}
 \end{equation}
-where $b_i$ is the $i$-th component of the drift vector $b(x)$ and $\Sigma_{ij}$ is the $(i, j)$-th component of the covariance matrix $\Sigma(x) = \sigma(x)\sigma(x)^\top$.
 
 In our case, we have a function $f = f(S_1, \dots, S_n, V)$, and we can derive the infinitesimal generator much like the 1D case, but this time we need to sum over our different asset and variance processes. The drift vector is easy to see by looking at the SDEs, which is
 \begin{equation}
@@ -417,28 +416,28 @@ We need to be more careful with the variance matrix, as our Brownian motions are
     \mathrm dW_2 = \sum_{j=1}^n \rho_j \mathrm dW_{1, j} + \sqrt{1 - |\rho|^2}\,\mathrm dB^{n+1}
 \end{equation}
 
-where we have $|\rho|^2 = \sum_{j=1}^n \rho_j^2$ for convenience and where $B^{n+1}$ is an 1-dimensional Brownian motion, independent of all $W_{1, j}$. We can easily verify that this satisfies the correlation $\mathrm d \langle W_{1, j}, W_2\rangle_t = \rho_j \mathrm dt$ and $\mathrm d \langle W_2, W_2\rangle_t = \mathrm dt$ as needed. This gives us the needed $n+1$ independent driving Brownian motions $(B^1, \dots, B^{n+1})$, with $B^{i} = W_{1, i}$ for $i = 1, \dots, n$.
+where we have $|\rho|^2 = \sum_{j=1}^n \rho_j^2$ for convenience and where $B^{n+1}$ is an 1-dimensional Brownian motion, independent of all $W_{1, j}$. Clearly we need $|\rho|^2 \le 1$ for this to be well-defined, which is equivalent to requiring positive semi-definiteness of the covariance matrix of the Brownian motions. We can easily verify that this satisfies the correlation $\mathrm d \langle W_{1, j}, W_2\rangle_t = \rho_j \mathrm dt$ and $\mathrm d \langle W_2, W_2\rangle_t = \mathrm dt$ as needed. This gives us the needed $n+1$ independent driving Brownian motions $(B^1, \dots, B^{n+1})$, with $B^{i} = W_{1, i}$ for $i = 1, \dots, n$.
 
 We now rewrite our SDEs in the multi-asset Heston model in terms of these independent Brownian motions. The assets $S_i$ are not driven by $B^{n+1}$ so we simply have
 \begin{equation}
-    \mathrm d S_i = rS_i \mathrm dt + S_i \sqrt V \sigma_i \sum_{j=1}^n \Sigma_{ij} \mathrm d B^j + 0 \cdot \mathrm d B^{n+1}
+    \mathrm d S_i = rS_i \mathrm dt + S_i \sqrt V \sigma_i \sum_{j=1}^n L_{ij} \mathrm d B^j + 0 \cdot \mathrm d B^{n+1}
 \end{equation}
 and the we can substitute the decomposition of $\mathrm dW_2$ into the variance process to get
 \begin{align}
     \mathrm dV = \kappa(\theta - V) \mathrm dt + \bar \sigma \sqrt V \sum_{j=1}^n \rho_j \mathrm d B^j + \bar\sigma \sqrt V \sqrt{1 - |\rho|^2}\,\mathrm d B^{n+1}
 \end{align}
-We can now read off the variance matrix
+We can now read off the $(n+1) \times (n+1)$ variance matrix
 \begin{equation}
     \sigma(S, V) = \begin{pmatrix}
-        \sqrt V \,\text{diag}(S) \,\text{diag}(\sigma) \Sigma & 0_n \\
+        \sqrt V \,\text{diag}(S) \,\text{diag}(\sigma) L & 0_n \\
         \bar \sigma \sqrt V \rho^\top & \bar\sigma \sqrt V \sqrt{1 - |\rho|^2}
     \end{pmatrix}
 \end{equation}
-which is written in block form: $\sqrt V \text{diag}(S)\text{diag}(\sigma)\Sigma$ is the $n\times n$ block for the assets, $0_n$ is the $n$-dimensional zero vector for the lack of contribution of the variance Brownian motion in the assets (due to independence), $\bar\sigma \sqrt V \rho^\top$ is the $1\times n$ block fo the contribution of the asset Brownian motions to the variance process, and $\bar\sigma \sqrt V \sqrt{1 - |\rho|^2}$ is the $1\times 1$ block for the contribution of the variance Brownian motion to the variance process. We can then compute the covariance matrix $\tilde \Sigma$ (to differentiate it from $\Sigma$ for the asset correlations) as
+which is written in block form: $\sqrt V \text{diag}(S)\text{diag}(\sigma)L$ is the $n\times n$ block for the assets, $0_n$ is the $n$-dimensional zero vector for the lack of contribution of the variance Brownian motion in the assets (due to independence), $\bar\sigma \sqrt V \rho^\top$ is the $1\times n$ block fo the contribution of the asset Brownian motions to the variance process, and $\bar\sigma \sqrt V \sqrt{1 - |\rho|^2}$ is the $1\times 1$ block for the contribution of the variance Brownian motion to the variance process. We can then compute the covariance matrix $\tilde \Sigma$ (to differentiate it from $\Sigma$ for the asset correlations) as
 \begin{equation}
     \tilde \Sigma = \sigma(S, V)\sigma(S, V)^\top = \begin{pmatrix}
-        V \text{diag}(S) \text{diag}(\sigma) \tilde \Sigma^2 \text{diag}(\sigma) \text{diag}(S) & V\bar\sigma \text{diag}(S) \text{diag}(\sigma) \Sigma \rho \\
-        V\bar\sigma \rho^\top \text{diag}(\sigma) \text{diag}(S) & \bar\sigma^2 V
+        V \text{diag}(S) \text{diag}(\sigma) \Sigma \text{diag}(\sigma) \text{diag}(S) & V\bar\sigma \text{diag}(S) \text{diag}(\sigma) L \rho \\
+        V\bar\sigma (L\rho)^\top \text{diag}(\sigma) \text{diag}(S) & \bar\sigma^2 V
     \end{pmatrix}
 \end{equation}
 
@@ -447,9 +446,9 @@ Therefore, by plugging it into the formula (\ref{eq:generator_general}), our gen
     \mathcal L[f] &=
         \sum_{i=1}^n rS_i \frac{\partial f}{\partial S_i}
         + \kappa(\theta - V)\frac{\partial f}{\partial V}
-        + \frac 12 V \sum_{i=1}^n\sum_{j=1}^n \sigma_i \sigma_j (\Sigma^2)_{ij} S_i S_j \frac{\partial^2f}{\partial S_i\partial S_j} \\
+        + \frac 12 V \sum_{i=1}^n\sum_{j=1}^n \sigma_i \sigma_j \Sigma_{ij} S_i S_j \frac{\partial^2f}{\partial S_i\partial S_j} \\
         &+ \frac 12 \bar\sigma^2 V \frac{\partial^2f}{\partial V^2}
-        + \sum_{i=1}^n \bar\sigma \sigma_i (\Sigma \rho)_i V S_i \frac{\partial^2f}{\partial S_i\partial V}
+        + \sum_{i=1}^n \bar\sigma \sigma_i (L \rho)_i V S_i \frac{\partial^2f}{\partial S_i\partial V}
 \end{align}
 
 For any payoff $g(\cdot)$, we have, as before, the variational equation for an European option being
