@@ -1,6 +1,8 @@
 """PINN for solving the n-dimensional Heston PDE for American put options."""
 
+import numpy as np
 import torch
+import torch.nn.functional as F
 from utility.model import PINN
 
 
@@ -133,10 +135,24 @@ class HestonMultiAssetPINN(PINN):
 
         return total_loss
 
+    def _f(self, t, *args):
+        """Network output passed through softplus to enforce f >= 0."""
+        return F.softplus(self.model(t, *args))
+
+    def predict(self, t, *S):
+        self.model.eval()
+        with torch.no_grad():
+            return F.softplus(self.model(t, *S))
+
     def __sample_interior(self, batch_size):
-        """Sample (t, S, V) collocation points uniformly from the domain interior."""
+        """Sample (t, S, V) collocation points with extra density near the ATM region (prod(S) ~ K)."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        S = self.sampler.uniform(self.S_min, self.S_max, (batch_size, self.n_assets))
+        # K^(1/n) is the symmetric ATM point on the product-payoff exercise surface.
+        atm = self.K ** (1.0 / self.n_assets)
+        centres = np.full(self.n_assets, atm)
+        radii = np.full(self.n_assets, atm)
+        weights = np.full(self.n_assets, 0.5)
+        S = self.sampler.segmented_uniform(self.S_min, self.S_max, centres, radii, weights, batch_size)
         V = self.sampler.uniform(self.V_min, self.V_max, (batch_size, 1))
         return t, S, V
 
@@ -146,7 +162,7 @@ class HestonMultiAssetPINN(PINN):
 
     def __heston_residual(self, t, S, V):
         """Evaluate the multi-asset Heston PDE residual at (t, S, V) via automatic differentiation."""
-        f = self.model(t, S, V)
+        f = self._f(t, S, V)
 
         f_t, f_S, f_V = torch.autograd.grad(
             f, (t, S, V), torch.ones_like(f), create_graph=True
@@ -203,7 +219,7 @@ class HestonMultiAssetPINN(PINN):
         return residual, f
 
     def __interior_loss(self, batch_size, t=None, S=None, V=None):
-        """Fischer-Burmeister complementarity loss on the interior with product-put payoff."""
+        """Mean-squared variational complementarity loss min(L[f], f-g)^2 on the interior with product-put payoff."""
         if t is None or S is None or V is None:
             t, S, V = self.__sample_interior(batch_size)
 
@@ -234,42 +250,37 @@ class HestonMultiAssetPINN(PINN):
         ones = torch.ones((batch_size, 1))
 
         # Terminal condition f(T, S, V) = payoff(S)
-        f_T = self.model(self.T * ones, S, V)
+        f_T = self._f(self.T * ones, S, V)
         S_prod = torch.prod(S, dim=1, keepdim=True)
         g = torch.maximum(self.K - S_prod, zeros)
         terminal_loss = torch.mean((f_T - g)**2)
 
-        # Smin loss: f(t, S', V) = K if S' = S_min for any asset, else f(t, S', V) = 0
+        # Smin loss: when any asset is at 0 the product is identically 0, so the
+        # American put is worth K. The other assets are sampled away from 0 to
+        # avoid double-counting against the Smax boundary.
         Smin_loss = 0
         for i in range(self.n_assets):
             S_boundary = S.clone()
             S_boundary[:, i] = 0
             S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(self.n_assets)]
             Smin_loss += torch.mean((
-                self.model(t, *S_boundary_list, V) - self.K
+                self._f(t, *S_boundary_list, V) - self.K
             )**2)
 
-        # Smax loss: f(t, S', V) = 0 if S' = S_max for any asset
-        Smax_loss = 0
-        for i in range(self.n_assets):
-            S_boundary = S.clone()
-            S_boundary[:, i] = self.S_max[i] * 10
-            S_boundary_list = [S_boundary[:, j].unsqueeze(1) for j in range(self.n_assets)]
-            Smax_loss += torch.mean((
-                self.model(t, *S_boundary_list, V)
-            )**2)
+        # Smax loss: for the product payoff the option is only worthless when ALL
+        # assets are simultaneously large, so set every coordinate to a large
+        # multiple of its upper bound rather than only one at a time.
+        S_max_tensor = torch.tensor(np.asarray(self.S_max) * 10, dtype=torch.float32)
+        S_far = S_max_tensor.expand(batch_size, self.n_assets)
+        Smax_loss = torch.mean(self._f(t, S_far, V) ** 2)
 
         # Vmin loss: f(t, S, 0) = payoff(S)
-        f_Vmin = self.model(t, *S_list, zeros)
+        f_Vmin = self._f(t, *S_list, zeros)
         Vmin_loss = torch.mean((f_Vmin - g) ** 2)
 
         # Vmax loss: f(t, S, v_inf) = K
         V_inf = ones * self.V_max * 2
-        f_Vinf = self.model(t, *S_list, V_inf)
+        f_Vinf = self._f(t, *S_list, V_inf)
         Vmax_loss = torch.mean((f_Vinf - self.K) ** 2)
 
         return terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss
-
-    def __fischer_burmeister(self, a, b, lambda_=1e-6):
-        """Smooth approximation a + b - sqrt(a^2 + b^2 + lambda_) to min(a, b)."""
-        return a + b - torch.sqrt(a**2 + b**2 + lambda_)
