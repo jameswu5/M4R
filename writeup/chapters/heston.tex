@@ -2,7 +2,7 @@
 
 The classic Black Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black Scholes formula does not depend on the mean, so allowing the mean to vary does not help us to generalise the model. But if we allow volatility to vary according to a stochastic process, we obtain a more generalised model. Heston \cite{heston1993closed} proposes a model that is not based on the Black Scholes formula that provides a closed-form solution for European call options. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
 \begin{align}
-\mathrm dS_t &= rS_t\mathrm dt + \sqrt {V_t} \mathrm dW_t^1 \\
+\mathrm dS_t &= rS_t\mathrm dt + S_t \sqrt {V_t} \mathrm dW_t^1 \\
 \mathrm d V_t &= \kappa (\theta - V_t) \mathrm dt + \sigma \sqrt {V_t} \mathrm dW_t^2
 \end{align}
 where we have initial conditions $S_0  = s>0$ and $V_0 = v \ge 0$, and the two Brownian motions are correlated with
@@ -204,25 +204,27 @@ Bearing this in mind, a resolution of $n=100, m_v=300, m_z=600$ allows our tree 
 
 We would now like to derive the variational equation for options on assets under the Heston model. Note that for a general process $X_t \in \mathbb R^d$ solving the Itô SDE
 \begin{equation}
-\mathrm dX_t = \boldsymbol{b}(X_t) \mathrm dt + \boldsymbol\sigma(X_t)\mathrm d \boldsymbol W_t
+\mathrm dX_t = b(X_t) \mathrm dt + \sigma(X_t)\mathrm d \boldsymbol W_t
 \end{equation}
-where we have the drift $\boldsymbol{b}:\mathbb R^d \to \mathbb R^d$, the volatility $\boldsymbol\sigma:\mathbb R^d \to \mathbb R^{d \times m}$ and the $m$-dimensional Brownian motion $\boldsymbol W_t$. On second-order smooth functions $f \in C^2(\mathbb R^d)$, the infinitesimal generator $\mathcal L$ is defined as \cite{bressloff2025sde}
+where we have the drift $b:\mathbb R^d \to \mathbb R^d$, the volatility $\sigma:\mathbb R^d \to \mathbb R^{d \times m}$ and the $m$-dimensional Brownian motion $W_t$. On second-order smooth functions $f \in C^2(\mathbb R^d)$, the infinitesimal generator $\mathcal L$ is defined as \cite{bressloff2025sde}
 \begin{equation}
-\mathcal{L}f(x) := \lim_{t \to 0}
+\mathcal{L}[f](x) := \lim_{t \to 0}
 \frac{\mathbb{E}[f(X_t) \mid X_0=x] - f(x)}{t}
 \end{equation}
 which exists and can be derived with Itô’s formula (or Taylor’s expansion) to be \cite{pham2009continuous}
 \begin{equation}
-\mathcal{L}f(x)
-= \sum_{i=1}^d \boldsymbol{b}_i(x)\frac{\partial f}{\partial x_i}
+\mathcal{L}[f](x)
+= \sum_{i=1}^d b_i\frac{\partial f}{\partial x_i}
 + \frac12 \sum_{i=1}^d\sum_{j=1}^d
-\left(\boldsymbol\sigma\boldsymbol\sigma^\top\right)_{ij}(x) \frac{\partial ^2 f}{\partial x_i\partial x_j}
+\Sigma_{ij} \frac{\partial ^2 f}{\partial x_i\partial x_j}
 \end{equation}
+where $b_i$ is the $i$-th component of the drift vector $\boldsymbol b := b(x)$ and $\Sigma_{ij}$ is the $(i, j)$-th component of the covariance matrix $\Sigma(x) = \boldsymbol \sigma \boldsymbol \sigma^\top$, with $\boldsymbol \sigma := \sigma(x)$.
+
 Let’s apply this to our Heston model. The drift vector is
 \begin{equation}
-\boldsymbol{b}(S, V) = \begin{pmatrix} rS \\ \kappa (\theta - V)\end{pmatrix}
+b(S, V) = \begin{pmatrix} rS \\ \kappa (\theta - V)\end{pmatrix}
 \end{equation}
-To compute $\boldsymbol\sigma\boldsymbol\sigma^\top$, we need to represent our correlated Brownian motions in terms of independent ones. Suppose we have independent Brownian motions $B^1$ and $B^2$, we can define
+To compute $\sigma\sigma^\top$, we need to represent our correlated Brownian motions in terms of independent ones. Suppose we have independent Brownian motions $B^1$ and $B^2$, we can define
 \begin{align}
 W^1 &= B^1 \\
 W^2 &= \rho B^1 + \sqrt {1-\rho^2}B^2
@@ -234,12 +236,12 @@ S_t \\ V_t
 \end{pmatrix} = \underbrace{
 \begin{pmatrix}
 rS_t \\ \kappa(\theta - V_t)
-\end{pmatrix}}_{\boldsymbol{b}(S_t, V_t)}\mathrm dt +
+\end{pmatrix}}_{b(S_t, V_t)}\mathrm dt +
 \underbrace{\begin{pmatrix}
 S_t \sqrt{V_t} & 0 \\
 \rho\sigma\sqrt{V_t} & \sigma \sqrt{V_t}\sqrt{1 - \rho^2}
 \end{pmatrix}
-}_{\boldsymbol\sigma(S_t, V_t)}
+}_{\sigma(S_t, V_t)}
 \begin{pmatrix}
 \mathrm dB_t^{1} \\
 \mathrm dB_t^{2}
@@ -247,35 +249,38 @@ S_t \sqrt{V_t} & 0 \\
 \end{equation}
 which means that our covariance matrix is now
 \begin{equation}
-\boldsymbol\sigma(S, V) = \begin{pmatrix}
+\boldsymbol \sigma = \sigma(S, V) = \begin{pmatrix}
 S\sqrt{V} & 0 \\
 \rho\sigma\sqrt{V} & \sigma\sqrt{V}\sqrt{1-\rho^2}
 \end{pmatrix}.
 \end{equation}
 which means
 \begin{equation}
-\boldsymbol\sigma\boldsymbol\sigma^\top = \begin{pmatrix}
+\Sigma = \boldsymbol\sigma\boldsymbol\sigma^\top = \begin{pmatrix}
 S^2 V & \rho \sigma SV \\ \rho \sigma SV & \sigma^2 V \end{pmatrix}
 \end{equation}
+
+Note here we have many forms of $\sigma$ which may be confusing: $\sigma$ without any arguments is the volatility of the variance process, $\sigma(S, V)$ is the volatility matrix of the SDE, and $\boldsymbol \sigma$ is the same as $\sigma(S, V)$ but with a bold symbol to distinguish it from the scalar $\sigma$.
+
 We now have everything we need for the formula. For any function $f = f(S, V) \in C^2(\mathbb R^d)$, we have
 \begin{equation}
-\mathcal Lf = rS\frac{\partial f}{\partial S} + \kappa(\theta - V_t)\frac{\partial f}{\partial V} + \frac 12\left(S^2V \frac{\partial ^2f}{\partial S^2} + 2\rho\sigma SV \frac{\partial ^2f}{\partial S\partial V} + \sigma^2V\frac{\partial ^2f}{\partial V^2} \right)
+\mathcal L[f] = rS\frac{\partial f}{\partial S} + \kappa(\theta - V_t)\frac{\partial f}{\partial V} + \frac 12\left(S^2V \frac{\partial ^2f}{\partial S^2} + 2\rho\sigma SV \frac{\partial ^2f}{\partial S\partial V} + \sigma^2V\frac{\partial ^2f}{\partial V^2} \right)
 \end{equation}
 This is our infinitesimal generator $\mathcal L$ acting on smooth functions $f$. Suppose we have a European option with payoff $g : \mathbb R^+ \to \mathbb R^+$, then our price function $u(t, S, V)$, the value of the call option with expiry $T$ at time $t$ with $S_t = S$ and $V_t = V$ satisfies
 \begin{equation}
-\mathcal G[u] := ru - \frac{\partial u}{\partial t} + \mathcal Lu = 0
+\mathcal G[u] := ru - \frac{\partial u}{\partial t} - \mathcal Lu = 0
 \end{equation}
-with terminal condition $u(T, S, V) = g(S)$. This matches the PDE we had stated in the closed-form solution in section \ref{eq:heston_feynman_kac_pde}.
+with terminal condition $u(T, S, V) = g(S)$. This matches the PDE we had stated in the closed-form solution in (\ref{eq:heston_feynman_kac_pde}).
 
 As a check, we can set $\kappa = 0$ and $\sigma = 0$ so that $\mathrm dV = 0$ and volatility becomes a constant, and our model collapses to what we have been working with before. Our generator becomes
 \begin{equation}
-\mathcal L f=rS\frac{\partial f}{\partial S} + \frac 12 S^2 V_0\frac{\partial ^2f}{\partial S^2}
+\mathcal L[f] = rS\frac{\partial f}{\partial S} + \frac 12 S^2 V_0\frac{\partial ^2f}{\partial S^2}
 \end{equation}
 which matches our expression (\ref{eq:bs_operator}) from the Black-Scholes section, since $V_0$ is the initial (and hence constant) variance.
 
 We have derived the variational equation for the European option for simplicity, but it can be easily extended for the American case. With the same argument as (\ref{eq:variational_inequality_bs_1d}), the value of the American option must satisfy the PDE
 \begin{equation}
-    \min\big(\mathcal G[u], v(t, S, V) - g(S) \big) = 0
+    \min\big(\mathcal G[u], u(t, S, V) - g(S) \big) = 0
 \label{eq:heston_variational_inequality}
 \end{equation}
 
@@ -322,7 +327,6 @@ With the neural network established, we are now ready to move on to pricing opti
     \dd S = \text{diag}(S)(r \,\dd t + \sqrt V \sigma \Sigma \,\dd W_1) \\
     \dd V = \kappa(\theta - V)\,\dd t + \bar \sigma \sqrt V \,\dd W_2
 \end{align}
-
 where we have the vector of iid Brownian motions $W_1 = (W_{1, 1}, \dots, W_{1, n})^\top$, variance vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the covariance matrix $\Sigma$, where for simplicity we will assume all cross-correlations $\Sigma_{ij} = \rho$ for $i \ne j$. Assume additionally that each asset is correlated with the variance process: $\dd W_{1, j} \dd W_2 =\rho_j \dd t$. Note that this means the asset $S_i$ satisfies
 \begin{equation}
     \dd S_i = S_i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n \Sigma_{ij}\,\dd W_{1, j}\right)
@@ -393,20 +397,53 @@ which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, 
 
 Recall for a process $X_t \in \mathbb R^d$ solving $\mathrm dX_t = b(X_t)\mathrm dt + \sigma(X_t)\mathrm dW_t$, the infinitesimal generator $\mathcal L$ can be derived with Itô's formula \cite{pham2009continuous} on $f(x)$ to be
 \begin{equation}
-\mathcal{L}f(x)
-= \sum_{i=1}^d b_i(x)\frac{\partial f}{\partial x_i}
+\mathcal{L}[f](x)
+= \sum_{i=1}^d b_i\frac{\partial f}{\partial x_i}
 + \frac12 \sum_{i=1}^d\sum_{j=1}^d
-\left(\sigma\sigma^\top\right)_{ij}(x) \frac{\partial ^2 f}{\partial x_i\partial x_j}
+\Sigma_{ij} \frac{\partial ^2 f}{\partial x_i\partial x_j}
+\label{eq:generator_general}
 \end{equation}
-In our case, we have a function $f = f(S_1, \dots, S_d, V)$, and we can derive the infinitesimal generator much like the 1D case, but this time we need to sum over our different asset and variance processes. Mathematically, our generator can be expressed to be
+where $b_i$ is the $i$-th component of the drift vector $b(x)$ and $\Sigma_{ij}$ is the $(i, j)$-th component of the covariance matrix $\Sigma(x) = \sigma(x)\sigma(x)^\top$.
+
+In our case, we have a function $f = f(S_1, \dots, S_d, V)$, and we can derive the infinitesimal generator much like the 1D case, but this time we need to sum over our different asset and variance processes. The drift vector is easy to see by looking at the SDEs, which is
+\begin{equation}
+    b(S, V) = \begin{pmatrix}
+        rS_1 \\ \vdots \\ rS_d \\ \kappa(\theta - V)
+    \end{pmatrix}
+\end{equation}
+
+We need to be more careful with the variance matrix, as our Brownian motions are correlated, and we need to write a variance matrix in terms of iid Brownian motions. Since $W_{1, 1}, \dots, W_{1, n}$ are already independent of each other, we only need to handle the correlation $\mathrm \langle W_{1, j}, W_2\rangle_t = \rho_j t$. Consider
+\begin{equation}
+    \mathrm dW_2 = \sum_{j=1}^n \rho_j \mathrm dW_{1, j} + \sqrt{1 - |\rho|^2}\,\mathrm dB^{n+1}
+\end{equation}
+
+where we have $|\rho|^2 = \sum_{j=1}^n \rho_j^2$ for convenience and where $B^{n+1}$ is an 1-dimensional Brownian motion, independent of all $W_{1, j}$. We can easily verify that this satisfies the correlation $\mathrm d \langle W_{1, j}, W_2\rangle_t = \rho_j \mathrm dt$ and $\mathrm d \langle W_2, W_2\rangle_t = \mathrm dt$ as needed. This gives us the needed $n+1$ independent driving Brownian motions $(B^1, \dots, B^{n+1})$, with $B^{i} = W_{1, i}$ for $i = 1, \dots, n$.
+
+We now rewrite our SDEs in the multi-asset Heston model in terms of these independent Brownian motions. The assets $S_i$ are not driven by $B^{n+1}$ so we simply have
+\begin{equation}
+    \mathrm d S_i = rS_i \mathrm dt + S_i \sqrt V \sigma_i \sum_{j=1}^n \Sigma_{ij} \mathrm d B^j + 0 \cdot \mathrm d B^{n+1}
+\end{equation}
+and the we can substitute the decomposition of $\mathrm dW_2$ into the variance process to get
 \begin{align}
-    \mathcal Lf &= \sum_{i=1}^d rS_i \frac{\partial f}{\partial S_i} +  \kappa(\theta - V)\frac{\partial f}{\partial V} + \frac 12 \sum_{i=1}^d\sum_{j=1}^d \Sigma_{ij} VS_iS_j \frac{\partial^2f}{\partial S_i\partial S_j} \\
+    \mathrm dV = \kappa(\theta - V) \mathrm dt + \bar \sigma \sqrt V \sum_{j=1}^n \rho_j \mathrm d B^j + \bar\sigma \sqrt V \sqrt{1 - |\rho|^2}\,\mathrm d B^{n+1}
+\end{align}
+We can now read off the variance matrix
+\begin{equation}
+    \sigma(S, V) = \begin{pmatrix}
+        \sqrt V \,\text{diag}(S) \,\text{diag}(\sigma) \Sigma & \bm 0_n \\
+        \bar \sigma \sqrt V \rho^\top & \bar\sigma \sqrt V \sqrt{1 - |\rho|^2}
+    \end{pmatrix}
+\end{equation}
+
+Therefore, by plugging it into the formula (\ref{eq:generator_general}), our generator can be expressed to be
+\begin{align}
+    \mathcal L[f] &= \sum_{i=1}^d rS_i \frac{\partial f}{\partial S_i} +  \kappa(\theta - V)\frac{\partial f}{\partial V} + \frac 12 \sum_{i=1}^d\sum_{j=1}^d \Sigma_{ij} VS_iS_j \frac{\partial^2f}{\partial S_i\partial S_j} \\
     &+ \frac 12  \bar\sigma^2V \frac{\partial^2f}{\partial V^2} + \sum_{i=1}^d \rho_i \sigma_i \bar\sigma V_iS_i \frac{\partial^2f}{\partial S_i\partial V}
 \end{align}
 
 For any payoff $g(\cdot)$, we have, as before, the variational equation for an European option being
 \begin{equation}
-\mathcal G[f] := rf - \frac{\partial f}{\partial t} + \mathcal Lf = 0
+\mathcal G[f] := rf - \frac{\partial f}{\partial t} - \mathcal L[f] = 0
 \end{equation}
 and for an American option, we can introduce the early stopping criterion and the variation equation becomes
 \begin{equation}
