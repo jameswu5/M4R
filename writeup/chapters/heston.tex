@@ -324,8 +324,8 @@ The boundary conditions (2)-(5) together will form the boundary loss (\ref{eq:pi
 
 With the neural network established, we are now ready to move on to pricing options on multiple assets. As with the Black-Scholes case, we will price the put on the product of multiple assets because we can find a one-dimensional reduction. Here, we will consider a simplified model. Suppose we have $n$ assets and our assets $S = (S_1, \dots, S_n)^\top$ are governed by the stochastic differential equations:
 \begin{align}
-    \dd S = \text{diag}(S)(r \,\dd t + \sqrt V \sigma \Sigma \,\dd W_1) \\
-    \dd V = \kappa(\theta - V)\,\dd t + \bar \sigma \sqrt V \,\dd W_2
+    \dd S &= \text{diag}(S)r \,\dd t + \sqrt V \text{diag}(S) \text{diag}(\sigma) \Sigma \,\dd W_1 \\
+    \dd V &= \kappa(\theta - V)\,\dd t + \bar \sigma \sqrt V \,\dd W_2
 \end{align}
 where we have the vector of iid Brownian motions $W_1 = (W_{1, 1}, \dots, W_{1, n})^\top$, variance vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the covariance matrix $\Sigma$, where for simplicity we will assume all cross-correlations $\Sigma_{ij} = \rho$ for $i \ne j$. Assume additionally that each asset is correlated with the variance process: $\dd W_{1, j} \dd W_2 =\rho_j \dd t$. Note that this means the asset $S_i$ satisfies
 \begin{equation}
@@ -395,20 +395,20 @@ which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, 
 
 \subsection{Variational equation}
 
-Recall for a process $X_t \in \mathbb R^d$ solving $\mathrm dX_t = b(X_t)\mathrm dt + \sigma(X_t)\mathrm dW_t$, the infinitesimal generator $\mathcal L$ can be derived with Itô's formula \cite{pham2009continuous} on $f(x)$ to be
+Recall for a process $X_t \in \mathbb R^n$ solving $\mathrm dX_t = b(X_t)\mathrm dt + \sigma(X_t)\mathrm dW_t$, the infinitesimal generator $\mathcal L$ can be derived with Itô's formula \cite{pham2009continuous} on $f(x)$ to be
 \begin{equation}
 \mathcal{L}[f](x)
-= \sum_{i=1}^d b_i\frac{\partial f}{\partial x_i}
-+ \frac12 \sum_{i=1}^d\sum_{j=1}^d
+= \sum_{i=1}^n b_i\frac{\partial f}{\partial x_i}
++ \frac12 \sum_{i=1}^n\sum_{j=1}^n
 \Sigma_{ij} \frac{\partial ^2 f}{\partial x_i\partial x_j}
 \label{eq:generator_general}
 \end{equation}
 where $b_i$ is the $i$-th component of the drift vector $b(x)$ and $\Sigma_{ij}$ is the $(i, j)$-th component of the covariance matrix $\Sigma(x) = \sigma(x)\sigma(x)^\top$.
 
-In our case, we have a function $f = f(S_1, \dots, S_d, V)$, and we can derive the infinitesimal generator much like the 1D case, but this time we need to sum over our different asset and variance processes. The drift vector is easy to see by looking at the SDEs, which is
+In our case, we have a function $f = f(S_1, \dots, S_n, V)$, and we can derive the infinitesimal generator much like the 1D case, but this time we need to sum over our different asset and variance processes. The drift vector is easy to see by looking at the SDEs, which is
 \begin{equation}
     b(S, V) = \begin{pmatrix}
-        rS_1 \\ \vdots \\ rS_d \\ \kappa(\theta - V)
+        rS_1 \\ \vdots \\ rS_n \\ \kappa(\theta - V)
     \end{pmatrix}
 \end{equation}
 
@@ -430,15 +430,26 @@ and the we can substitute the decomposition of $\mathrm dW_2$ into the variance 
 We can now read off the variance matrix
 \begin{equation}
     \sigma(S, V) = \begin{pmatrix}
-        \sqrt V \,\text{diag}(S) \,\text{diag}(\sigma) \Sigma & \bm 0_n \\
+        \sqrt V \,\text{diag}(S) \,\text{diag}(\sigma) \Sigma & 0_n \\
         \bar \sigma \sqrt V \rho^\top & \bar\sigma \sqrt V \sqrt{1 - |\rho|^2}
+    \end{pmatrix}
+\end{equation}
+which is written in block form: $\sqrt V \text{diag}(S)\text{diag}(\sigma)\Sigma$ is the $n\times n$ block for the assets, $0_n$ is the $n$-dimensional zero vector for the lack of contribution of the variance Brownian motion in the assets (due to independence), $\bar\sigma \sqrt V \rho^\top$ is the $1\times n$ block fo the contribution of the asset Brownian motions to the variance process, and $\bar\sigma \sqrt V \sqrt{1 - |\rho|^2}$ is the $1\times 1$ block for the contribution of the variance Brownian motion to the variance process. We can then compute the covariance matrix $\tilde \Sigma$ (to differentiate it from $\Sigma$ for the asset correlations) as
+\begin{equation}
+    \tilde \Sigma = \sigma(S, V)\sigma(S, V)^\top = \begin{pmatrix}
+        V \text{diag}(S) \text{diag}(\sigma) \tilde \Sigma^2 \text{diag}(\sigma) \text{diag}(S) & V\bar\sigma \text{diag}(S) \text{diag}(\sigma) \Sigma \rho \\
+        V\bar\sigma \rho^\top \text{diag}(\sigma) \text{diag}(S) & \bar\sigma^2 V
     \end{pmatrix}
 \end{equation}
 
 Therefore, by plugging it into the formula (\ref{eq:generator_general}), our generator can be expressed to be
 \begin{align}
-    \mathcal L[f] &= \sum_{i=1}^d rS_i \frac{\partial f}{\partial S_i} +  \kappa(\theta - V)\frac{\partial f}{\partial V} + \frac 12 \sum_{i=1}^d\sum_{j=1}^d \Sigma_{ij} VS_iS_j \frac{\partial^2f}{\partial S_i\partial S_j} \\
-    &+ \frac 12  \bar\sigma^2V \frac{\partial^2f}{\partial V^2} + \sum_{i=1}^d \rho_i \sigma_i \bar\sigma V_iS_i \frac{\partial^2f}{\partial S_i\partial V}
+    \mathcal L[f] &=
+        \sum_{i=1}^n rS_i \frac{\partial f}{\partial S_i}
+        + \kappa(\theta - V)\frac{\partial f}{\partial V}
+        + \frac 12 V \sum_{i=1}^n\sum_{j=1}^n \sigma_i \sigma_j (\Sigma^2)_{ij} S_i S_j \frac{\partial^2f}{\partial S_i\partial S_j} \\
+        &+ \frac 12 \bar\sigma^2 V \frac{\partial^2f}{\partial V^2}
+        + \sum_{i=1}^n \bar\sigma \sigma_i (\Sigma \rho)_i V S_i \frac{\partial^2f}{\partial S_i\partial V}
 \end{align}
 
 For any payoff $g(\cdot)$, we have, as before, the variational equation for an European option being

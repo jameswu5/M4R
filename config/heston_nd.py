@@ -29,7 +29,7 @@ V_max = 4 * v0
 
 model_config = ModelConfig(
     input_size=4,
-    hidden_sizes=[128, 128, 128, 128],
+    hidden_sizes=[64, 64, 64, 64],
     output_size=1,
     activation=nn.Tanh(),
     learning_rate=0.001,
