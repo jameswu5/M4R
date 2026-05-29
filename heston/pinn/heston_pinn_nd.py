@@ -67,7 +67,9 @@ class HestonMultiAssetPINN(PINN):
         self.sigma_bar = sigma_bar
         self.sigmas = sigmas
         self.corr = corr
+        self.L = np.linalg.cholesky(corr)
         self.rho_cross = rho_cross
+        self.L_rho = torch.tensor(self.L @ self.rho_cross, dtype=torch.float32)
         self.S_min = S_min
         self.S_max = S_max
         self.V_min = V_min
@@ -206,10 +208,10 @@ class HestonMultiAssetPINN(PINN):
         # Variance diffusion
         Lf += 0.5 * self.sigma_bar ** 2 * V * f_VV
 
-        # Cross S-V terms
+        # Cross S-V terms: coefficient is sigma_bar * sigma_i * (L @ rho_cross)_i * V * S_i
         cross = 0
         for i in range(self.n_assets):
-            coeff = V * self.sigmas[i] * self.sigma_bar * self.rho_cross[i] * S[:, i:i+1]
+            coeff = V * self.sigmas[i] * self.sigma_bar * self.L_rho[i] * S[:, i:i+1]
             cross += coeff * f_SV[:, i:i+1]
 
         Lf += cross

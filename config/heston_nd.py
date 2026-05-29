@@ -13,11 +13,11 @@ sigma_bar = 0.3
 
 sigmas = np.array([0.2, 0.25])
 
-rho_asset = 0  # correlation between assets
+rho_asset = 0  # correlation between assets (\varrho in the writeup)
 corr = np.full((n_assets, n_assets), float(rho_asset))
 np.fill_diagonal(corr, 1.0)
 
-rho_cross = [0, 0]  # stock-variance correlation per asset
+rho_cross = [0.3, 0.5]  # stock-variance correlation per asset (\rho in the writeup)
 
 S0 = 1.0
 v0 = 0.04
