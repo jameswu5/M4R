@@ -65,15 +65,25 @@ class HestonMultiAssetPINN(PINN):
         self.kappa = kappa
         self.theta = theta
         self.sigma_bar = sigma_bar
-        self.sigmas = sigmas
-        self.corr = corr
-        self.L = np.linalg.cholesky(corr)
-        self.rho_cross = rho_cross
-        self.L_rho = torch.tensor(self.L @ self.rho_cross, dtype=torch.float32)
         self.S_min = S_min
         self.S_max = S_max
         self.V_min = V_min
         self.V_max = V_max
+
+        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)
+        self.corr = torch.tensor(corr, dtype=torch.float32)
+
+        L = np.linalg.cholesky(corr)
+        L_rho = L @ rho_cross
+
+        self.sigma_L_rho = torch.tensor(
+            sigmas * L_rho, dtype=torch.float32
+        )
+
+        # precompute sigma_i * sigma_k * Sigma_ik
+        self.sigma_outer = torch.tensor(
+            np.outer(sigmas, sigmas) * corr, dtype=torch.float32
+        )
 
     def train(self, batch_size, epochs, early_stopping):
         """
@@ -149,7 +159,6 @@ class HestonMultiAssetPINN(PINN):
     def __sample_interior(self, batch_size):
         """Sample (t, S, V) collocation points with extra density near the ATM region (prod(S) ~ K)."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        # K^(1/n) is the symmetric ATM point on the product-payoff exercise surface.
         atm = self.K ** (1.0 / self.n_assets)
         centres = np.full(self.n_assets, atm)
         radii = np.full(self.n_assets, atm)
@@ -171,49 +180,38 @@ class HestonMultiAssetPINN(PINN):
         )
 
         f_SS = []
+        f_SV = []
         for i in range(self.n_assets):
-            grad_i = torch.autograd.grad(
-                f_S[:, i:i+1], S,
+            grads = torch.autograd.grad(
+                f_S[:, i:i+1], (S, V),
                 torch.ones_like(f_S[:, i:i+1]),
                 create_graph=True
-            )[0]
-            f_SS.append(grad_i.unsqueeze(1))
-        f_SS = torch.cat(f_SS, dim=1)   # (N,n,n)
+            )
+            f_SS.append(grads[0].unsqueeze(1))  # (N, 1, n)
+            f_SV.append(grads[1])               # (N, 1)
+        f_SS = torch.cat(f_SS, dim=1)   # (N, n, n)
+        f_SV = torch.cat(f_SV, dim=1)  # (N, n)
 
         f_VV = torch.autograd.grad(
             f_V, V, torch.ones_like(f_V), create_graph=True
         )[0]
 
-        f_SV = []
-        for i in range(self.n_assets):
-            grad_i = torch.autograd.grad(
-                f_S[:, i:i+1], V,
-                torch.ones_like(f_S[:, i:i+1]),
-                create_graph=True
-            )[0]
-            f_SV.append(grad_i)
-        f_SV = torch.cat(f_SV, dim=1)   # (N,n)
-
         Lf = self.r * torch.sum(S * f_S, dim=1, keepdim=True)
         Lf += self.kappa * (self.theta - V) * f_V
 
-        # Asset-asset diffusion
-        diffusion = 0
-        for i in range(self.n_assets):
-            for k in range(self.n_assets):
-                coeff = V * self.sigmas[i] * self.sigmas[k] * self.corr[i, k] * S[:, i:i+1] * S[:, k:k+1]
-                diffusion += coeff * f_SS[:, i, k:k+1]
-        Lf += 0.5 * diffusion
+        S_outer = S.unsqueeze(2) * S.unsqueeze(1)  # (N, n, n)
+        diffusion = torch.einsum(
+            'ik, bik, bik -> b',
+            self.sigma_outer, S_outer, f_SS
+        )
+        Lf += 0.5 * V * diffusion.unsqueeze(1)
 
-        # Variance diffusion
+        # Variance diffusion.
         Lf += 0.5 * self.sigma_bar ** 2 * V * f_VV
 
-        # Cross S-V terms: coefficient is sigma_bar * sigma_i * (L @ rho_cross)_i * V * S_i
-        cross = 0
-        for i in range(self.n_assets):
-            coeff = V * self.sigmas[i] * self.sigma_bar * self.L_rho[i] * S[:, i:i+1]
-            cross += coeff * f_SV[:, i:i+1]
-
+        cross = V * self.sigma_bar * torch.sum(
+            self.sigma_L_rho * S * f_SV, dim=1, keepdim=True
+        )
         Lf += cross
 
         residual = -f_t - Lf + self.r * f
@@ -221,7 +219,7 @@ class HestonMultiAssetPINN(PINN):
         return residual, f
 
     def __interior_loss(self, batch_size, t=None, S=None, V=None):
-        """Mean-squared variational complementarity loss min(L[f], f-g)^2 on the interior with product-put payoff."""
+        """Mean-squared variational complementarity loss min(G[f], f-g)^2 on the interior with product-put payoff."""
         if t is None or S is None or V is None:
             t, S, V = self.__sample_interior(batch_size)
 
