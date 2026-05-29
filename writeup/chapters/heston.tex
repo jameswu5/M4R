@@ -518,7 +518,7 @@ This will be very similar to the one-dimensional case, but we will make a few mo
 
 As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which allows a faithful approximation of closed form solution while keeping runtime low. Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $v_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
 
-\begin{figure}[h]
+\begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_tree.png}
     \caption[Heston tree call option prices]{Call option prices by the Heston Tree}
@@ -529,7 +529,7 @@ We can see that the Heston tree does indeed replicate the closed form solution v
 
 To compute the American option price with the tree model, all we need to do is to introduce the stopping condition at every node: we evaluate the intrinsic value of the option at each node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
 
-\begin{figure}[h]
+\begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_tree_put_eu_vs_am.png}
     \caption[Heston tree: American vs European put options]{American vs European option prices for the put}
@@ -542,7 +542,7 @@ In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option pric
 
 We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_1d_comparison_heatmap} for the American put.
 
-\begin{figure}[h!]
+\begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_heatmap.png}
     \caption[Heston 1D PINN vs tree comparison heatmap]{American put option prices by the PINN and the tree across $S$ and $V$ parameters at time $t=0$}
@@ -551,7 +551,7 @@ We are now ready to train the neural network to price our option. We choose to u
 
 We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at lower volatilities. We can take slices of our three dimensional heatmap on the triple $(t, S, V)$ to get a better understanding of the performance, by fixing two of the variables at the default $(t=0, S=1.0, V=0.1)$ and plotting the option price against the other variable. This is shown in Figure \ref{fig:heston_1d_comparison_line}.
 
-\begin{figure}[h!]
+\begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_line.png}
     \caption[Heston 1D PINN vs tree varying $S$, $V$ and $t$]{PINN vs tree prices varying across $S$, $V$ and $t$ parameters}
@@ -563,7 +563,7 @@ We can see that the PINN does indeed capture well the general shape and behaviou
 
 \subsection{Multi-asset PINN solution}
 
-The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. I choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will neglect taking an ensemble average and just present the results from one run. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction. The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S_1$-$S_2$ plane with the time fixed at $t=0$ and initial variance fixed at $V=V_0=0.04$.
+The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. I choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will only train three instances. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction (cross-asset correlations equal to zero). The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S_1$-$S_2$ plane with the time fixed at $t=0$ and initial variance fixed at $V=V_0=0.04$.
 
 \begin{figure}[ht!]
     \centering
@@ -572,17 +572,19 @@ The multi-asset case is more difficult to train, as we have a higher dimensional
     \label{fig:heston_nd_comparison_heatmap}
 \end{figure}
 
-We can see that the fit is good in the money and out of the money but struggles much more at the money, which is expected as the option price is more sensitive, and we are now in a four-dimensional input space and hence accuracy is more difficult to achieve. We will zoom in on the at the money region by fixing $t=0$ and $S_1=S_2=\sqrt{K}$ and plotting the option price across $V$, which is shown in the right figure of Figure \ref{fig:heston_nd_comparison_heatmap}.
+We can see that the fit is good in the money and out of the money but struggles much more at the money (when $S_1 \times S_2 = K$, indicated with the black dotted line), which is expected as the option price is more sensitive, and we are now in a four-dimensional input space and hence accuracy is more difficult to achieve. We will zoom in on the at the money region by fixing $t=0$ and $S_1=S_2=\sqrt{K}$ and plotting the option price across $V$, which is shown in the middle figure of Figure \ref{fig:heston_nd_comparison_heatmap}.
 
-We can see that the weakness of the PINN is along the strike price with $S_1=S_2=\sqrt{K}$, and the accuracy is better for lower volatilities. Overall, the results are okay, given that we are sacrificing some accuracy in order to be able to price along the whole input domain, but we will expect the PINN to struggle more with the estimating free boundaries correctly since there is a bias in the prices already. However, the shape of the free boundary should still be correct, so there is a bit of value of estimating the free boundaries, which we will do in the next section.
+We can see that the weakness of the PINN is along the strike price with $S_1=S_2=\sqrt{K}$, and the accuracy is better for lower volatilities. Overall, the results are okay, given that we are sacrificing some accuracy in order to be able to price along the whole input domain, but we will expect the PINN to struggle more with the estimating free boundaries correctly since there is a bias in the prices already. Finally, we would like to check how the PINN captures the price relationship between different initial variances and time to maturity, which is shown in the right figure of Figure \ref{fig:heston_nd_comparison_heatmap} where we plot the option price across $t$ and $V$ with $S_1=S_2=\sqrt{K}$. We can see that this relationship is captured less well: the PINN prefers to give the same price across this cross-section, which is a side-effect of our loss function construction. Since the PDE loss is averaged across the domain, the network settles for giving the average price across this cross-section as it is easier to satisfy the PDE in this way, and the boundary conditions are not strong enough to force the network to learn the correct relationship across this cross-section. To remedy this, we should give more attention to how the weights of the loss components are set, which requires a lot of tuning and experimentation, which is less feasible in this case with each model taking several hours to train, but is something that could be further explored with more computational resources.
+
+Even though the accuracy of the option price for the multi-asset case is not perfect, there is still some value in estimating the free boundary for the multi-asset case, which we will do in the next section.
 
 \subsection{Free boundary}
 
 \subsubsection{One-dimensional case}
 
-We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as cross sections, where one variable will be fixed at their default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to 1 for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}
+We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as a cross section, where one variable will be fixed at their default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. This would be cleaner and more interpretable than a colour-coded 3D plot. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to 1 for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}
 
-\begin{figure}[h!]
+\begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_continuation_probs.png}
     \caption[Heston PINN continuation probabilities (1D)]{Continuation probabilities for the American put option on the $S$-$V$ plane}
@@ -593,18 +595,24 @@ We can see that the continuation region is reasonably well approximated with bot
 
 \subsubsection{Multi-asset case}
 
+We will first present the free boundary on the $S_1$-$S_2$ plane, where we fix $V = V_0$ and $t=0$, as shown in Figure \ref{fig:heston_nd_continuation_probs}. This should be somewhat analogous to the Black-Scholes multi-asset free boundary as observed in Figure \ref{fig:bs_nd_continuation_probs}. 
 
-\begin{figure}[h!]
+\begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_nd_continuation_probs.png}
     \caption[Heston PINN continuation probabilities (nD) $S$-$V$]{Continuation probabilities for the American put option on the $S$-$V$ plane}
     \label{fig:heston_nd_continuation_probs}
 \end{figure}
 
+We can see that the continuation region is reasonably well approximated, with greater noise in the Gaussian method due to the fact we are only working with three seeds. Overall, these results are promising, since the shape is correctly captured.
 
-\begin{figure}[h!]
+We now present the free boundary on the $S$-$t$ plane in Figure \ref{fig:heston_nd_continuation_probs_time}, where we fix $S_1 = S_2 = \sqrt{K}$ and $V=V_0$. This should be somewhat analogous to the free boundary for the one-dimensional case as observed in Figure \ref{fig:bs_nd_continuation_probs_time}.
+
+\begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_nd_continuation_probs_time.png}
     \caption[Heston PINN continuation probabilities (nD) $S$-$t$]{Continuation probabilities for the American put option on the $S$-$t$ plane}
-    \label{fig:heston_nd_continuation_probs}
+    \label{fig:heston_nd_continuation_probs_time}
 \end{figure}
+
+We see that the Heston tree free boundary is no longer smooth as we are using an interpolation method which has some degree of error, and the PINN struggles to capture the curvature of the free boundary, linked to the fact that the model is settling for an average price prediction across the time cross section since deviations from this is not penalised enough. With experimentation with different activation functions and different weights for the loss components, results seem to be somewhat similar, so further improvements to the free boundary estimation would require a more fundamental change to the model, whether it be increasing its capacity or the sampling algorithm.
