@@ -237,17 +237,23 @@ because it is always optimal to exercise the option when the asset is at its low
 \end{equation}
 These three conditions together would form the boundary setup (\ref{eq:pinn_boundary}) for our PINN.
 
-\subsection{Reduction of multi-asset to one-asset case}
+\subsection{Multi-asset case}
 
-Before we apply the PINN framework to the multi-dimensional case, we will first introduce a benchmark for the multi-dimensional case, from which we will build the boundary conditions for the PINN, as they change depending on the payoff function. The benchmark will need to be able to be reduced to a one-dimensional problem, so that we can solve it using the binomial tree method as a reference for our PINN results. This will, in turn, give us confidence that our PINN implementation is correct, and that the results we get for more complex payoffs are reasonable.
+We will now extend our PINN framework to the multi-dimensional case, where we have $n$ underlying assets, and hence the neural network $f$ will take $n+1$ inputs (time and the price of each asset). The variational inequality can be derived with a similar argument as in the one-dimensional case, but we will use the multi-dimensional case of Itô's lemma. In order to be able to evaluate the accuracy of our results, we will work on a one-dimensional reduction of the multi-dimensional case, where we can use the binomial tree method (or indeed the one-dimensional PINN solution) as a benchmark.
 
-In the multi-dimensional case, we have $k$ underlying assets with price processes following a correlated geometric Brownian motion. Mathematically, let each asset $S^i$ satisfy under the risk-free measure $\mathbb Q$, for $i = 1, \dots, k$,
+In the multi-dimensional case, we have $n$ underlying assets with price processes following a correlated geometric Brownian motion. Mathematically, let each asset $S^i$ satisfy under the risk-free measure $\mathbb Q$, for $i = 1, \dots, n$,
 \begin{equation}
 \mathrm dS_t^i = rS_t^i\mathrm dt + \sigma_i S^i_t \mathrm dW_t^i
 \end{equation}
-with $\langle W^i, W^j\rangle_t := \mathbb E\big[\mathrm dW_t^i \mathrm dW_t^j\big] = \rho_{ij}\mathrm dt$ for all $i, j$ pairs. As the geometric Brownian motion is multiplicative, for our benchmark, we will consider the put on the product of the assets. More precisely, we consider the put option with payoff
+with quadratic covariation $\mathrm d \langle W^i, W^j\rangle_t = \rho_{ij}\mathrm dt$ for all $i, j$ pairs.
+
+\subsection{Reduction of multi-asset to one-asset case}
+
+We will work with a specific payoff function that allows us to reduce the multi-dimensional case to a one-dimensional case, which would, in turn, give us confidence that our PINN implementation is correct, and we can change the payoff function to more complex ones and be reasonably assured that the results are still correct.
+
+As the geometric Brownian motion is multiplicative, for our benchmark, we will consider the put on the product of the assets. More precisely, we consider the put option with payoff
 \begin{equation}
-    g(S^1, \dots, S^k) = \left(K - \prod_{i=1}^k S^i\right)^+
+    g(S^1, \dots, S^n) = \left(K - \prod_{i=1}^n S^i\right)^+
 \end{equation}
 
 To represent the dynamics of the product of the assets, we can apply Ito’s formula to the log of the price process. The log representation is
@@ -256,44 +262,44 @@ To represent the dynamics of the product of the assets, we can apply Ito’s for
 \end{equation}
 
 Define our new asset $X$ to be
-\begin{equation}X_t := \prod_{i=1}^k S^i_t\end{equation}
+\begin{equation}X_t := \prod_{i=1}^n S^i_t\end{equation}
 and hence we have
 \begin{equation}
-\ln X_t = \sum_{i=1}^k \ln S_t^i = \ln X_0 + \int_0^t \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 \right)\,\mathrm ds + \sum_{i=1}^k \int_0^t \sigma_i \,\mathrm dW_s^i
+\ln X_t = \sum_{i=1}^n \ln S_t^i = \ln X_0 + \int_0^t \left(nr - \frac 12 \sum_{i=1}^n \sigma_i^2 \right)\,\mathrm ds + \sum_{i=1}^n \int_0^t \sigma_i \,\mathrm dW_s^i
 \end{equation}
 
 By taking the differential we have
 \begin{equation}
-\mathrm d\ln X_t = \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 \right)\,\mathrm dt + \sum_{i=1}^k \sigma_i \,\mathrm dW_s^i
+\mathrm d\ln X_t = \left(nr - \frac 12 \sum_{i=1}^n \sigma_i^2 \right)\,\mathrm dt + \sum_{i=1}^n \sigma_i \,\mathrm dW_s^i
 \end{equation}
 
 The quadratic variation of the martingale term is
 \begin{equation}
-\left\langle\sum_{i=1}^k \sigma_i W^i, \sum_{j=1}^k \sigma_j W^j\right\rangle_t = \sum_{i=1}^k\sum_{j=1}^k \sigma_i\sigma_j \rho_{ij} t =: \sigma^2_X t
+\left\langle\sum_{i=1}^n \sigma_i W^i, \sum_{j=1}^n \sigma_j W^j\right\rangle_t = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j \rho_{ij} t =: \sigma^2_X t
 \end{equation}
-i.e. $\sigma_X^2 = \sum_{i=1}^k\sum_{j=1}^k \sigma_i\sigma_j\rho_{ij}$. So we can express the second term in terms of a new Brownian motion $\widetilde W$:
+i.e. $\sigma_X^2 = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j\rho_{ij}$. So we can express the second term in terms of a new Brownian motion $\widetilde W$:
 \begin{equation}
-\sum_{i=1}^k \sigma_i \,\mathrm dW_s^i =  \mathrm d\widetilde W_t
+\sum_{i=1}^n \sigma_i \,\mathrm dW_s^i =  \mathrm d\widetilde W_t
 \end{equation}
 
 Going back, we have
 \begin{equation}
-\mathrm d \ln X_t = \left( kr - \frac 12 \sum_{i=1}^k \sigma_i^2\right)\,\mathrm dt + \sigma_X \mathrm d \widetilde W_t
+\mathrm d \ln X_t = \left( nr - \frac 12 \sum_{i=1}^n \sigma_i^2\right)\,\mathrm dt + \sigma_X \mathrm d \widetilde W_t
 \end{equation}
 
 Exponentiating using Ito’s formula gets us
 \begin{equation}
-\mathrm dX_t = X_t\left[\left(kr -\frac12\sum_{i=1}^k\sigma_i^2\right)\mathrm dt + \sigma_X\mathrm d\widetilde W_t\right]
+\mathrm dX_t = X_t\left[\left(nr -\frac12\sum_{i=1}^n\sigma_i^2\right)\mathrm dt + \sigma_X\mathrm d\widetilde W_t\right]
 + \frac12 X_t\sigma_X^2 \mathrm dt
 \end{equation}
 which we can rearrange to get
 \begin{equation}
-\mathrm d X_t = \left(kr - \frac 12 \sum_{i=1}^k \sigma_i^2 + \frac 12 \sigma_X^2\right) X_t \mathrm dt + \sigma _X X_t \,\mathrm d\widetilde W_t
+\mathrm d X_t = \left(nr - \frac 12 \sum_{i=1}^n \sigma_i^2 + \frac 12 \sigma_X^2\right) X_t \mathrm dt + \sigma _X X_t \,\mathrm d\widetilde W_t
 \end{equation}
 which is a geometric Brownian motion with volatility $\sigma_X$ and drift $r_X$ where
 \begin{align}
-    r_X &= kr - \frac 12 \sum_{i=1}^k \sigma_i^2 + \frac 12 \sigma_X^2 \\
-    &= kr + \sum_{i < j} \sigma_i\sigma_j\rho_{ij}
+    r_X &= nr - \frac 12 \sum_{i=1}^n \sigma_i^2 + \frac 12 \sigma_X^2 \\
+    &= nr + \sum_{i < j} \sigma_i\sigma_j\rho_{ij}
 \end{align}
 by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values
 \begin{equation}
@@ -301,7 +307,7 @@ r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qqua
     1 & 0.6 & -0.2 \\ 0.6 & 1 & 0.4 \\-0.2 & 0.4 & 1
 \end{pmatrix}
 \end{equation}
-where $\mathrm R$ is the correlation matrix, we can plot the histogram of final prices in Figure [\ref{fig:gbm_histogram}].
+where $\mathrm R$ is the correlation matrix, we can plot the histogram of final prices in Figure \ref{fig:gbm_histogram}.
 
 \begin{figure}[h]
     \centering
@@ -316,71 +322,66 @@ Therefore, we will be able to price the put option on the product of multiple as
 
 \subsection{PINN formulation for multi-dimensional case}
 
-With the benchmark in place, we now need to derive the variational inequality for the multi-dimensional case where we have $k$ assets. This is a straightforward extension of the one-dimensional case, where the value function $v(t, S^1, \dots, S^k)$ now takes $k+1$ inputs. For notation, we will express the multiple assets as a vector $\mathbf S = (S^1, \dots, S^k)^\top$, so the value function is $v(t, \mathbf S)$. Similarly, the payoff function will be written as $g(S^1, \dots, S^k) = g(\mathbf{S})$.
+With the benchmark in place, we now need to derive the variational inequality for the multi-dimensional case where we have $n$ assets. This is a straightforward extension of the one-dimensional case, where the value function $v(t, S^1, \dots, S^n)$ now takes $n+1$ inputs. For notation, we will express the multiple assets as a vector $S = (S^1, \dots, S^n)^\top$, so the value function is $v(t, S)$. Similarly, the payoff function will be written as $g(S^1, \dots, S^n) = g(S)$.
 
 The value function stays
 \begin{equation}
-    v(t, \mathbf S) = \sup_{\tau \in [t, T]} \mathbb E_t\big[e^{-r(\tau - t)}g(\mathbf S_\tau) \mid \mathbf S_t = \mathbf S\big]
+    v(t, S) = \sup_{\tau \in [t, T]} \mathbb E_t\big[e^{-r(\tau - t)}g(S_\tau) \mid S_t = S\big]
 \end{equation}
 
 Should we choose not to exercise the option at time $t$, we can apply the same argument as in the one-dimensional case: considering a small $h > 0$, we can apply Itô's lemma on multiple dimensions to yield
-
 \begin{equation}
     \begin{aligned}
-        v(t + h, \mathbf S_{t + h}) = v(t, \mathbf S) + \int_t^{t+h} &\bigg(
-            \frac{\partial v}{\partial t}(u, \mathbf S_u) +
-            % \mathcal L_u[v(\mathbf S_u)]
-            \sum_{i=1}^k \frac{\partial v}{\partial S^i}(u, \mathbf S_u) rS_u^i\\
-            &+ \frac 12 \sum_{i=1}^k \sum_{j=1}^k \frac{\partial^2 v}{\partial S^i \partial S^j}(u, \mathbf S_u) \sigma_i \sigma_j \rho_{ij} S_u^i S_u^j
+        v(t + h, S_{t + h}) = v(t, S) + \int_t^{t+h} &\bigg(
+            \frac{\partial v}{\partial t}(u, S_u) +
+            % \mathcal L_u[v(S_u)]
+            \sum_{i=1}^n \frac{\partial v}{\partial S^i}(u, S_u) rS_u^i\\
+            &+ \frac 12 \sum_{i=1}^n \sum_{j=1}^n \frac{\partial^2 v}{\partial S^i \partial S^j}(u, S_u) \sigma_i \sigma_j \rho_{ij} S_u^i S_u^j
         \bigg) \,\mathrm du
     \end{aligned}
 \end{equation}
 
 The steps from here are identical to the one-dimensional case, where we can take expectations of both sides and use the second order Taylor expansion of the exponential to get the variational inequality
-
 \begin{equation}
-    rv(t, \mathbf S) \ge \frac{\partial v}{\partial t}(t, \mathbf S) + \sum_{i=1}^k \frac{\partial v}{\partial S^i}(t, \mathbf S) rS^i + \frac 12 \sum_{i=1}^k \sum_{j=1}^k \frac{\partial^2 v}{\partial S^i \partial S^j}(t, \mathbf S) \sigma_i \sigma_j \rho_{ij} S^i S^j
+    rv(t, S) \ge \frac{\partial v}{\partial t}(t, S) + \sum_{i=1}^n \frac{\partial v}{\partial S^i}(t, S) rS^i + \frac 12 \sum_{i=1}^n \sum_{j=1}^n \frac{\partial^2 v}{\partial S^i \partial S^j}(t, S) \sigma_i \sigma_j \rho_{ij} S^i S^j
 \end{equation}
-
 where to simplify into the PINN framework as in (\ref{eq:pinn_pde}), we can define the operator $\mathcal L$ as
-
 \begin{equation}
-    \mathcal L[v] = rv(t, \mathbf S) - \sum_{i=1}^k \frac{\partial v}{\partial S^i}(t, \mathbf S) rS^i - \frac 12 \sum_{i=1}^k \sum_{j=1}^k \frac{\partial^2 v}{\partial S^i \partial S^j}(t, \mathbf S) \sigma_i \sigma_j \rho_{ij} S^i S^j
+    \mathcal L[v] = rv(t, S) - \sum_{i=1}^n \frac{\partial v}{\partial S^i}(t, S) rS^i - \frac 12 \sum_{i=1}^n \sum_{j=1}^n \frac{\partial^2 v}{\partial S^i \partial S^j}(t, S) \sigma_i \sigma_j \rho_{ij} S^i S^j
 \label{eq:bs_operator_multi}
 \end{equation}
-
 and the problem reduces to the same variational inequality as in the one-dimensional case (\ref{eq:variational_inequality_bs_1d}), with a different operator $\mathcal L$.
 
 To finish the PINN formulation, we need to derive the boundary conditions. The terminal condition is straightforward, as it is given by the payoff function:
 \begin{equation}
-    v(T, \mathbf S) = g(\mathbf S) = \left(K - \prod_{i=1}^k S^i\right)^+
+    v(T, S) = g(S) = \left(K - \prod_{i=1}^n S^i\right)^+
 \end{equation}
 
 For the spatial boundary conditions, we will again truncate the domain to
 \begin{equation}
     \Omega = \left \{
-        \mathbf S=(S^i, \dots, S^k) \in \mathbb R^k: S^i \in [S_\text{min}^i, S_\text{max}^i] \text{ for } i = 1, \dots, k
+        S=(S^i, \dots, S^n) \in \mathbb R^n: S^i \in [S_\text{min}^i, S_\text{max}^i] \text{ for } i = 1, \dots, n
     \right \}
 \end{equation}
 for some sufficiently small and large respective minimum and maximum values for each stock. The lower boundary will be sampled from the set
 \begin{equation}
     \partial_\text{lower} \Omega = \left\{
-        \mathbf S \in \Omega: S^i = S_\text{min}^i \text{ for some } i
+        S \in \Omega: S^i = S_\text{min}^i \text{ for some } i
     \right\}
 \end{equation}
 where we have the boundary condition
 \begin{equation}
-    v(t, \mathbf S) = g(\mathbf S), \qquad \mathbf S \in \partial_\text{lower} \Omega
+    v(t, S) = g(S), \qquad S \in \partial_\text{lower} \Omega
 \end{equation}
 and the upper boundary will be sampled from the set
 \begin{equation}
     \partial_\text{upper} \Omega = \left\{
-    \mathbf S \in \Omega: S^i = S_\text{max}^i \text{ for some } i
+    S \in \Omega: S^i = S_\text{max}^i \text{ for some } i
     \right\}
 \end{equation}
 with the boundary condition
 \begin{equation}
-    v(t, \mathbf S) = 0, \qquad \mathbf S \in \partial_\text{upper} \Omega
+    v(t, S) = 0, \qquad S \in \partial_\text{upper} \Omega
 \end{equation}
 analogous to the one-dimensional case. Of course, this framework could be easily adapted to other payoff functions, where the boundary conditions would change accordingly (but not the variational inequality). But for our benchmark, this is the setup we will use.
 
@@ -430,23 +431,23 @@ In the special case $p=2$, the fractional Sobolev space becomes a Hilbert space,
 
 \subsection{Model}
 
-Suppose we would like to price an option on $k$ assets $\bm S = (S^1, \dots, S^k)$. As asset prices are theoretically unbounded, we truncate it in our model. Thus the domain of the target function can be chosen to be the open set
+Suppose we would like to price an option on $n$ assets $S = (S^1, \dots, S^n)$. As asset prices are theoretically unbounded, we truncate it in our model. Thus the domain of the target function can be chosen to be the open set
 \begin{equation}
-    \Omega = (S_\text{min}^1, S_\text{max}^1) \times \cdots \times (S_\text{min}^k, S_\text{max}^k)
+    \Omega = (S_\text{min}^1, S_\text{max}^1) \times \cdots \times (S_\text{min}^n, S_\text{max}^n)
 \end{equation}
 
 In our study we will make the simplification that $S_\text{min}^i = S_\text{min}^j$ and $S_\text{max}^i = S_\text{max}^j$ for all $i \ne j$, which we can call $a$ and $b$ respectively. Our spaces would consequently have the definitions
 \begin{equation}
-    \Omega = (a, b)^k \qquad \Omega_T = (0, T) \times \Omega \qquad \Sigma = (0, T) \times \partial \Omega
+    \Omega = (a, b)^n \qquad \Omega_T = (0, T) \times \Omega \qquad \Sigma = (0, T) \times \partial \Omega
 \end{equation}
 where $\partial \Omega =: \Gamma$ is the boundary of $\Omega$, a hyper-rectangle. We will use the representation
 \begin{equation}
-    \Gamma = \bigcup_{i=1}^k \big(\{x \in [a, b]^k : x_i = a\} \cup \{x \in [a, b]^k : x_i = b\} \big)
+    \Gamma = \bigcup_{i=1}^n \big(\{x \in [a, b]^n : x_i = a\} \cup \{x \in [a, b]^n : x_i = b\} \big)
 \end{equation}
 which is not the simplest, but it is useful as it is decomposed into faces, which is useful when we would like to use the norm derivative later. Note that in the one-dimensional case, this reduces simply to the points $\Gamma = \{a, b\}$.
 
 \subsection{Loss function}
-Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 \lambda_iJ_i$, each of which ensures regulation of a specific aspect of our function. We will use $k=2$ in our experiments, but the loss construction is applicable for any $k$.
+Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 \lambda_iJ_i$, each of which ensures regulation of a specific aspect of our function. We will use $n=2$ in our experiments, but the loss construction is applicable for any $n$.
 
 \begin{enumerate}
     \item The variational loss, which is as before, controlling the accuracy of our function in the interior of our domain:
@@ -462,23 +463,23 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
         \|d\|^2_{H^1(\Omega), \mu_2} = \|d\|^2_{L^2(\Omega)} + \|\nabla d\|^2_{L^2(\Omega)}
     \end{equation}
     and the derivative
-    \begin{equation}\nabla d = \big(\partial_{x_1}d, \dots, \partial_{x_k}d\big)\end{equation}
+    \begin{equation}\nabla d = \big(\partial_{x_1}d, \dots, \partial_{x_n}d\big)\end{equation}
     \item The Dirichlet trace loss:
     \begin{equation}
         J_3 =\|f(t, x) - g( x)\|^2_{H^{\frac 34, \frac 32}(\Sigma)}
     \end{equation}
     where
     \begin{align}
-        \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{k}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
+        \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{n}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
     \end{align}
-    The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent is equal to $2\theta + k - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $k$ the dimension (so would be $2$ in two dimensions). Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
+    The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent is equal to $2\theta + n - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $n$ the dimension (so would be $2$ in two dimensions). Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
     \item The Neumann trace loss:
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
     where the norm derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ given that $x_{i^\star} \in \{a, b\}$ and $x_{i} \in (a, b)$ for $i \ne i^\star$. Rigorously, we require the sign but in practice this is not necessary, as we will square in the end. The fractional norm is thus written
     \begin{align}
-        \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^k}\,\mathrm d\sigma(x)\mathrm d(y)\mathrm dt
+        \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d(y)\mathrm dt
     \end{align}
     because $H^{0, 0} = L^2$.
 \end{enumerate}
@@ -598,17 +599,17 @@ Overall this method is promising, but it may require more careful training and t
 
 \subsection{Multi-dimensional PINN}
 
-We move onto training a PINN on multiple assets, for simplicity and visualisation purposes, we will train a two-dimensional PINN on the put option on the product of two assets, with parameters $K=1, r=0.1, T=1$ with stock volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will be truncated to $[0, 3]$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S_1$-$S_2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence is not as significant when we take relative error into consideration.
+We move onto training a PINN on multiple assets, for simplicity and visualisation purposes, we will train a two-dimensional PINN on the put option on the product of two assets, with parameters $K=1, r=0.1, T=1$ with stock volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will be truncated to $[0, 3]$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence is not as significant when we take relative error into consideration.
 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_nd_price_comparison.png}
-    \caption[PINN vs tree: $S_1$-$S_2$ heatmap at $t=0$]{PINN vs tree price comparison heatmap across $S_1$-$S_2$ cross section at $t=0$}
+    \caption[PINN vs tree: $S^1$-$S^2$ heatmap at $t=0$]{PINN vs tree price comparison heatmap across $S^1$-$S^2$ cross section at $t=0$}
     \label{fig:bs_pinn_nd_price_comparison}
 \end{figure}
 
 
-We can zoom in on the $S_1\times S_2 = K$ cross section that we can see clearly in the heatmap, and plot the price along this cross section across time, shown in the left figure of Figure \ref{fig:bs_pinn_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and a model simplication we made. 
+We can zoom in on the $S^1\times S^2 = K$ cross section that we can see clearly in the heatmap, and plot the price along this cross section across time, shown in the left figure of Figure \ref{fig:bs_pinn_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and a model simplication we made. 
 
 \begin{table}[h]
     \centering
@@ -632,7 +633,7 @@ Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative e
     \label{fig:bs_pinn_nd_price_comparison_line}
 \end{figure}
 
-We can also take the cross section at $S_1 = S_2$ to evaluate the term structure of the option price, as shown in the right figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN has managed to capture the theta decay of the option price, but the consistent bias of the price is evident here and the model struggles to capture the more rapid theta decay as we approach maturity. This may be due to the fact gamma approaches a dirac delta function at the money as we approach maturity, whose sharp feature is difficult for the model to capture when our samples are sparser in the expanded domain.
+We can also take the cross section at $S^1 = S^2$ to evaluate the term structure of the option price, as shown in the right figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN has managed to capture the theta decay of the option price, but the consistent bias of the price is evident here and the model struggles to capture the more rapid theta decay as we approach maturity. This may be due to the fact gamma approaches a dirac delta function at the money as we approach maturity, whose sharp feature is difficult for the model to capture when our samples are sparser in the expanded domain.
 
 \subsection{Free boundary}
 
@@ -666,21 +667,21 @@ We can see that the shape roughly corresponds to the free boundaries we have see
 
 \subsubsection{Two-dimensional case}
 
-Using the same methodology as the one-dimensional case, we plot our estimated free boundaries in Figure \ref{fig:bs_nd_continuation_probs}. This is done on the $S_1$-$S_2$ cross section at $t=0$, with the additional reference line of $S_1 \times S_2 = K$, which should be a continuation region as it is at the money and is worthless under immediate exercise.
+Using the same methodology as the one-dimensional case, we plot our estimated free boundaries in Figure \ref{fig:bs_nd_continuation_probs}. This is done on the $S^1$-$S^2$ cross section at $t=0$, with the additional reference line of $S^1 \times S^2 = K$, which should be a continuation region as it is at the money and is worthless under immediate exercise.
 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_nd_continuation_probs.png}
-    \caption[2D continuation probabilities: $S_1\times S_2=K$]{Estimated continuation probabilities for 2-dimensional case with $S_1 \times S_2 = K$ reference line}
+    \caption[2D continuation probabilities: $S^1\times S^2=K$]{Estimated continuation probabilities for 2-dimensional case with $S^1 \times S^2 = K$ reference line}
     \label{fig:bs_nd_continuation_probs}
 \end{figure}
 
-We can see that both methods of estimating the continuation probabilities yield similar shapes to the binomial tree benchmark, with the Gaussian method being noisier than the sigmoid method. We can further examine the continuation probabilities over time along the $S_1 = S_2$ cross section, varying across time this time. This is shown in Figure \ref{fig:bs_nd_continuation_probs_time}, where we can see that the PINN has successfully captured the structure of the free boundary across time where $S_1 = S_2$.
+We can see that both methods of estimating the continuation probabilities yield similar shapes to the binomial tree benchmark, with the Gaussian method being noisier than the sigmoid method. We can further examine the continuation probabilities over time along the $S^1 = S^2$ cross section, varying across time this time. This is shown in Figure \ref{fig:bs_nd_continuation_probs_time}, where we can see that the PINN has successfully captured the structure of the free boundary across time where $S^1 = S^2$.
 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_nd_continuation_probs_time.png}
-    \caption[2D continuation probabilities: $S_1 = S_2$ slice]{Estimated continuation probabilities for 2-dimensional case on $S_1 = S_2$ cross section across time}
+    \caption[2D continuation probabilities: $S^1 = S^2$ slice]{Estimated continuation probabilities for 2-dimensional case on $S^1 = S^2$ cross section across time}
     \label{fig:bs_nd_continuation_probs_time}
 \end{figure}
 
@@ -688,35 +689,35 @@ We can see that both methods of estimating the continuation probabilities yield 
 \section{Minimum of two assets}
 To demonstrate the flexibility of our PINN framework, we will now shift our focus onto different payoffs on multiple assets as an extension. \cite{detemple2005american} explores a variety of different payoffs for American options on multiple assets, but that with a particularly interesting free boundary is the one of the call on the maximum of two assets. We will deal with the analogous case for the put on the minimum of two assets.
 
-To price this, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the minimum of two assets, the payoff function is given by $g(S_1, S_2) = (K - \min(S_1, S_2))^+$, and thus we must have the terminal boundary condition
+To price this, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the minimum of two assets, the payoff function is given by $g(S^1, S^2) = (K - \min(S^1, S^2))^+$, and thus we must have the terminal boundary condition
 \begin{equation}
-    v(T, S_1, S_2) = (K - \min(S_1, S_2))^+
+    v(T, S^1, S^2) = (K - \min(S^1, S^2))^+
 \end{equation}
-When one of the assets is very high (i.e., $S_1 \to \infty$ or $S_2 \to \infty$), the minimum of the two assets is just the other asset, and thus we have
+When one of the assets is very high (i.e., $S^1 \to \infty$ or $S^2 \to \infty$), the minimum of the two assets is just the other asset, and thus we have
 \begin{equation}
-    v(t, \infty, S_2) = v_\text{1D}(t, S_2) \qquad v(t, S_1, \infty) = v_\text{1D}(t, S_1)
+    v(t, \infty, S^2) = v_\text{1D}(t, S^2) \qquad v(t, S^1, \infty) = v_\text{1D}(t, S^1)
 \end{equation}
 where $v_\text{1D}$ is the price of the one-dimensional American put option on a single asset, which we can compute with the different methods we have already explored. Finally, when one of the assets is worthless, the minimum of the two assets is just the worthless asset, and hence the value will be $K$ as we should exercise immediately. Thus, the boundary condition would be
 \begin{equation}
-    v(t, S_1, S_2) = K \qquad \text{ for } S_1 = 0 \text{ or } S_2 = 0
+    v(t, S^1, S^2) = K \qquad \text{ for } S^1 = 0 \text{ or } S^2 = 0
 \end{equation}
 Together, these boundary conditions (alongside the variational inequality which remains the same with the operator $\mathcal L$ as in \ref{eq:bs_operator_multi}) form the PINN framework which we can train.
 
-In Figure \ref{fig:bs_min_heatmap}, we can see that our PINN yields results that are in line with our expectations. We expect to see some symmetry along the $S_1 = S_2$ line as the payoff is symmetric in the two assets. I introduce some asymmetry by training the network where $S_2$ has a higher constant volatility than $S_1$.
+In Figure \ref{fig:bs_min_heatmap}, we can see that our PINN yields results that are in line with our expectations. We expect to see some symmetry along the $S^1 = S^2$ line as the payoff is symmetric in the two assets. I introduce some asymmetry by training the network where $S^2$ has a higher constant volatility than $S^1$.
 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_min_heatmap.png}
-    \caption[Put on minimum of two assets heatmap]{Heatmap for the put on the minimum of two assets across the $S_1$-$S_2$ cross section at $t=0$, and the $S_1$-$t$ cross section with $S_1=S_2$}
+    \caption[Put on minimum of two assets heatmap]{Heatmap for the put on the minimum of two assets across the $S^1$-$S^2$ cross section at $t=0$, and the $S^1$-$t$ cross section with $S^1=S^2$}
     \label{fig:bs_min_heatmap}
 \end{figure}
 
-We can also see that the term structure is somewhat captured by the contour lines of the right figure of Figure \ref{fig:bs_min_heatmap}, where the price decays as we approach maturity. I train the model with a high volatility of $(\sigma_1, \sigma_2) = (0.4, 0.5)$ to make the theta decay more significant. This also gives us a clearer evolution of the free boundary, which we see in Figure \ref{fig:bs_min_continuation_probs}, where we can see that not only the continuation region is a mirror image of the theoretical result described in \cite{detemple2005american} as we would expect, but the PINN also captures the shrinking nature of the continuation region as we approach maturity, consistent with the intuition that the option loses time value and the region would close entirely, leaving only the box $\{(S_1, S_2) : S_1 \ge K, S_2 \ge K\}$ as the continuation region at maturity.
+We can also see that the term structure is somewhat captured by the contour lines of the right figure of Figure \ref{fig:bs_min_heatmap}, where the price decays as we approach maturity. I train the model with a high volatility of $(\sigma_1, \sigma_2) = (0.4, 0.5)$ to make the theta decay more significant. This also gives us a clearer evolution of the free boundary, which we see in Figure \ref{fig:bs_min_continuation_probs}, where we can see that not only the continuation region is a mirror image of the theoretical result described in \cite{detemple2005american} as we would expect, but the PINN also captures the shrinking nature of the continuation region as we approach maturity, consistent with the intuition that the option loses time value and the region would close entirely, leaving only the box $\{(S^1, S^2) : S^1 \ge K, S^2 \ge K\}$ as the continuation region at maturity.
 
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_min_continuation_prob.png}
-    \caption[Put on minimum of two assets continuation probabilities]{Continuation probabilities for the put on the minimum of two assets across the $S_1$-$S_2$ cross section with varying $t$}
+    \caption[Put on minimum of two assets continuation probabilities]{Continuation probabilities for the put on the minimum of two assets across the $S^1$-$S^2$ cross section with varying $t$}
     \label{fig:bs_min_continuation_probs}
 \end{figure}
 
