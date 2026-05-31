@@ -565,7 +565,7 @@ We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluat
     \label{tab:bs_pinn_atm_price}
 \end{table}
 
-We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across different training epochs, as shown in Figure \ref{fig:bs_1d_train_atm_price}. We can see that the price spikes above the tree price and then settles around the marked benchmark tree price but interestingly approaches it from below, confirming our suspicion that the PINN price is biased against the tree price. That said, the tree price is not guaranteed to be the ground truth.
+We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across different training epochs, as shown in Figure \ref{fig:bs_1d_train_atm_price}. We can see that the price spikes above the tree price and then settles around the marked benchmark tree price, approaching it from above. This suggests either that the PINN price would eventually converge to the tree price with more training, or that there is some bias in the PINN approximation that prevents it from getting closer to the tree price, which we are taking to be the ground truth.
 
 \begin{figure}[ht!]
     \centering
