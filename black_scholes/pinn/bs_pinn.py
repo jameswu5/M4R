@@ -97,9 +97,10 @@ class BlackScholesPINN(PINN):
             self.optimizer.step()
             self.scheduler.step()
 
-            self.atm_price.append(
-                self.model(torch.tensor([[0.0]]), torch.tensor([[self.K]]))
-            ).item()
+            with torch.no_grad():
+                self.atm_price.append(
+                    self.model(torch.tensor([[0.0]]), torch.tensor([[self.K]])).item()
+                )
 
             # Compute validation loss for early stopping
             variational_loss_val = self.__interior_loss(batch_size, t=val_t_interior, S=val_S_interior)
