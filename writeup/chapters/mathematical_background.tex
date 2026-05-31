@@ -6,7 +6,7 @@ We will first assemble the necessary mathematical background to understand the o
 
 \subsection{Probabilistic Setup}
 
-The pricing problem is inherently probabilistic, as we are uncertain about the future evolution of the underlying asset price, thus requiring a rigorous mathematical framework to model this uncertainty. The formalisation of the underlying randomness in our model for the market will be done through probability spaces, and the arrival of information in the market through time through filtrations.
+The option pricing problem is inherently probabilistic, as we are uncertain about the future evolution of the underlying asset price. Therefore, we need a rigorous mathematical framework to model this uncertainty. The formalisation of the underlying randomness in our model for the market will be done through \textit{probability spaces}, and the arrival of information in the market through time through \textit{filtrations}.
 
 \begin{definition}[Probability space]
     A \textit{probability space} is a triple $(\Omega, \mathcal F, \mathbb P)$ where $\Omega$ is the sample space, $\mathcal F$ is a $\sigma$-algebra on $\Omega$, and $\mathbb P: \mathcal F \to [0, 1]$ is a probability measure such that $\mathbb P(\Omega) = 1$.
@@ -16,7 +16,7 @@ The pricing problem is inherently probabilistic, as we are uncertain about the f
     A \textit{filtration} on the probability space $(\Omega, \mathcal F, \mathbb P)$ is a non-decreasing family $(\mathcal F_t)_{t \ge 0}$ of sub-$\sigma$-algebras of $\mathcal F$, that is to say, $\mathcal F_s \subseteq \mathcal F_t \subseteq \mathcal F$ for all $s \le t$. The quadruple $(\Omega, \mathcal F, \{\mathcal F_t\}_{t \ge 0}, \mathbb P)$ is called a \textit{filtered probability space}.
 \end{definition}
 
-We will also define a Martingale, which formalises the idea that future expectations of a process are equal to the current value, which is a key concept in the risk-neutral pricing framework.
+We will also define a Martingale, which formalises the idea that future expectations of a process are equal to the current value (there is no drift in the process), which is a key concept in the risk-neutral pricing framework.
 
 \begin{definition}[Martingale]
     A process $M = (M_t)_{t \ge 0}$ is a \textit{martingale} with respect to the filtration $\{\mathcal F_t\}$ and the probability measure $\mathbb P$ if $\mathbb E[M_t \mid \mathcal F_s] = M_s$ for all $0 \le s \le t$.
@@ -244,7 +244,7 @@ An issue with tree methods is that the number of states $M_n$ can grow exponenti
 \subsection{Motivation}
 Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent from the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality. Traditional methods such as finite difference methods require discretisation of the domain and the number of grid points (and hence algorithm complexity) scales exponentially $\mathcal O(N^d)$ with the dimension $d$ of the problem.
 
-We can attempt a neural network solution to the PDEs, as neural networks are known to be universal approximators. That is, suppose we have the class of functions $\mathcal F$ over a compact set $S$ that can be represented by a neural network with a given architecture, with a continuous target function $f^\star$ that we would like to approximate. Then for any target accuracy $\epsilon > 0$, there exists a function $f \in \mathcal F$ such that
+We can attempt a neural network solution to the PDEs, as neural networks are known to be universal approximators. That is, suppose we have the class of functions $\mathscr F$ over a compact set $S$ that can be represented by a neural network with a given architecture, with a continuous target function $f^\star$ that we would like to approximate. Then for any target accuracy $\epsilon > 0$, there exists a function $f \in \mathscr F$ such that
 \begin{equation}
     \sup_{x \in S} |f(x) - f^\star(x)| \le \epsilon
 \end{equation}
@@ -252,7 +252,7 @@ If we have a squashing activation function $\Psi(\cdot)$ that is non-decreasing 
 \begin{equation}
     \Psi(-\infty) = 0, \quad \Psi(\infty) = 1
 \end{equation}
-then the class of functions $\mathcal F$ that can be represented by a neural network with one hidden layer and activation function $\Psi$ is dense in the space of continuous functions on $S$ and thus is a universal approximator \cite{hornik1989multilayer}.
+then the class of functions $\mathscr F$ that can be represented by a neural network with one hidden layer and activation function $\Psi$ is dense in the space of continuous functions on $S$ and thus is a universal approximator \cite{hornik1989multilayer}.
 
 Since the option price function is continuous in the time-asset price domain, we can use a neural network to find an approximation. This is favourable because the time complexity scales with the number of parameters, which is not exponential. To do this, we will use the framework of physics-informed neural networks (PINNs) to solve the PDEs, which have been shown to be effective for solving high-dimensional PDEs \cite{raissi2019physics}, by avoiding mesh construction and leveraging the interpolation capability of neural networks \cite{hu2024tackling}. The loss function of the neural network is designed to penalise deviations from the PDE as well as deviations from the boundary conditions. By training the neural network to minimise this loss function, we can obtain an approximation to the solution of the PDE. This method has been applied to option pricing problems in the literature, such as in \cite{dhiman2023physics} for the Black-Scholes model, but we will look to apply it to more complex models such as the Heston model as well as to options on multiple assets. 
 
