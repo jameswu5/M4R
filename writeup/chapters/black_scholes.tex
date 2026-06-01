@@ -1,6 +1,6 @@
 \chapter{Black-Scholes Model}
 
-The Black-Scholes model \cite{black1973pricing} is the fundamental model for option pricing, which assumes that the underlying asset price follows a geometric Brownian motion. As with the market introduced in section (\ref{sec:risk-neutral-pricing}), the market consists of two underlying assets:
+The Black-Scholes model \cite{black1973pricing} is the fundamental model for option pricing, which assumes that the underlying asset price follows a geometric Brownian motion. As with the market introduced in Section \ref{sec:risk-neutral-pricing}, the market consists of two underlying assets:
 
 \begin{itemize}
     \item The risk-free asset, described by a deterministic function
@@ -38,9 +38,9 @@ We use the solution of geometric brownian motion (\ref{eq:gbm_closed_form}) to n
 \begin{equation}
     S_T = S_0 \exp \left( (r-\tfrac 12 \sigma^2)T + \sigma W_T^{\mathbb Q}\right)
 \end{equation}
-under the risk-neutral measure $\mathbb Q$, noting we have replaced the drift $\mu$ with the risk-free rate $r$. The Brownian motion is essentially the standard normal variable $Z \sim \mathcal N(0, 1)$ so we have
+under the risk-neutral measure $\mathbb Q$, having replaced the drift $\mu$ with the risk-free rate $r$. The Brownian motion $W_T^{\mathbb Q}$ has zero mean and variance $T$, so it can be written as $\sqrt T Z$, where we have the standard normal variable $Z \sim \mathcal N(0, 1)$. Therefore, $S_T$ becomes
 \begin{equation}
-    S_T = S_0 \exp \left( (r-\tfrac 12 \sigma^2)T + \sigma Z\right)
+    S_T = S_0 \exp \left( (r-\tfrac 12 \sigma^2)T + \sigma \sqrt{T} Z\right)
 \end{equation}
 
 This can be plugged into the risk-neutral pricing formula (\ref{eq:rnpf_black_scholes}): the exercise event $\{S_T > K\}$ is equivalent to $\{Z > -d_2\}$ where
@@ -50,7 +50,7 @@ This can be plugged into the risk-neutral pricing formula (\ref{eq:rnpf_black_sc
 
 The expectation (\ref{eq:rnpf_black_scholes}) can be split
 \begin{align}
-    v(0, S) &= e^{-rT} \mathbb E^\mathbb Q[(S_T - K)^+] \\
+    v(0, S_0) &= e^{-rT} \mathbb E^\mathbb Q[(S_T - K)^+] \\
     &= e^{-rT} \mathbb E^\mathbb Q[(S_T - K) \boldsymbol{1}_{\{S_T > K\}}] \\
     &= e^{-rT} \mathbb E^\mathbb Q[S_T \boldsymbol{1}_{\{S_T > K\}}] - Ke^{-rT} \mathbb Q(S_T > K)
 \end{align}
@@ -62,7 +62,7 @@ The second probability is immediate as we see $\mathbb Q(S_T > K) = \mathbb Q(Z 
 
 \section{Binomial Tree Method}
 
-We can use the binomial discrete-time model to price both European and American options with the tree method. This model uses the simplification that the stock price can only move to one of two possible new prices in a time step. To avoid explosion of nodes, we will only consider recombinant trees so that the algorithm performs with quadratic time complexity. We will verify the approximated solution's validity against the closed-form formula for European options, and use its American variant as a benchmark for later methods.
+We can use the binomial discrete-time model to price both European and American options with the tree method. This model uses the simplification that the stock price can only move to one of two possible new prices in a time step. To avoid explosion of nodes, we will only consider recombinant trees so that the algorithm performs with quadratic time complexity (look back at Figure \ref{fig:recombinant_trees} for an illustration of recombinant trees). We will verify the approximated solution's validity against the closed-form formula for European options, and use its American variant as a benchmark for later methods.
 
 To formalise the tree construction, let’s fix a time horizon $T > 0$. For some depth $n \ge 1$, divide the interval $[0, T]$ into $n$ even steps each of length $\Delta t = T/n$. Our asset $S_t$ will follow a multiplicative binomial evolution:
 \begin{equation}
@@ -142,7 +142,7 @@ The root value $v_0(0)$ would be the arbitrage-free option price.
 
 \section{Physics-Informed Neural Networks}
 
-In order to use the framework of PINNs as detailed in section \ref{sec:pinns}, we need to first derive the PDE satisfied by the option price, as well as the boundary conditions. We will first work with the one-dimensional case, then discuss the extension to the multi-dimensional case and how we could build a benchmark to against which we evaluate our results.
+In order to use the framework of PINNs as detailed in Section \ref{sec:pinns}, we need to first derive the PDE satisfied by the option price, as well as the boundary conditions. We will first work with the one-dimensional case, then discuss the extension to the multi-dimensional case and how we could build a benchmark to against which we evaluate our results.
 
 \subsection{PINN formulation for one-dimensional case}
 

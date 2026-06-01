@@ -206,7 +206,7 @@ As for selecting our mesh sizes, we will use the result that if we have
 \end{equation}
 then the process represented in our Heston tree converges weakly to the original process $(V, Z)$ \cite{vellekoop2009tree}. Note here we denote $\Delta v_k$ from before as $\Delta v_k^n$ to emphasize we have split our maturity $T$ into $n$ steps, and similarly for $\Delta z_k^n$.
 
-Bearing this in mind, a resolution of $n=100, m_v=300, m_z=600$ allows our tree to faithfully reproduce the closed-form solution, which are presented in the numerical results in section \ref{sec:heston_tree_results}.
+Bearing this in mind, a resolution of $n=100, m_v=300, m_z=600$ allows our tree to faithfully reproduce the closed-form solution, which are presented in the numerical results in Section \ref{sec:heston_tree_results}.
 
 \section{PINN Solution}
 
@@ -297,7 +297,7 @@ We have derived the variational equation for the European option for simplicity,
 
 \subsection{PINN formulation}
 
-We can fit the variational equation (\ref{eq:heston_variational_inequality}) into the PINN framework established in section \ref{sec:pinns} which will serve as the PDE loss (\ref{eq:pinn_pde}), and all that is left is to set up the loss function and the relevant boundary conditions. It will be very similar to the Black-Scholes case, but as we have an additional dimension $V$ for the variance, we will need additional boundary conditions to ensure regularity in the variance dimension as well. These boundary conditions will be inspired by those given for the European call option in \cite{heston1993closed}, but we will adapt them in our study, as they exhibit different behaviour for American put options.
+We can fit the variational equation (\ref{eq:heston_variational_inequality}) into the PINN framework established in Section \ref{sec:pinns} which will serve as the PDE loss (\ref{eq:pinn_pde}), and all that is left is to set up the loss function and the relevant boundary conditions. It will be very similar to the Black-Scholes case, but as we have an additional dimension $V$ for the variance, we will need additional boundary conditions to ensure regularity in the variance dimension as well. These boundary conditions will be inspired by those given for the European call option in \cite{heston1993closed}, but we will adapt them in our study, as they exhibit different behaviour for American put options.
 
 \begin{enumerate}
     \item $t \to T$: the value at expiry is just the intrinsic value, or the payoff of the put option:

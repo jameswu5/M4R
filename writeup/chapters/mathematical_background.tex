@@ -261,7 +261,14 @@ With these transition probabilities, we can compute the option value at time $t_
 
 where we take the maximum of the payoff and the discounted expected future price to account for early exercise for the American option. This maximum operator can easily be lifted for all time steps for European options, or only imposed on certain time steps for Bermudan options, leaving the tree method a very flexible method. This backwards induction is applied iteratively starting from the terminal condition at time $t_N = T$ to compute the option value at time $t_0 = 0$.
 
-An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps $N$, leading to a very computationally expensive algorithm. To mitigate this, we use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables or if we wish to extend it to options operating on multiple assets, but its reliability and interpretability make it a good benchmark for simpler models.
+An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps $N$, leading to a very computationally expensive algorithm. To mitigate this, we use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Figure \ref{fig:recombinant_trees} illustrates the difference between non-recombinant and recombinant trees. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables or if we wish to extend it to options operating on multiple assets, but its reliability and interpretability make it a good benchmark for simpler models.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/mathematical_background/recombinant_trees.png}
+    \caption[Binomial tree illustration]{Non-recombinant trees vs recombinant trees. The number of nodes in non-recombinant trees scales exponentially with the number of time steps.}
+    \label{fig:recombinant_trees}
+\end{figure}
 
 \section{Physics-Informed Neural Networks}
 \label{sec:pinns}
