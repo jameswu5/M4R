@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import brentq
 from scipy.stats import norm
 
 
@@ -70,9 +71,16 @@ def theta(S, K, r, sigma, T, option_type="put"):
     raise ValueError("option_type must be 'call' or 'put'")
 
 
-def implied_volatility(price, S, K, r, T, option_type="put", tol=1e-6, max_iterations=1000):
+def implied_volatility(price, S, K, r, T, option_type="put", tol=1e-6,
+                       sigma_lo=1e-6, sigma_hi=10.0, max_iterations=1000):
     """
-    Implied volatility by Newton-Raphson inversion of the Black-Scholes formula.
+    Implied volatility by Brent inversion of the Black-Scholes formula.
+
+    Brent's method is derivative-free and bracketed, so it cannot diverge or
+    drive sigma negative the way an unguarded Newton-Raphson step can when vega
+    is small (e.g. deep in/out-of-the-money strikes in the wings of a smile).
+    Prices outside the no-arbitrage bounds have no implied volatility and return
+    NaN.
 
     Parameters
     ----------
@@ -89,27 +97,27 @@ def implied_volatility(price, S, K, r, T, option_type="put", tol=1e-6, max_itera
     option_type : {'put', 'call'}, optional
         Type of option (default 'put').
     tol : float, optional
-        Convergence tolerance on the price residual (default 1e-6).
+        Convergence tolerance on sigma (default 1e-6).
+    sigma_lo, sigma_hi : float, optional
+        Bracket for the search; volatility is assumed to lie in this range.
     max_iterations : int, optional
-        Maximum Newton-Raphson iterations (default 1000).
+        Maximum Brent iterations (default 1000).
 
     Returns
     -------
     sigma : float
-        Implied volatility (annualised).
+        Implied volatility (annualised), or NaN if no solution exists in the
+        bracket (e.g. the price violates the no-arbitrage bounds).
     """
-    sigma = 0.2
-    for _ in range(max_iterations):
-        price_estimate = black_scholes(S, K, r, sigma, T, option_type)
-        vega = (S * norm.pdf((np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))) * np.sqrt(T))
+    def objective(sigma):
+        return black_scholes(S, K, r, sigma, T, option_type) - price
 
-        price_diff = price_estimate - price
-        if abs(price_diff) < tol:
-            return sigma
+    # Brent requires a sign change across the bracket; otherwise the price lies
+    # outside the achievable range and no implied volatility exists.
+    if objective(sigma_lo) * objective(sigma_hi) > 0:
+        return np.nan
 
-        sigma -= price_diff / vega
-
-    return np.nan  # Return NaN if convergence fails
+    return brentq(objective, sigma_lo, sigma_hi, xtol=tol, maxiter=max_iterations)
 
 
 class BlackScholes:
