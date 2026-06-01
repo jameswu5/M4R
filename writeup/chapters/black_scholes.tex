@@ -408,10 +408,12 @@ The fractional Sobolev space $W^{s, p}(\Omega)$ is defined with the fractional e
     W^{s, p}(\Omega) := \left\{u \in L^p(\Omega) : \frac{|u(x) - u(y)|}{|x-y|^{\frac np + s}} \in L^p(\Omega \times \Omega)\right\},
 \end{equation}
 which can be interpreted as an intermediate Banach space between $L^p(\Omega)$ and $W^{1, p}(\Omega)$, endowed with the norm
-\begin{align}
-    \|u\|^p_{W^{s, p}(\Omega)} &= \|u\|^p_{L^p(\Omega)} + [u]^p_{W^{s, p}(\Omega)} \\
-    &= \int_\Omega |u|^p \,\mathrm dx + \int_\Omega \int_\Omega \frac{|u(x)-u(y)|^p}{|x-y|^{n+sp}}\,\mathrm dx \, \mathrm dy,
-\end{align}
+\begin{equation}
+    \begin{aligned}
+        \|u\|^p_{W^{s, p}(\Omega)} &= \|u\|^p_{L^p(\Omega)} + [u]^p_{W^{s, p}(\Omega)} \\
+        &= \int_\Omega |u|^p \,\mathrm dx + \int_\Omega \int_\Omega \frac{|u(x)-u(y)|^p}{|x-y|^{n+sp}}\,\mathrm dx \, \mathrm dy,
+    \end{aligned}
+\end{equation}
 where we have used the \textit{Gagliardo seminorm} of $u$:
 \begin{equation}
     [u]_{W^{s, p}(\Omega)} := \left( \int_\Omega \int_\Omega \frac{|u(x)-u(y)|^p}{|x-y|^{n+sp}}\,\mathrm dx \, \mathrm dy\right)^{\frac 1p}.
@@ -469,18 +471,22 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
         J_3 =\|f(t, x) - g( x)\|^2_{H^{\frac 34, \frac 32}(\Sigma)}
     \end{equation}
     where
-    \begin{align}
-        \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{n}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
-    \end{align}
+    \begin{equation}
+        \begin{aligned}
+            \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{n}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
+        \end{aligned}
+    \end{equation}
     The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent is equal to $2\theta + n - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $n$ the dimension (so would be $2$ in two dimensions). Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
-    \item The Neumann trace loss:
+        \item The Neumann trace loss:
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
     where the norm derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ given that $x_{i^\star} \in \{a, b\}$ and $x_{i} \in (a, b)$ for $i \ne i^\star$. Rigorously, we require the sign but in practice this is not necessary, as we will square in the end. The fractional norm is thus written
-    \begin{align}
-        \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d(y)\mathrm dt
-    \end{align}
+    \begin{equation}
+        \begin{aligned}
+            \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d(y)\mathrm dt
+        \end{aligned}
+    \end{equation}
     because $H^{0, 0} = L^2$.
 \end{enumerate}
 

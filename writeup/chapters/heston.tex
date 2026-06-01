@@ -113,10 +113,10 @@ With these boundaries, we have the grid spacing given our mesh sizes $m_z, m_v \
     \Delta v_k &= (v_k^\text{max} - v_k^\text{min}) / m_v
 \end{align}
 and the gridpoints:
-$$
+\begin{equation}
     \hat{\mathcal S}_k = \left\{\left(
     v_k^\text{min} + i\Delta v_k, z_k^\text{min} + j\Delta z_k \right) \Bigm | i \in \{0, \dots, m_v\}, j \in \{0, \dots, m_z\}\right\}
-$$
+\end{equation}
 
 We will now define the discretised process $(\tilde V, \tilde Z)$ on the grid space $\hat {\mathcal S}_k$. This will involve the Euler scheme functions
 \begin{align}
@@ -153,12 +153,14 @@ The joint probabilities \cite{vellekoop2009tree} for $Y_{k+1}$ is given by, for 
     &= \frac 14 \left(1 + i_1i_2\rho\right)\times c_{i_3i_4}^{\hat{\mathcal S}_{k+1}} \left(\nu (i_1, \tilde V_k, \tilde Z_k), \zeta (i_2, \tilde V_k, \tilde Z_k)\right)
 \end{align}
 Here we have used the interpolation quantity \cite{press2007numerical}, where on a general grid set $\mathcal S=S_v \times S_z \subset \mathbb R^2$ we have 
-$$c_{i_3i_4}^{\mathcal S}(v, z) = \begin{cases}
-    (1-\tilde v)(1-\tilde z) & (i_3, i_4) = (0, 0) \\
-    \tilde v(1-\tilde z) & (i_3, i_4) = (1, 0) \\
-    (1-\tilde v)\tilde z & (i_3, i_4) = (0, 1) \\
-    \tilde v \tilde z & (i_3, i_4) = (1, 1) \\
-\end{cases}$$
+\begin{equation}
+    c_{i_3i_4}^{\mathcal S}(v, z) = \begin{cases}
+        (1-\tilde v)(1-\tilde z) & (i_3, i_4) = (0, 0) \\
+        \tilde v(1-\tilde z) & (i_3, i_4) = (1, 0) \\
+        (1-\tilde v)\tilde z & (i_3, i_4) = (0, 1) \\
+        \tilde v \tilde z & (i_3, i_4) = (1, 1) \\
+\end{cases}
+\end{equation}
 where we have the difference terms
 \begin{align}
     \tilde v &= \frac{v - \phi_{0}^{\mathcal S_v}(v)}{\phi_{1}^{\mathcal S_v}(v) - \phi_{0}^{\mathcal S_v}(v)} = \frac{v - \phi_{0}^{\mathcal S_v}(v)}{\Delta v_k}\\
@@ -204,7 +206,7 @@ Bearing this in mind, a resolution of $n=100, m_v=300, m_z=600$ allows our tree 
 
 We would now like to derive the variational equation for options on assets under the Heston model. Note that for a $d$-dimensional general process $X_t \in \mathbb R^d$ solving the Itô SDE
 \begin{equation}
-\mathrm dX_t = b(X_t) \mathrm dt + \sigma(X_t)\mathrm d \boldsymbol W_t
+\mathrm dX_t = b(X_t) \mathrm dt + \sigma(X_t)\mathrm d W_t
 \end{equation}
 where we have the drift $b:\mathbb R^d \to \mathbb R^d$, the volatility $\sigma:\mathbb R^d \to \mathbb R^{d \times m}$ and the $m$-dimensional Brownian motion $W_t$. On second-order smooth functions $f \in C^2(\mathbb R^d)$, the infinitesimal generator $\mathcal L$ is defined as \cite{bressloff2025sde}
 \begin{equation}
@@ -469,14 +471,16 @@ which is written in block form: $\sqrt V \text{diag}(S)\text{diag}(\sigma)L$ is 
 \end{equation}
 
 Therefore, by plugging it into the formula (\ref{eq:generator_general}), our generator can be expressed to be
-\begin{align}
-    \mathcal L[f] &=
-        \sum_{i=1}^n rS^i \frac{\partial f}{\partial S^i}
-        + \kappa(\theta - V)\frac{\partial f}{\partial V}
-        + \frac 12 V \sum_{i=1}^n\sum_{j=1}^n \sigma_i \sigma_j \Sigma_{ij} S^i S^j \frac{\partial^2f}{\partial S^i\partial S^j} \\
-        &+ \frac 12 \bar\sigma^2 V \frac{\partial^2f}{\partial V^2}
-        + \sum_{i=1}^n \bar\sigma \sigma_i (L \rho)_i V S^i \frac{\partial^2f}{\partial S^i\partial V}
-\end{align}
+\begin{equation}
+    \begin{aligned}
+        \mathcal L[f] &=
+            \sum_{i=1}^n rS^i \frac{\partial f}{\partial S^i}
+            + \kappa(\theta - V)\frac{\partial f}{\partial V}
+            + \frac 12 V \sum_{i=1}^n\sum_{j=1}^n \sigma_i \sigma_j \Sigma_{ij} S^i S^j \frac{\partial^2f}{\partial S^i\partial S^j} \\
+            &+ \frac 12 \bar\sigma^2 V \frac{\partial^2f}{\partial V^2}
+            + \sum_{i=1}^n \bar\sigma \sigma_i (L \rho)_i V S^i \frac{\partial^2f}{\partial S^i\partial V}
+    \end{aligned}
+\end{equation}
 
 For any payoff $g(\cdot)$, we have, as before, the variational equation for an European option being
 \begin{equation}
