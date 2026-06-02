@@ -579,7 +579,7 @@ We can see that the PINN does indeed capture well the general shape and behaviou
 
 \subsection{Multi-asset PINN solution}
 
-The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. I choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will only train three instances. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction (cross-asset correlations equal to zero). The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S^1$-$S^2$ plane with the time fixed at $t=0$ and initial variance fixed at $V=V_0=0.04$.
+The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. We choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will only train three instances. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction (cross-asset correlations equal to zero). The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S^1$-$S^2$ plane with the time fixed at $t=0$ and initial variance fixed at $V=V_0=0.04$.
 
 \begin{figure}[ht!]
     \centering

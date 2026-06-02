@@ -358,7 +358,7 @@ This is not performed at each iteration, but rather at a fixed frequency to prev
 
 Our neural network will learn through gradient descent, in particular Adam, which uses adaptive learning rates and momentum to speed up convergence. Note this does not conflict with the adaptive loss weighting described in Section \ref{sec:adaptive_loss_weighting}, as the adaptive loss weighting is used to balance the different loss components, while Adam is used to adapt the learning rate for each parameter based on the historical gradients.
 
-We will additionally impose a schedule to decay the learning rate over time, which starts at a conventional value of $10^{-3}$ to allow for fast learning at the beginning, and decays by a factor for every certain number of iterations, allowing for finer convergence in later iterations. These are also tuned by observing the training curve, and I choose to decay the learning rate by a factor of $0.7$ every $2000$ iterations.
+We will additionally impose a schedule to decay the learning rate over time, which starts at a conventional value of $10^{-3}$ to allow for fast learning at the beginning, and decays by a factor for every certain number of iterations, allowing for finer convergence in later iterations. These are also tuned by observing the training curve, and we choose to decay the learning rate by a factor of $0.7$ every $2000$ iterations.
 
 \subsubsection{Early Stopping}
 
@@ -366,4 +366,4 @@ Early stopping is a regularisation technique mainly used to prevent overfitting 
 
 The idea of early stopping is to stop the training process once we do not observe a significant improvement in the loss function after a certain number of iterations, which we call the patience. This can be tuned by observing the training curve and finding a good balance between training time and performance. Once the patience is exceeded without observing a significant improvement, the training is stopped and the model reverted to the best performing model observed during training. The loss used to evaluate the improvement is a validation set that is held through the training process, a set of points in the time-state space that is not used for training but only for evaluation.
 
-Throughout this project, I will set the improvement threshold to be $10^{-6}$ and the patience to be $500$ iterations, which I found to be a good balance for the models I trained.
+Throughout this project, we will set the improvement threshold to be $10^{-6}$ and the patience to be $500$ iterations, which we found to be a good balance for the models we trained.

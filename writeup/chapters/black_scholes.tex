@@ -30,7 +30,7 @@ where the drift has been replaced by the risk-free rate $r$. The derivation is d
 
 \section{Closed-form solution for European options}
 
-Our first benchmark will be the closed-form solution for the European option, which would be used to evaluate the accuracy of the binomial tree later. The derivation of this formula is widely available and hence I will only include the main ideas. Using the risk-neutral pricing formula, the value of the European call option with strike $K$ and expiry $T$ is given by
+Our first benchmark will be the closed-form solution for the European option, which would be used to evaluate the accuracy of the binomial tree later. The derivation of this formula is widely available and hence we will only include the main ideas. Using the risk-neutral pricing formula, the value of the European call option with strike $K$ and expiry $T$ is given by
 \begin{equation}
     v(0, S_0) = e^{-rT}\mathbb E^\mathbb Q\big[(S_T - K)^+ \mid S_0\big]
 \label{eq:rnpf_black_scholes}
@@ -589,7 +589,7 @@ We can see especially in Figure \ref{fig:bs_sobolev_pinn_price_comparison_line} 
     \label{fig:bs_sobolev_pinn_price_comparison_line}
 \end{figure}
 
-Overall this method is promising, but it may require more careful training and tuning to get better results as presented in \cite{zhao2025fractional}, who demonstrated its effectiveness through extensive training on the GPU with much larger networks, which is beyond my scope. With the one-dimensional case already underperforming the vanilla PINN, it is unsurprising that the multi-dimensional case yielded me less accurate results, so for the multi-dimensional case and studies on the free boundary, I will only present the results for the vanilla PINN, which is already a good method for this problem. That said, it was interesting nonetheless to see how we could construct the loss function from another angle altogether, without relying on manual boundary conditions.
+Overall this method is promising, but it may require more careful training and tuning to get better results as presented in \cite{zhao2025fractional}, who demonstrated its effectiveness through extensive training on the GPU with much larger networks, which is beyond my scope. With the one-dimensional case already underperforming the vanilla PINN, it is unsurprising that the multi-dimensional case yielded me less accurate results, so for the multi-dimensional case and studies on the free boundary, we will only present the results for the vanilla PINN, which is already a good method for this problem. That said, it was interesting nonetheless to see how we could construct the loss function from another angle altogether, without relying on manual boundary conditions.
 
 
 \subsection{Multi-dimensional PINN}
@@ -698,7 +698,7 @@ where $v_\text{1D}$ is the price of the one-dimensional American put option on a
 \end{equation}
 Together, these boundary conditions (alongside the variational inequality which remains the same with the operator $\mathcal L$ as in \ref{eq:bs_operator_multi}) form the PINN framework which we can train.
 
-In Figure \ref{fig:bs_min_heatmap}, we can see that our PINN yields results that are in line with our expectations. We expect to see some symmetry along the $S^1 = S^2$ line as the payoff is symmetric in the two assets. I introduce some asymmetry by training the network where $S^2$ has a higher constant volatility than $S^1$.
+In Figure \ref{fig:bs_min_heatmap}, we can see that our PINN yields results that are in line with our expectations. We expect to see some symmetry along the $S^1 = S^2$ line as the payoff is symmetric in the two assets. We introduce some asymmetry by training the network where $S^2$ has a higher constant volatility than $S^1$.
 
 \begin{figure}[ht!]
     \centering
@@ -707,7 +707,7 @@ In Figure \ref{fig:bs_min_heatmap}, we can see that our PINN yields results that
     \label{fig:bs_min_heatmap}
 \end{figure}
 
-We can also see that the term structure is somewhat captured by the contour lines of the right figure of Figure \ref{fig:bs_min_heatmap}, where the price decays as we approach maturity. I train the model with a high volatility of $(\sigma_1, \sigma_2) = (0.4, 0.5)$ to make the theta decay more significant. This also gives us a clearer evolution of the free boundary, which we see in Figure \ref{fig:bs_min_continuation_probs}, where we can see that not only the continuation region is a mirror image of the theoretical result described in \cite{detemple2005american} as we would expect, but the PINN also captures the shrinking nature of the continuation region as we approach maturity, consistent with the intuition that the option loses time value and the region would close entirely, leaving only the box $\{(S^1, S^2) : S^1 \ge K, S^2 \ge K\}$ as the continuation region at maturity.
+We can also see that the term structure is somewhat captured by the contour lines of the right figure of Figure \ref{fig:bs_min_heatmap}, where the price decays as we approach maturity. We train the model with a high volatility of $(\sigma_1, \sigma_2) = (0.4, 0.5)$ to make the theta decay more significant. This also gives us a clearer evolution of the free boundary, which we see in Figure \ref{fig:bs_min_continuation_probs}, where we can see that not only the continuation region is a mirror image of the theoretical result described in \cite{detemple2005american} as we would expect, but the PINN also captures the shrinking nature of the continuation region as we approach maturity, consistent with the intuition that the option loses time value and the region would close entirely, leaving only the box $\{(S^1, S^2) : S^1 \ge K, S^2 \ge K\}$ as the continuation region at maturity.
 
 \begin{figure}[ht!]
     \centering
