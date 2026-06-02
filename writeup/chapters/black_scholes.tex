@@ -20,11 +20,13 @@ The Black-Scholes model \cite{black1973pricing} is the fundamental model for opt
     \end{equation}
 \end{itemize}
 
-Under risk-neutral pricing, we can find an equivalent probability measure $\mathbb Q$ under which the discounted stock price is a martingale, and hence all assets earn the risk-free rate in expectation after discounting. Under the risk-neutral measure, the SDE for the risky asset becomes
+For convenience, we will refer to the risk-free asset as the bond, and the risky asset as simply the asset for the remainder of this chapter.
+
+Under risk-neutral pricing, we can find an equivalent probability measure $\mathbb Q$ under which the discounted asset price is a martingale, and hence all assets earn the risk-free rate in expectation after discounting. Under the risk-neutral measure, the SDE for the asset becomes
 \begin{equation}
     \mathrm dS_t = r S_t \mathrm dt + \sigma S_t \mathrm dW_t^\mathbb Q
 \end{equation}
-where the drift has been replaced by the risk-free rate $r$. The derivation can be found in Appendix \ref{sec:change_of_measure}.
+where the drift has been replaced by the risk-free rate $r$. The derivation is done via Girsanov's theorem, and can be found in the appendix \ref{sec:change_of_measure}.
 
 \section{Closed-form solution for European options}
 
@@ -48,7 +50,7 @@ This can be plugged into the risk-neutral pricing formula (\ref{eq:rnpf_black_sc
     d_2 = \frac{\log(S_0/K) + (r - \tfrac 12 \sigma^2)T}{\sigma \sqrt T}, \qquad d_1 = d_2 + \sigma \sqrt T
 \end{equation}
 
-The expectation (\ref{eq:rnpf_black_scholes}) can be split
+The expectation (\ref{eq:rnpf_black_scholes}) can be split, where we denote $\boldsymbol 1_{A}$ the indicator variable for the event $A$:
 \begin{align}
     v(0, S_0) &= e^{-rT} \mathbb E^\mathbb Q[(S_T - K)^+] \\
     &= e^{-rT} \mathbb E^\mathbb Q[(S_T - K) \boldsymbol{1}_{\{S_T > K\}}] \\
@@ -62,15 +64,15 @@ The second probability is immediate as we see $\mathbb Q(S_T > K) = \mathbb Q(Z 
 
 \section{Binomial Tree Method}
 
-We can use the binomial discrete-time model to price both European and American options with the tree method. This model uses the simplification that the stock price can only move to one of two possible new prices in a time step. To avoid explosion of nodes, we will only consider recombinant trees so that the algorithm performs with quadratic time complexity (look back at Figure \ref{fig:recombinant_trees} for an illustration of recombinant trees). We will verify the approximated solution's validity against the closed-form formula for European options, and use its American variant as a benchmark for later methods.
+We can use the binomial discrete-time model to price both European and American options with the tree method. This model uses the simplification that the asset price can only move to one of two possible new prices in a time step. To avoid explosion in the number of nodes, we will only consider recombinant trees so that the algorithm performs with quadratic time complexity (look back at Figure \ref{fig:recombinant_trees} for an illustration of recombinant trees). We will verify the approximated solution's validity against the closed-form formula for European options, and use its American variant as a benchmark for later methods.
 
-To formalise the tree construction, let’s fix a time horizon $T > 0$. For some depth $n \ge 1$, divide the interval $[0, T]$ into $n$ even steps each of length $\Delta t = T/n$. Our asset $S_t$ will follow a multiplicative binomial evolution:
+To formalise the tree construction, let’s fix a time horizon $T > 0$. For some depth $n \ge 1$, divide the interval $[0, T]$ into $n$ even steps each of length $\Delta t = T/n$. Our asset $S_t$, where $t$ is now a discrete time index, will follow a multiplicative binomial evolution:
 \begin{equation}
     S_{i+1} = \begin{cases}
     S_i u & \text{with probability }p \\S_i d & \text{with probability }1-p
     \end{cases}\qquad S_0 > 0
 \end{equation}
-where $u$ and $d$ are the model parameters determining the two factors of the stock price change per time step.
+where $u$ and $d$ are the model parameters determining the two factors of the asset price change per time step.
 
 As with (\ref{eq:bs_risk_free_asset}), the financial market will also consist of a risk-free asset $B_t$, discretised so that it satisfies
 \begin{equation}
@@ -80,16 +82,18 @@ where $r$ is the continuously-compounded risk-free rate, typically considered in
 \begin{equation}
 d < e^{r\Delta t} < u
 \end{equation}
-for sufficiently small $\Delta t$, else we can make a riskless profit by shorting the stock and investing in the risk-free asset, or vice versa.
+for sufficiently small $\Delta t$, else we can make a riskless profit by shorting the asset and buying the bond, or vice versa.
 
-To employ risk-neutral pricing, we additionally require the discounted asset price to have zero drift (admitting a martingale measure). More precisely, let the discounted price be
+To employ risk-neutral pricing, we additionally require the discounted asset price to have zero drift (admitting a martingale measure). More precisely, let the discounted price be, with the bond as numeraire:
 \begin{equation}
-\tilde S_i = e^{-ri\Delta t} S_i
+\tilde S_i = \frac{S_i}{B_i} = e^{-ri\Delta t} S_i
 \end{equation}
 We require some probability measure $\mathbb Q$, equivalent to the physical measure $\mathbb P$ (have the same non-zero support) such that
 \begin{equation}
-\mathbb E_\mathbb Q [\tilde S_{i+1} \mid \mathcal F_i] = \tilde S_i
+\mathbb E^\mathbb Q [\tilde S_{i+1} \mid \mathcal F_i] = \tilde S_i
 \end{equation}
+where $\mathcal F_i$ is the filtration at time step $i$.
+
 To calculate the risk-neutral probability, we can apply this to our model:
 \begin{equation}
 e^{-r(i+1)\Delta t}\big[pS_i u + (1-p)S_i d \big] = e^{-ri\Delta t}S_i
@@ -107,12 +111,9 @@ p = \frac{e^{r \Delta t} -d}{u-d}
 
 This is what we will use in our binomial model.
 
-To price the option at time $0$, we will perform backward induction from expiry, since we know that the price is just the payoff $g: \mathbb R^+ \to \mathbb R$ as the option expires.
-
-As the discounted price process is a martingale under the risk-free measure $\mathbb Q$, the arbitrage-free value $v(i\Delta t)$ of the derivative at time $i \Delta t$ is necessarily
-
+To price the option at time $0$, we will perform backward induction from expiry, since we know that the price is just the payoff $g: \mathbb R^+ \to \mathbb R$ as the option expires. As the discounted price process is a martingale under the risk-free measure $\mathbb Q$, the arbitrage-free value of the derivative at time $i \Delta t$ is necessarily
 \begin{equation}
-v_i = \underbrace{e^{-r(T-i\Delta t)}}_\text{discount} \,\mathbb E_\mathbb Q[g(S_T) \mid \mathcal F_i]
+v(t = i\Delta t) = \underbrace{e^{-r(T-i\Delta t)}}_\text{discount} \,\mathbb E^\mathbb Q[g(S_T) \mid \mathcal F_i]
 \end{equation}
 
 We will utilise the Cox-Ross-Rubinstein (CRR) Model \cite{cox1979option} for our implementation, which chooses the parameters
@@ -121,24 +122,24 @@ u = e^{\sigma \sqrt{\Delta t}}\qquad d = e^{-\sigma \sqrt{\Delta t}}
 \end{equation}
 satisfying the arbitrage free condition, and normalising the local variance of returns to the volatility parameter $\sigma^2$. They also conveniently multiply to $1$.
 
-To implement this, we need to first compute the price tree. This would be, for the price at step $i$ after $j$ up-moves (so clearly $i \ge j$)
+To implement this, we need to first compute the price tree. This would be, for the price $S_{i, j}$ at time step $i$ after $j$ up-moves (so clearly $i \ge j$)
 \begin{equation}
 S_{i, j} = S_0 u^j d^{i-j}
 \end{equation}
 
-As the payoff is known at maturity, we can simply set
+As the payoff is known at maturity, we can simply set, with $v_{i, j}$ the value of the option at time step $i$ with $j$ up-moves:
 \begin{equation}
-v_n(j) = g(S_{n, j}) \qquad 0 \le j \le n
+v_{n, j} = g(S_{n, j}) \qquad 0 \le j \le n
 \end{equation}
 and recursively set
 \begin{equation}
-v_i(j) = e^{-r\Delta t} \big(p v_{i+1}(j+1) + (1-p)v_{i+1}(j)\big)
+v_{i, j} = e^{-r\Delta t} \big(p v_{i+1, j+1} + (1-p)v_{i+1, j}\big)
 \end{equation}
 for $0 \le j \le i$. This would be it for European options, but since early exercise is allowed, we will compare this value with the payoff of the price at step $i$ with $j$ up-moves, which is just $f(S_{i, j})$. Thus the value is given by
 \begin{equation}
-v_i(j) = \max\bigg(e^{-r\Delta t} \big(p v_{i+1}(j+1) + (1-p)v_{i+1}(j)\big), \; g(S_{i, j})\bigg)
+v_{i, j} = \max\bigg(e^{-r\Delta t} \big(p v_{i+1, j+1} + (1-p)v_{i+1, j}\big), \; g(S_{i, j})\bigg)
 \end{equation}
-The root value $v_0(0)$ would be the arbitrage-free option price.
+The root value $v_{0, 0}$ would be the arbitrage-free option price.
 
 \section{Physics-Informed Neural Networks}
 
@@ -363,7 +364,7 @@ For the spatial boundary conditions, we will again truncate the domain to
         S=(S^i, \dots, S^n) \in \mathbb R^n: S^i \in [S_\text{min}^i, S_\text{max}^i] \text{ for } i = 1, \dots, n
     \right \}
 \end{equation}
-for some sufficiently small and large respective minimum and maximum values for each stock. The lower boundary will be sampled from the set
+for some sufficiently small and large respective minimum and maximum values for each asset. The lower boundary will be sampled from the set
 \begin{equation}
     \partial_\text{lower} \Omega = \left\{
         S \in \Omega: S^i = S_\text{min}^i \text{ for some } i
@@ -605,7 +606,7 @@ Overall this method is promising, but it may require more careful training and t
 
 \subsection{Multi-dimensional PINN}
 
-We move onto training a PINN on multiple assets, for simplicity and visualisation purposes, we will train a two-dimensional PINN on the put option on the product of two assets, with parameters $K=1, r=0.1, T=1$ with stock volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will be truncated to $[0, 3]$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence is not as significant when we take relative error into consideration.
+We move onto training a PINN on multiple assets, for simplicity and visualisation purposes, we will train a two-dimensional PINN on the put option on the product of two assets, with parameters $K=1, r=0.1, T=1$ with asset volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will be truncated to $[0, 3]$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence is not as significant when we take relative error into consideration.
 
 \begin{figure}[ht!]
     \centering
