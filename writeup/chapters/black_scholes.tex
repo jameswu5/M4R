@@ -171,63 +171,52 @@ where $\tau$ is any stopping time in $[t, T]$ and $\mathbb E_t$ is conditional e
 \end{itemize}
 
 We will additionally assume that the value function $v \in C^{1,2}$ (continuously differentiable with respect to $t$ and twice continuously differentiable with respect to $S$) so that we can apply Itô's formula. Let's model the asset price $S$ as a geometric Brownian motion satisfying under the risk-neutral measure
-
 \begin{equation}
     \mathrm dS_t = rS_t \mathrm dt + \sigma S_t \mathrm dW_t
 \end{equation}
 
 Then by Ito’s lemma and taking expectations of both sides we have
-
 \begin{equation}
     \mathbb E\big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
 Now let’s substitute (\ref{eq:continuation_value_inequality}) into the LHS, which gives us
-
 \begin{equation}
     e^{rh}v(t, S) \ge v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
 We can use the Taylor approximation $e^{rh} = 1 + rh + o(h)$, which permits us to cancel the $v(t, S)$ on both sides. Dividing both sides by $h$ in the same step, we get
-
 \begin{equation}
     rv(t, S) + \frac{o(h)}{h} \ge \mathbb E_t\bigg[\frac 1h\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
 Sending $h \to 0$ makes the higher order term $o(h)/h$ vanish, and the expectation of the integral to collapse to the integrand. Thus we obtain
-
 \begin{equation}
     rv(t, S) \ge \frac{\partial v}{\partial t}(t, S) + \frac{\partial v}{\partial S}(t, S) r S + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(t, S) \sigma^2 S^2
 \end{equation}
 
 or for simplicity, we define the linear parabolic operator $\mathcal L$ \cite{zhao2025fractional}:
-
 \begin{equation}
     \mathcal L[v] = rv(t, S) - \frac{\partial v}{\partial S}(t, S) r S - \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(t, S) \sigma^2 S^2
 \label{eq:bs_operator}
 \end{equation}
 
 Thus we can concisely express this inequality as
-
 \begin{equation}
     \min\left(-\frac{\partial v}{\partial t}(t, S) + \mathcal L[v], v(t, S) - g(S)\right) \ge 0
 \end{equation}
 
 However, note that at time $t$, we must either exercise the option or do nothing and continue. One of these two options must be optimal, implying that one of the arguments must be $0$. Thus we actually have an equality:
-
 \begin{equation}
     \min\left(-\frac{\partial v}{\partial t}(t, S) + \mathcal L[v], v(t, S) - g(S)\right) = 0
 \label{eq:variational_inequality_bs_1d}
 \end{equation}
-
 which is the variational equation \cite{jo2019variational} for the American option. Note this is exactly the formulation of the PINN problem (\ref{eq:pinn_pde}).
 
 We are now ready to derive the boundary conditions. Our option has a terminal payoff at time $T$ given by $g(S)$, so we have the terminal condition
-
 \begin{equation}
     v(T, S) = g(S)
 \end{equation}
-
 which satisfies the form of the terminal condition for PINNs (\ref{eq:pinn_terminal}). For the spatial boundary conditions, we have two boundaries to consider: $S \to 0$ and $S \to \infty$. In practice, we will have to truncate the domain to $[S_\text{min}, S_\text{max}]$ for some sufficiently small $S_\text{min}$ and sufficiently large $S_\text{max}$. At the lower boundary, we have the boundary condition
 \begin{equation}
     v(t, S_\text{min}) = g(S_\text{min})
@@ -240,7 +229,7 @@ These three conditions together would form the boundary setup (\ref{eq:pinn_boun
 
 \subsection{Multi-asset case}
 
-We will now extend our PINN framework to the multi-dimensional case, where we have $n$ underlying assets, and hence the neural network $f$ will take $n+1$ inputs (time and the price of each asset). The variational inequality can be derived with a similar argument as in the one-dimensional case, but we will use the multi-dimensional case of Itô's lemma. In order to be able to evaluate the accuracy of our results, we will work on a one-dimensional reduction of the multi-dimensional case, where we can use the binomial tree method (or indeed the one-dimensional PINN solution) as a benchmark.
+We will now extend our PINN framework to the multi-dimensional case, where we have $n$ underlying assets, and hence the neural network $f$ will take $n+1$ inputs (time and the price of each asset). The variational inequality can be derived with a similar argument as in the one-dimensional case, but we will use the multi-dimensional case of Itô's lemma (Theorem \ref{thm:ito_lemma}). In order to be able to evaluate the accuracy of our results, we will consider a specific multi-asset payoff such that there exists an equivalent one-dimensional reduction. This allows us to use the binomial tree method (or indeed the one-dimensional PINN solution) as a benchmark, giving us confidence for the PINN solution on more complex payoffs.
 
 In the multi-dimensional case, we have $n$ underlying assets with price processes following a correlated geometric Brownian motion. Mathematically, let each asset $S^i$ satisfy under the risk-free measure $\mathbb Q$, for $i = 1, \dots, n$,
 \begin{equation}
@@ -257,12 +246,12 @@ As the geometric Brownian motion is multiplicative, for our benchmark, we will c
     g(S^1, \dots, S^n) = \left(K - \prod_{i=1}^n S^i\right)^+
 \end{equation}
 
-To represent the dynamics of the product of the assets, we can apply Ito’s formula to the log of the price process. The log representation is
+To represent the dynamics of the product of the assets, we can apply Ito’s formula to the log of the price process. The log representation of the Itô process (refer to Definition \ref{def:ito_process}) is
 \begin{equation}
 \ln S_t^i = \ln S_0^t + \int_0^t \left (r - \frac 12 \sigma^2_i\right) \,\mathrm ds + \int_0^t \sigma _i \,\mathrm dW_s^i
 \end{equation}
 
-Define our new asset $X$ to be
+Define the new asset $X$ to be
 \begin{equation}X_t := \prod_{i=1}^n S^i_t\end{equation}
 and hence we have
 \begin{equation}
@@ -302,13 +291,13 @@ which is a geometric Brownian motion with volatility $\sigma_X$ and drift $r_X$ 
     r_X &= nr - \frac 12 \sum_{i=1}^n \sigma_i^2 + \frac 12 \sigma_X^2 \\
     &= nr + \sum_{i < j} \sigma_i\sigma_j\rho_{ij}
 \end{align}
-by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values
+by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values (chosen arbitrariliy)
 \begin{equation}
-r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qquad \mathrm R = \begin{pmatrix}
+r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qquad \Sigma = \begin{pmatrix}
     1 & 0.6 & -0.2 \\ 0.6 & 1 & 0.4 \\-0.2 & 0.4 & 1
 \end{pmatrix}
 \end{equation}
-where $\mathrm R$ is the correlation matrix, we can plot the histogram of final prices in Figure \ref{fig:gbm_histogram}.
+where $\Sigma$ is the correlation matrix, we can plot the histogram of final prices in Figure \ref{fig:gbm_histogram}.
 
 \begin{figure}[h]
     \centering
@@ -323,7 +312,7 @@ Therefore, we will be able to price the put option on the product of multiple as
 
 \subsection{PINN formulation for multi-dimensional case}
 
-With the benchmark in place, we now need to derive the variational inequality for the multi-dimensional case where we have $n$ assets. This is a straightforward extension of the one-dimensional case, where the value function $v(t, S^1, \dots, S^n)$ now takes $n+1$ inputs. For notation, we will express the multiple assets as a vector $S = (S^1, \dots, S^n)^\top$, so the value function is $v(t, S)$. Similarly, the payoff function will be written as $g(S^1, \dots, S^n) = g(S)$.
+With the benchmark in place, we now need to derive the variational inequality for the multi-dimensional case where we have $n$ assets. This is a straightforward extension of the one-dimensional case, where the value function $v(t, S^1, \dots, S^n)$ now takes $n+1$ inputs. For notation, we will express the multiple assets as a vector $S = (S^1, \dots, S^n)^\top$, so the value function can be written more concisely as $v(t, S)$. Similarly, the payoff function will be written as $g(S^1, \dots, S^n) = g(S)$.
 
 The value function stays
 \begin{equation}
@@ -335,7 +324,6 @@ Should we choose not to exercise the option at time $t$, we can apply the same a
     \begin{aligned}
         v(t + h, S_{t + h}) = v(t, S) + \int_t^{t+h} &\bigg(
             \frac{\partial v}{\partial t}(u, S_u) +
-            % \mathcal L_u[v(S_u)]
             \sum_{i=1}^n \frac{\partial v}{\partial S^i}(u, S_u) rS_u^i\\
             &+ \frac 12 \sum_{i=1}^n \sum_{j=1}^n \frac{\partial^2 v}{\partial S^i \partial S^j}(u, S_u) \sigma_i \sigma_j \rho_{ij} S_u^i S_u^j
         \bigg) \,\mathrm du
@@ -384,11 +372,11 @@ with the boundary condition
 \begin{equation}
     v(t, S) = 0, \qquad S \in \partial_\text{upper} \Omega
 \end{equation}
-analogous to the one-dimensional case. Of course, this framework could be easily adapted to other payoff functions, where the boundary conditions would change accordingly (but not the variational inequality). But for our benchmark, this is the setup we will use.
+analogous to the one-dimensional case. Of course, this framework could be easily adapted to other payoff functions, where the boundary conditions would change accordingly (but not the variational inequality). This will be explored later in the numerical results when we consider a different payoff. However, for our benchmark, the put on the product of assets is the setup we will use.
 
 \section{Sobolev Deep Neural Networks}
 
-For the Black-Scholes model, we will additionally explore a different method to price American puts with neural networks, but this time instead of the traditional boundary conditions, we will work with fractional Sobolev norms to construct our los function. This is because it has been shown that conditional on the loss converging to $0$, the neural network will converge to the true solution \cite{zhao2025fractional}, which is a stronger guarantee than just pointwise convergence. Additionally, the loss function components no longer depend on the payoff and is applicable for all situations, a desirable property for a general method.
+For the Black-Scholes model, we will additionally explore a different method to price American puts with neural networks, but this time instead of the traditional boundary conditions, we will work with fractional Sobolev norms to construct our loss function. This is because it has been shown that conditional on the loss converging to $0$, the neural network will converge to the true solution \cite{zhao2025fractional}, which is a stronger guarantee than just pointwise convergence. Additionally, the loss function components no longer depend on the payoff and is applicable for all situations, a desirable property for a general method.
 
 The theory of Sobolev spaces is rich and we will not attempt to cover all the details, to avoid diverting attention from the main focus of the project. However, we make particular use of fractional Sobolev spaces, which are a generalisation of the integer order Sobolev spaces.
 
@@ -406,7 +394,7 @@ where $D^\alpha u$ denotes the weak derivative of $u$ with respect to the multi-
 
 The fractional Sobolev space $W^{s, p}(\Omega)$ is defined with the fractional exponent $s \in (0, 1)$ as \cite{di2012hitchhikers}:
 \begin{equation}
-    W^{s, p}(\Omega) := \left\{u \in L^p(\Omega) : \frac{|u(x) - u(y)|}{|x-y|^{\frac np + s}} \in L^p(\Omega \times \Omega)\right\},
+    W^{s, p}(\Omega) := \left\{u \in L^p(\Omega) : \frac{|u(x) - u(y)|}{|x-y|^{n/p + s}} \in L^p(\Omega \times \Omega)\right\},
 \end{equation}
 which can be interpreted as an intermediate Banach space between $L^p(\Omega)$ and $W^{1, p}(\Omega)$, endowed with the norm
 \begin{equation}
@@ -517,7 +505,7 @@ Evaluating the tree price against the closed-form solution for different initial
     \label{fig:tree_vs_closed}
 \end{figure}
 
-We can see that the tree price also closely tracks the term structure of the option price, as shown in Figure \ref{fig:tree_vs_closed_time}, where the error is again less than $0.05\%$, decreasing as we get closer to maturity, which is expected as the tree has not done as many backward-induction steps to get to the initial time, where errors can accumulate.
+We can see that the tree price also closely tracks the term structure of the option price, as shown in Figure \ref{fig:tree_vs_closed_time}, where the error is again less than $0.05\%$, getting even closer to zero as we get closer to maturity, which is expected as the tree has not done as many backward-induction steps to get to the initial time, where errors can accumulate.
 
 \begin{figure}[ht!]
     \centering

@@ -66,6 +66,7 @@ We will now define the Itô process \cite{pham2009continuous}, which is a genera
     \begin{equation}
         \dd X_t = \mu_t \,\dd t + \sigma_t \,\dd W_t
     \end{equation}
+\label{def:ito_process}
 \end{definition}
 
 Finally, we present Itô's lemma \cite{pham2009continuous}, which allows us to compute the differential of a function of an Itô process, which we will use extensively in deriving the PDEs in the option pricing problem.
@@ -78,6 +79,7 @@ Finally, we present Itô's lemma \cite{pham2009continuous}, which allows us to c
             &+ \frac 12 \sum_{i=1}^d\sum_{j=1}^d \int_0^t \frac{\partial^2 f}{\partial x_i\partial x_j}(s, X_s) \,\dd \langle X^i, X^j\rangle_s
         \end{aligned}
     \end{equation}
+\label{thm:ito_lemma}
 \end{theorem}
 
 \subsection{Risk-neutral pricing}
