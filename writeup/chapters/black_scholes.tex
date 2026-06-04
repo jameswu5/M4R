@@ -150,11 +150,11 @@ In order to use the framework of PINNs as detailed in Section \ref{sec:pinns}, w
 In order to set up our PINN, we need to first derive the PDE satisfied by the option price. Recall the value function $v: [0, T] \times \mathbb R^+ \to \mathbb R$ of an American put with payoff $g: \mathbb R^+ \to \mathbb R$ at time $t$ with asset price $S_t = S$ is given by
 
 \begin{equation}
-    v(t, S) = \sup_{\tau \in [t, T]} \mathbb E_t\big[e^{-r(\tau - t)}g(S_\tau) \mid S_t = S\big]
+    v(t, S) = \sup_{\tau \in [t, T]} \mathbb E\big[e^{-r(\tau - t)}g(S_\tau) \mid S_t = S\big]
 \label{eq:american_option_value_function}
 \end{equation}
 
-where $\tau$ is any stopping time in $[t, T]$ and $\mathbb E_t$ is conditional expectation at time $t$, given $S_t = S$. For an American option, we always have two options:
+where $\tau$ is any stopping time in $[t, T]$ and for convenience we will simply denote $\mathbb E$ is conditional expectation at time $t$, given $S_t = S$, in this section. For an American option, we always have two options:
 
 \begin{itemize}
     \item Immediately exercise the option and get payoff $g(S)$. Since this is not necessarily optimal, the payoff must bound the value option from below:
@@ -163,31 +163,31 @@ where $\tau$ is any stopping time in $[t, T]$ and $\mathbb E_t$ is conditional e
     \end{equation}
     \item Do nothing and let the option continue to time $t + h$ with $h>0$ a very small number. By using the supremum definition of $v(t, S)$ (\ref{eq:american_option_value_function}) and swapping the expectation and supremum \cite{zheng2025fundamentals} we arrive at
     \begin{equation}
-        e^{rh}v(t, S) \ge \mathbb E_t \big[v(t+h, S_{t + h})\big]
+        e^{rh}v(t, S) \ge \mathbb E \big[v(t+h, S_{t + h})\big]
     \label{eq:continuation_value_inequality}
     \end{equation}
     and the inequality turns into an equality at the limit $\delta \to 0$.
     
 \end{itemize}
 
-We will additionally assume that the value function $v \in C^{1,2}$ (continuously differentiable with respect to $t$ and twice continuously differentiable with respect to $S$) so that we can apply Itô's formula. Let's model the asset price $S$ as a geometric Brownian motion satisfying under the risk-neutral measure
+We will additionally assume that the value function $v \in \mathcal C^{1,2}$ (continuously differentiable with respect to $t$ and twice continuously differentiable with respect to $S$) so that we can apply Itô's formula. Let's model the asset price $S$ as a geometric Brownian motion satisfying under the risk-neutral measure
 \begin{equation}
     \mathrm dS_t = rS_t \mathrm dt + \sigma S_t \mathrm dW_t
 \end{equation}
 
 Then by Ito’s lemma and taking expectations of both sides we have
 \begin{equation}
-    \mathbb E\big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+    \mathbb E\big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
 Now let’s substitute (\ref{eq:continuation_value_inequality}) into the LHS, which gives us
 \begin{equation}
-    e^{rh}v(t, S) \ge v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+    e^{rh}v(t, S) \ge v(t, S) + \mathbb E\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
 We can use the Taylor approximation $e^{rh} = 1 + rh + o(h)$, which permits us to cancel the $v(t, S)$ on both sides. Dividing both sides by $h$ in the same step, we get
 \begin{equation}
-    rv(t, S) + \frac{o(h)}{h} \ge \mathbb E_t\bigg[\frac 1h\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+    rv(t, S) + \frac{o(h)}{h} \ge \mathbb E\bigg[\frac 1h\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
 Sending $h \to 0$ makes the higher order term $o(h)/h$ vanish, and the expectation of the integral to collapse to the integrand. Thus we obtain
@@ -317,7 +317,7 @@ With the benchmark in place, we now need to derive the variational inequality fo
 
 The value function stays
 \begin{equation}
-    v(t, S) = \sup_{\tau \in [t, T]} \mathbb E_t\big[e^{-r(\tau - t)}g(S_\tau) \mid S_t = S\big]
+    v(t, S) = \sup_{\tau \in [t, T]} \mathbb E\big[e^{-r(\tau - t)}g(S_\tau) \mid S_t = S\big]
 \end{equation}
 
 Should we choose not to exercise the option at time $t$, we can apply the same argument as in the one-dimensional case: considering a small $h > 0$, we can apply Itô's lemma on multiple dimensions to yield
@@ -475,7 +475,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
-    where the normal derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ given that $x_{i^\star} \in \{a, b\}$ and $x_{i} \in (a, b)$ for $i \ne i^\star$. Rigorously, we require the sign but in practice this is not necessary, as we will square in the end. The fractional norm is thus written
+    where the normal derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ with $x_{i^\star}$ the coordinate normal to the face of the boundary we are on, justifying the choice of the representation of $\Gamma$ as a union of faces. Rigorously, we require the sign, but in practice this is not necessary, as we will take the square in the end. The fractional norm is thus written
     \begin{equation}
         \begin{aligned}
             \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d\sigma (y)\mathrm dt
@@ -608,8 +608,7 @@ We move onto training a PINN on multiple assets. For simplicity and visualisatio
     \label{fig:bs_pinn_nd_price_comparison}
 \end{figure}
 
-
-We can zoom in on the $S^1\times S^2 = K$ cross section that we can see clearly in the heatmap, and plot the price along this cross section across time, shown in the left figure of Figure \ref{fig:bs_pinn_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and a model simplication we made. 
+We can zoom in on the behaviour along the line $S^1\times S^2 = K$, and plot the price along this line across time, shown in the left figure of Figure \ref{fig:bs_pinn_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and a model simplication we made. 
 
 Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative error at the most sensitive point at the triple $(0, \sqrt{K}, \sqrt{K})$ is around $7\%$ which is considerably higher than the one-dimensional case, which is expected as we are now sampling across a much larger domain, and we are restrained by model capacity and training time due to personal hardware constraints, which is a common issue for multi-dimensional PINNs.
 
@@ -689,17 +688,17 @@ We can see that both methods of estimating the continuation probabilities yield 
 \section{Minimum of two assets}
 To demonstrate the flexibility of our PINN framework, we will now shift our focus onto different payoffs on multiple assets as an extension. \cite{detemple2005american} explores a variety of different payoffs for American options on multiple assets, but that with a particularly interesting free boundary is the one of the call on the maximum of two assets. We will deal with the analogous case for the put on the minimum of two assets.
 
-To price this, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the minimum of two assets, the payoff function is given by $g(S^1, S^2) = (K - \min(S^1, S^2))^+$, and thus we must have the terminal boundary condition
+To price this, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the minimum of two assets, the payoff function is given by $g\left(S^1, S^2\right) = \left(K - \min(S^1, S^2)\right)^+$, and thus we must have the terminal boundary condition
 \begin{equation}
-    v(T, S^1, S^2) = (K - \min(S^1, S^2))^+
+    v\left(T, S^1, S^2\right) = \left(K - \min(S^1, S^2)\right)^+
 \end{equation}
 When one of the assets is very high (i.e., $S^1 \to \infty$ or $S^2 \to \infty$), the minimum of the two assets is just the other asset, and thus we have
 \begin{equation}
-    v(t, \infty, S^2) = v_\text{1D}(t, S^2) \qquad v(t, S^1, \infty) = v_\text{1D}(t, S^1)
+    v\left(t, \infty, S^2\right) = v_\text{1D}\left(t, S^2\right) \qquad v\left(t, S^1, \infty\right) = v_\text{1D}\left(t, S^1\right)
 \end{equation}
 where $v_\text{1D}$ is the price of the one-dimensional American put option on a single asset, which we can compute with the different methods we have already explored. Finally, when one of the assets is worthless, the minimum of the two assets is just the worthless asset, and hence the value will be $K$ as we should exercise immediately. Thus, the boundary condition would be
 \begin{equation}
-    v(t, S^1, S^2) = K \qquad \text{ for } S^1 = 0 \text{ or } S^2 = 0
+    v\left(t, S^1, S^2\right) = K \qquad \text{ for } S^1 = 0 \text{ or } S^2 = 0
 \end{equation}
 Together, these boundary conditions (alongside the variational inequality which remains the same with the operator $\mathcal L$ as in \ref{eq:bs_operator_multi}) form the PINN framework which we can train.
 
