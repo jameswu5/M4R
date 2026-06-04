@@ -139,7 +139,7 @@ Then using these functions, we can retrieve the next step. We can evolve our pro
 \end{equation}
 Where $\text{snap}_{i_3, i_4}^{\mathcal S} : \mathbb R^2 \to \mathcal S \subset \mathbb R^2$ is a function mapping $(v, z) \in \mathbb R^2$ to one of the grid points in $\mathcal S := \mathcal S_v \times \mathcal S_z$. $i_3, i_4 \in \{0, 1\}$ are additional parameters that determine the corner in which $(v, z)$ is mapped. Visually, this is illustrated in Figure \ref{fig:tree_illustration}, where each point in the price-variance space can evolve to four different points in the next time step, each of which we take the interpolation of the four nearest grid points.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=0.55\textwidth]{../plots/heston/tree_illustration.png}
     \caption[Heston Tree interpolation illustration]{Interpolation illustration (adapted from \cite{vellekoop2009tree})}
@@ -534,7 +534,7 @@ This will be very similar to the one-dimensional case, but we will make a few mo
 
 As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which allows a faithful approximation of closed form solution while keeping runtime low. Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $V_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_tree.png}
     \caption[Heston tree call option prices]{Call option prices by the Heston Tree}
@@ -545,7 +545,7 @@ We can see that the Heston tree does indeed replicate the closed form solution v
 
 To compute the American option price with the tree model, all we need to do is to introduce the stopping condition at every node: we evaluate the intrinsic value of the option at each node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_tree_put_eu_vs_am.png}
     \caption[Heston tree: American vs European put options]{American vs European option prices for the put}
@@ -558,7 +558,7 @@ In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option pric
 
 We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_1d_comparison_heatmap} for the American put.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_heatmap.png}
     \caption[Heston 1D PINN vs tree comparison heatmap]{American put option prices by the PINN and the tree across $S$ and $V$ parameters at time $t=0$}
@@ -567,7 +567,7 @@ We are now ready to train the neural network to price our option. We choose to u
 
 We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at lower volatilities. We can take slices of our three dimensional heatmap on the triple $(t, S, V)$ to get a better understanding of the performance, by fixing two of the variables at the default $(t=0, S=1.0, V=0.1)$ and plotting the option price against the other variable. This is shown in Figure \ref{fig:heston_1d_comparison_line}.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_comparison_line.png}
     \caption[Heston 1D PINN vs tree varying $S$, $V$ and $t$]{PINN vs tree prices varying across $S$, $V$ and $t$ parameters}
@@ -581,7 +581,7 @@ We can see that the PINN does indeed capture well the general shape and behaviou
 
 The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. We choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will only train three instances. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction (cross-asset correlations equal to zero). The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S^1$-$S^2$ plane with the time fixed at $t=0$ and initial variance fixed at $V=V_0=0.04$.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_nd_comparison_heatmap.png}
     \caption[Heston nD PINN vs tree comparison heatmap]{Heatmap of the difference between PINN and tree prices}
@@ -600,7 +600,7 @@ Even though the accuracy of the option price for the multi-asset case is not per
 
 We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as a cross section, where one variable will be fixed at their default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. This would be cleaner and more interpretable than a colour-coded 3D plot. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to 1 for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_continuation_probs.png}
     \caption[Heston PINN continuation probabilities (1D)]{Continuation probabilities for the American put option on the $S$-$V$ plane}
@@ -613,7 +613,7 @@ We can see that the continuation region is reasonably well approximated with bot
 
 We will first present the free boundary on the $S^1$-$S^2$ plane, where we fix $V = V_0$ and $t=0$, as shown in Figure \ref{fig:heston_nd_continuation_probs}. This should be somewhat analogous to the Black-Scholes multi-asset free boundary as observed in Figure \ref{fig:bs_nd_continuation_probs}. 
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_nd_continuation_probs.png}
     \caption[Heston PINN continuation probabilities (nD) $S^1$-$S^2$]{Continuation probabilities for the American put option on the $S^1$-$S^2$ plane}
@@ -624,7 +624,7 @@ We can see that the continuation region is reasonably well approximated, with gr
 
 We now present the free boundary on the $S$-$t$ plane in Figure \ref{fig:heston_nd_continuation_probs_time}, where we fix $S^1 = S^2 = \sqrt{K}$ and $V=V_0$. This should be somewhat analogous to the free boundary for the one-dimensional case as observed in Figure \ref{fig:bs_nd_continuation_probs_time}.
 
-\begin{figure}[ht!]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_nd_continuation_probs_time.png}
     \caption[Heston PINN continuation probabilities (nD) $S$-$t$]{Continuation probabilities for the American put option on the $S$-$t$ plane}
