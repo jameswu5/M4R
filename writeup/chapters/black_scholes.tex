@@ -217,7 +217,7 @@ We are now ready to derive the boundary conditions. Our option has a terminal pa
 \begin{equation}
     v(T, S) = g(S)
 \end{equation}
-which satisfies the form of the terminal condition for PINNs (\ref{eq:pinn_terminal}). For the spatial boundary conditions, we have two boundaries to consider: $S \to 0$ and $S \to \infty$. In practice, we will have to truncate the domain to $[S_\text{min}, S_\text{max}]$ for some sufficiently small $S_\text{min}$ and sufficiently large $S_\text{max}$. At the lower boundary, we have the boundary condition
+which satisfies the form of the terminal condition for PINNs (\ref{eq:pinn_terminal}). For the spatial boundary conditions, we have two boundaries to consider: $S \to 0$ and $S \to \infty$. In practice, we will have to truncate the domain to $\Omega = (S_\text{min}, S_\text{max})$ for some sufficiently small $S_\text{min}$ and sufficiently large $S_\text{max}$. At the lower boundary, we have the boundary condition
 \begin{equation}
     v(t, S_\text{min}) = g(S_\text{min})
 \end{equation}
@@ -261,15 +261,16 @@ and hence we have
 By taking the differential we have
 \begin{equation}
 \mathrm d\ln X_t = \left(nr - \frac 12 \sum_{i=1}^n \sigma_i^2 \right)\,\mathrm dt + \sum_{i=1}^n \sigma_i \,\mathrm dW_s^i
+\label{eq:d_ln_X_t}
 \end{equation}
 
 The quadratic variation of the martingale term is
 \begin{equation}
 \left\langle\sum_{i=1}^n \sigma_i W^i, \sum_{j=1}^n \sigma_j W^j\right\rangle_t = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j \rho_{ij} t =: \sigma^2_X t
 \end{equation}
-i.e. $\sigma_X^2 = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j\rho_{ij}$. So we can express the second term in terms of a new Brownian motion $\widetilde W$:
+i.e. $\sigma_X^2 = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j\rho_{ij}$. So we can express the second term of (\ref{eq:d_ln_X_t}) in terms of a new Brownian motion $\widetilde W$:
 \begin{equation}
-\sum_{i=1}^n \sigma_i \,\mathrm dW_s^i =  \mathrm d\widetilde W_t
+\sum_{i=1}^n \sigma_i \,\mathrm dW_s^i =  \sigma_X \mathrm d\widetilde W_t
 \end{equation}
 
 Going back, we have
@@ -349,7 +350,7 @@ To finish the PINN formulation, we need to derive the boundary conditions. The t
 For the spatial boundary conditions, we will again truncate the domain to
 \begin{equation}
     \Omega = \left \{
-        S=(S^i, \dots, S^n) \in \mathbb R^n: S^i \in [S_\text{min}^i, S_\text{max}^i] \text{ for } i = 1, \dots, n
+        S=(S^i, \dots, S^n) \in \mathbb R^n: S^i \in (S_\text{min}^i, S_\text{max}^i) \text{ for } i = 1, \dots, n
     \right \}
 \end{equation}
 for some sufficiently small and large respective minimum and maximum values for each asset. The lower boundary will be sampled from the set
@@ -378,7 +379,7 @@ analogous to the one-dimensional case. Of course, this framework could be easily
 
 For the Black-Scholes model, we will additionally explore a different method to price American puts with neural networks, but this time instead of the traditional boundary conditions, we will work with fractional Sobolev norms to construct our loss function. This is because it has been shown that conditional on the loss converging to $0$, the neural network will converge to the true solution \cite{zhao2025fractional}, which is a stronger guarantee than just pointwise convergence. Additionally, the loss function components no longer depend on the payoff and is applicable for all situations, a desirable property for a general method.
 
-The theory of Sobolev spaces is rich and we will not attempt to cover all the details, to avoid diverting attention from the main focus of the project. However, we make particular use of fractional Sobolev spaces, which are a generalisation of the integer order Sobolev spaces.
+The theory of Sobolev spaces is rich and we will not attempt to cover all the details, to avoid diverting attention from the main focus of the project. However, we make particular use of fractional Sobolev spaces, which are a generalisation of the integer order Sobolev spaces. These definitions are taken from \cite{adams2003sobolev, di2012hitchhikers} which are very good resources for the underlying theory.
 
 \subsection{Sobolev spaces}
 
@@ -405,7 +406,7 @@ which can be interpreted as an intermediate Banach space between $L^p(\Omega)$ a
 \end{equation}
 where we have used the \textit{Gagliardo seminorm} of $u$:
 \begin{equation}
-    [u]_{W^{s, p}(\Omega)} := \left( \int_\Omega \int_\Omega \frac{|u(x)-u(y)|^p}{|x-y|^{n+sp}}\,\mathrm dx \, \mathrm dy\right)^{\frac 1p}.
+    [u]_{W^{s, p}(\Omega)} := \left( \int_\Omega \int_\Omega \frac{|u(x)-u(y)|^p}{|x-y|^{n+sp}}\,\mathrm dx \, \mathrm dy\right)^{1/p}.
 \end{equation}
 
 We can extend this definition to non-integer $s > 1$. In the decomposition $s = m + \sigma$ with $m \in \mathbb N$ and $\sigma \in (0, 1)$, we define
@@ -419,32 +420,32 @@ endowed with the natural norm
 
 In the special case $p=2$, the fractional Sobolev space becomes a Hilbert space, which we denote $H^s(\Omega) := W^{s, 2}(\Omega)$. This is the specific case we will be working with in our loss construction.
 
-
 \subsection{Model}
 
-Suppose we would like to price an option on $n$ assets $S = (S^1, \dots, S^n)$. As asset prices are theoretically unbounded, we truncate it in our model. Thus the domain of the target function can be chosen to be the open set
+Suppose we would like to price an option on $n$ assets $S = (S^1, \dots, S^n)$. As asset prices are theoretically unbounded, we truncate it in our model much like the vanilla PINN. Thus the domain of the target function can be chosen to be the open set
 \begin{equation}
     \Omega = (S_\text{min}^1, S_\text{max}^1) \times \cdots \times (S_\text{min}^n, S_\text{max}^n)
 \end{equation}
 
-In our study we will make the simplification that $S_\text{min}^i = S_\text{min}^j$ and $S_\text{max}^i = S_\text{max}^j$ for all $i \ne j$, which we can call $a$ and $b$ respectively. Our spaces would consequently have the definitions
+In our study we will make the simplification that $S_\text{min}^i = S_\text{min}^j$ and $S_\text{max}^i = S_\text{max}^j$ for all pairs $i, j$, which we will denote with $a$ and $b$ respectively. Our simplified spaces are therefore
 \begin{equation}
-    \Omega = (a, b)^n \qquad \Omega_T = (0, T) \times \Omega \qquad \Sigma = (0, T) \times \partial \Omega
+    \Omega = (a, b)^n \qquad \Omega_T = (0, T) \times \Omega \qquad \Sigma = (0, T) \times \Gamma
 \end{equation}
-where $\partial \Omega =: \Gamma$ is the boundary of $\Omega$, a hyper-rectangle. We will use the representation
+where $\Gamma := \partial \Omega$ is the boundary of $\Omega$, a hyper-rectangle. We will use the representation
 \begin{equation}
     \Gamma = \bigcup_{i=1}^n \big(\{x \in [a, b]^n : x_i = a\} \cup \{x \in [a, b]^n : x_i = b\} \big)
 \end{equation}
-which is not the simplest, but it is useful as it is decomposed into faces, which is useful when we would like to use the norm derivative later. Note that in the one-dimensional case, this reduces simply to the points $\Gamma = \{a, b\}$.
+which is not the simplest representation, but it is the most useful for our purposes as it is decomposed into faces, needed for the normal derivative. Note that in the one-dimensional case, the boundary $\Gamma$ reduces simply to the endpoints $\Gamma = \{a, b\}$.
 
 \subsection{Loss function}
-Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 \lambda_iJ_i$, each of which ensures regulation of a specific aspect of our function. We will use $n=2$ in our experiments, but the loss construction is applicable for any $n$.
+Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 \lambda_iJ_i$, each of which ensures regulation of a specific aspect of our function, with the weights either kept constant or chosen through adaptive loss weighting as presented in Section \ref{sec:adaptive_loss_weighting}. We present the generalised loss construction, applicable for any dimension.
 
 \begin{enumerate}
-    \item The variational loss, which is as before, controlling the accuracy of our function in the interior of our domain:
+    \item The variational loss: this is as before, controlling the accuracy of our function in the interior of our domain:
     \begin{equation}
         J_1 = \|\min \{\mathcal G[f], f-g\}\|^2_{L^2(\Omega_T)}
     \end{equation}
+
     \item The energy loss: before we were only controlling the L2 norm of the payoff, but we require the option value to equal the payoff as a function and not just pointwise. Thus we need to incorporate the gradient into the loss so that the spatial slope of the payoff is respected.
     \begin{equation}
         J_2 = \|f(0, \cdot) - g(\cdot) \|^2_{H^1(\Omega)}
@@ -455,7 +456,8 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     \end{equation}
     and the derivative
     \begin{equation}\nabla d = \big(\partial_{x_1}d, \dots, \partial_{x_n}d\big)\end{equation}
-    \item The Dirichlet trace loss:
+
+    \item The Dirichlet trace loss: this enforces $f = g$ on the spatial boundary $\Sigma$.
     \begin{equation}
         J_3 =\|f(t, x) - g( x)\|^2_{H^{\frac 34, \frac 32}(\Sigma)}
     \end{equation}
@@ -465,21 +467,24 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
             \|d\|^2_{H^{\frac 34, \frac 32}(\Sigma)} = \|d\|^2_{H^{0,1}(\Sigma)} &+ \int_0^T\int_0^T\frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{2.5}}\,\mathrm dt_1\,\mathrm dt_2 \\ &+ \int_0^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^{n}}\,\mathrm d\sigma(x)\mathrm d\sigma(y) \mathrm dt
         \end{aligned}
     \end{equation}
-    The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent is equal to $2\theta + n - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $n$ the dimension (so would be $2$ in two dimensions). Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
-        \item The Neumann trace loss:
+    The double time integral penalises the variation of $f$ between two time points, and the double space integral penalises the variation of $f$ between two spatial points.
+
+    The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent is equal to $2\theta + n - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $n$ the dimension. Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
+
+    \item The Neumann trace loss: this ensures the normal derivative of $f-g$ vanishes on the boundary $\Sigma$.
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
-    where the norm derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ given that $x_{i^\star} \in \{a, b\}$ and $x_{i} \in (a, b)$ for $i \ne i^\star$. Rigorously, we require the sign but in practice this is not necessary, as we will square in the end. The fractional norm is thus written
+    where the normal derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ given that $x_{i^\star} \in \{a, b\}$ and $x_{i} \in (a, b)$ for $i \ne i^\star$. Rigorously, we require the sign but in practice this is not necessary, as we will square in the end. The fractional norm is thus written
     \begin{equation}
         \begin{aligned}
-            \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d(y)\mathrm dt
+            \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d\sigma (y)\mathrm dt
         \end{aligned}
     \end{equation}
     because $H^{0, 0} = L^2$.
 \end{enumerate}
 
-The third and fourth losses are those that enforce $f$ to solve the option pricing variational inequality with regularity in the time and space dimensions beyond pointwise \cite{lions2012non}. In practice, we will compute a Monte Carlo estimate of these integrals by sampling pairs $(t_1, t_2)$ from the domain, evaluating the integrand and taking the mean across all pairs.
+The third and fourth losses are those that enforce $f$ to solve the option pricing variational inequality with regularity in the time and space dimensions beyond pointwise \cite{lions2012non}. In practice, we will compute a Monte Carlo estimate of these integrals by sampling pairs $(t_1, t_2)$ from the domain, taking care that they are not too close to each other by rejecting pairs that have a distance less than a threshold. We then evaluate the integrand and take the mean across all pairs.
 
 \section{Numerical Results}
 
@@ -520,6 +525,8 @@ Overall, we can conclude that the tree benchmark yields very strong results agai
 
 We will now train our PINN on the one-dimensional case and compare the results against the tree benchmark on the American put on the asset with parameters $K=1, r=0.1, \sigma=0.3, T=1$ across a range of possible initial asset prices $S_0 \in [0, 3]$. This will be done through a feedforward neural network with 3 hidden layers each of width 32, with learning rate 0.001, batch size 10000 with 30000 maximum epochs with early stopping patience of 500 epochs. We train 25 models with different random initialisation and compute the ensemble mean for our final price estimate.
 
+Figure \ref{fig:bs_1d_train_loss} shows the convergence of the loss function for one run, and we can see that the loss converges well, with each of them having similar magnitudes, converging in the order of $10^{-5}$.
+
 \begin{figure}[ht!]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/bs_1d_train_loss.png}
@@ -527,7 +534,7 @@ We will now train our PINN on the one-dimensional case and compare the results a
     \label{fig:bs_1d_train_loss}
 \end{figure}
 
-Figure \ref{fig:bs_1d_train_loss} shows the convergence of the loss function for one run, and we can see that the loss converges well, with each of them having similar magnitudes, converging in the order of $10^{-5}$.
+Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price against the tree price across the domain of time and initial asset price. We can see that the PINN price is very close to the tree price across the domain, where the time value is correctly captured at the most sensitive point of $S=K$ and $t=0$ as seen in Figure \ref{fig:bs_pinn_price_comparison_line}. This figure additionally shows the model capturing the term structure of the option price, where the PINN price closely tracks the tree price across time for $S=K$.
 
 \begin{figure}[ht!]
     \centering
@@ -535,8 +542,6 @@ Figure \ref{fig:bs_1d_train_loss} shows the convergence of the loss function for
     \caption[PINN vs tree heatmap]{PINN vs tree price comparison heatmap across domain}
     \label{fig:bs_pinn_price_comparison}
 \end{figure}
-
-Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price against the tree price across the domain of time and initial asset price. We can see that the PINN price is very close to the tree price across the domain, where the time value is correctly captured at the most sensitive point of $S=K$ and $t=0$ as seen in Figure \ref{fig:bs_pinn_price_comparison_line}. This figure additionally shows the model capturing the term structure of the option price, where the PINN price closely tracks the tree price across time for $S=K$.
 
 \begin{figure}[ht!]
     \centering
@@ -571,7 +576,7 @@ We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across
 
 \subsection{Sobolev PINN results}
 
-We will now train a PINN with the Sobolev loss function, with the same model architecture and training setup as the vanilla PINN, and compare the results against the tree benchmark. We can see from Figure \ref{fig:bs_sobolev_pinn_price_comparison} that the Sobolev PINN price also gets close to the tree price across the domain, but the inaccuracy here is more significant than the vanilla PINN, especially at the $(t, S) = (0, K)$ point, which is arguably the most important point. However, considering that the loss function isn't manufactured from the payoff function, we can see that this method could be effective for more general problems where boundary conditions are not as straightforward to implement, and the price is still in the right ballpark.
+We will now train a PINN with the Sobolev loss function, with the same model architecture and training setup as the vanilla PINN, and compare the results against the tree benchmark. We can see from Figure \ref{fig:bs_sobolev_pinn_price_comparison} that the Sobolev PINN price also gets close to the tree price across the domain, but the inaccuracy here is more significant than the vanilla PINN, especially at the $(t=0, S=K)$ point, which is arguably the point we are most interested in. However, considering that the boundary conditions of the loss function isn't manufactured from the payoff function directly, we can see that this method could be effective for more general problems where boundary conditions are not as straightforward to implement, and the price is still in the right ballpark.
 
 \begin{figure}[ht!]
     \centering
@@ -594,7 +599,7 @@ Overall this method is promising, but it may require more careful training and t
 
 \subsection{Multi-dimensional PINN}
 
-We move onto training a PINN on multiple assets, for simplicity and visualisation purposes, we will train a two-dimensional PINN on the put option on the product of two assets, with parameters $K=1, r=0.1, T=1$ with asset volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will be truncated to $[0, 3]$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence is not as significant when we take relative error into consideration.
+We move onto training a PINN on multiple assets. For simplicity and visualisation purposes, we will train a two-dimensional PINN on the American put with the product of two assets as the payoff. We choose arbitrarily the parameters $K=1, r=0.1, T=1$ with asset volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will have a truncated interior domain $\Omega = (0, 3)$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence the absolute error is not as significant when we take relative error into consideration.
 
 \begin{figure}[ht!]
     \centering
@@ -605,6 +610,8 @@ We move onto training a PINN on multiple assets, for simplicity and visualisatio
 
 
 We can zoom in on the $S^1\times S^2 = K$ cross section that we can see clearly in the heatmap, and plot the price along this cross section across time, shown in the left figure of Figure \ref{fig:bs_pinn_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and a model simplication we made. 
+
+Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative error at the most sensitive point at the triple $(0, \sqrt{K}, \sqrt{K})$ is around $7\%$ which is considerably higher than the one-dimensional case, which is expected as we are now sampling across a much larger domain, and we are restrained by model capacity and training time due to personal hardware constraints, which is a common issue for multi-dimensional PINNs.
 
 \begin{table}[h]
     \centering
@@ -619,7 +626,7 @@ We can zoom in on the $S^1\times S^2 = K$ cross section that we can see clearly 
     \label{tab:bs_pinn_nd_atm_price}
 \end{table}
 
-Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative error at the most sensitive point at the triple $(0, \sqrt{K}, \sqrt{K})$ is around $7\%$ which is considerably higher than the one-dimensional case, which is expected as we are now sampling across a much larger domain, and we are restrained by model capacity and training time due to personal hardware constraints, which is a common issue for multi-dimensional PINNs.
+We can also take the cross section at $S^1 = S^2$ to evaluate the term structure of the option price, as shown in the right figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN has managed to capture the theta decay of the option price, but the consistent bias of the price is evident here and the model struggles to capture the more rapid theta decay as we approach maturity. This may be due to the fact gamma approaches a dirac delta function at the money as we approach maturity, whose sharp feature is difficult for the model to capture when our samples are sparser in the expanded domain.
 
 \begin{figure}[ht!]
     \centering
@@ -627,8 +634,6 @@ Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative e
     \caption[PINN vs tree: at the money and term structure]{PINN vs tree price comparison for at the money cross section and term structure}
     \label{fig:bs_pinn_nd_price_comparison_line}
 \end{figure}
-
-We can also take the cross section at $S^1 = S^2$ to evaluate the term structure of the option price, as shown in the right figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN has managed to capture the theta decay of the option price, but the consistent bias of the price is evident here and the model struggles to capture the more rapid theta decay as we approach maturity. This may be due to the fact gamma approaches a dirac delta function at the money as we approach maturity, whose sharp feature is difficult for the model to capture when our samples are sparser in the expanded domain.
 
 \subsection{Free boundary}
 
