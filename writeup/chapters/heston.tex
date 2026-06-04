@@ -1,6 +1,6 @@
 \chapter{The Heston Model}
 
-The classic Black Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black Scholes formula does not depend on the mean, so allowing the mean to vary does not help us to generalise the model. But if we allow volatility to vary according to a stochastic process, we obtain a more generalised model. Heston \cite{heston1993closed} proposes a model that is not based on the Black Scholes formula that provides a closed-form solution for European call options. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
+The classic Black Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black Scholes formula does not depend on the mean of the log returns $\mu$ (since we perform a change of measure, and it depends instead on the risk-free rate $r$). We therefore have two directions in which we can take this project: we can model the risk-free rate as a stochastic process, or we can allow the volatility to vary according to a stochastic process. We will focus on the latter. Heston \cite{heston1993closed} proposes a model involving a stochastic variance process in which a closed-form solution for European call options exists. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
 \begin{align}
 \mathrm dS_t &= rS_t\mathrm dt + S_t \sqrt {V_t} \mathrm dW_t^1 \\
 \mathrm d V_t &= \kappa (\theta - V_t) \mathrm dt + \sigma \sqrt {V_t} \mathrm dW_t^2
@@ -9,9 +9,9 @@ where we have initial conditions $S_0  = s>0$ and $V_0 = v \ge 0$, and the two B
 \begin{equation}
 \mathrm d\langle W^1, W^2\rangle _t = \rho \,\mathrm dt \qquad \rho \in (-1, 1)
 \end{equation}
-The dynamics of the variance $V$ follow a CIR process with mean reversion rate $\kappa > 0$, long run state $\theta > 0$ and volatility of the volatility $\sigma > 0$. We can enforce the Feller condition $2\kappa\theta \ge \sigma^2$ so that the volatility process stays positive.
+The dynamics of the variance $V$ follow a Cox-Ingersoll-Ross (CIR) process with mean reversion rate $\kappa > 0$, long run state $\theta > 0$ and volatility of the volatility $\sigma > 0$. We can enforce the Feller condition $2\kappa\theta \ge \sigma^2$ so that the volatility process stays positive.
 
-The Heston model is useful for constructing non-constant volatility smiles, as we can observe in Figure \ref{fig:heston_vol_smile}. The curvature is determined by the volatility of volatility $\sigma$, and the skew is determined by the correlation $\rho$.
+The Heston model takes into account the stochastic nature of volatility while enforcing its mean-reverting nature, which is observed empirically in the market. It supports non-constant volatility smiles, as we can observe in Figure \ref{fig:heston_vol_smile}. The curvature is determined by the volatility of volatility $\sigma$, and the skew is determined by the correlation $\rho$.
 
 \begin{figure}[h]
     \centering
@@ -22,11 +22,11 @@ The Heston model is useful for constructing non-constant volatility smiles, as w
 
 \section{Closed-form Solution}
 
-There exists a closed-form solution derived by Heston \cite{heston1993closed} to the price of the European call option. This will serve as a benchmark for our other techniques, which would give us confidence in the accuracy of our other techniques for European options, and by extension, for American options too.
+There exists a closed-form solution derived by Heston \cite{heston1993closed} to the price of the European call option (and indeed the put option, by put-call parity). This will serve as a benchmark for our other techniques, which would give us confidence in the accuracy of our other techniques for European options, and by extension, for American options too.
 
-The closed-form solution is derived by using an Ansatz inspired by the Black-Scholes formula, and determining the elements of our guess by substituting it into the PDE we know the solution must satisfy along with the boundary conditions. We will include a sketch of the derivation here which follows those found in \cite{heston1993closed, gatheral2011volatility}, but with some further justification for a better overall understanding.
+The closed-form solution is derived by using an Ansatz inspired by the Black-Scholes formula, where the unknown functions in the Ansatz can be determined by substituting our Ansatz into the corresponding PDE and boundary conditions. We will include a sketch of the derivation here which follows those found in \cite{heston1993closed, gatheral2011volatility}, but with some further justification for a better overall understanding.
 
-We will derive this PDE when we derive the variational equation in Section \ref{sec:heston_variation_equation}, but it is also an application of the Feynman-Kac formula, stating that the price of the European call option with strike $K$ and maturity $T$ must satisfy
+Let $C$ denote the price of the European call option. We will derive this PDE when we derive the variational equation in Section \ref{sec:heston_variation_equation}, where we show that the price of the European call option with strike $K$ and maturity $T$ must satisfy
 \begin{equation}
     \frac{\partial C}{\partial t} + rS \frac{\partial C}{\partial S} + \kappa (\theta - V) \frac{\partial C}{\partial V} + \frac 12 VS^2 \frac{\partial ^2 C}{\partial S^2} + \rho \sigma V S \frac{\partial ^2 C}{\partial S \partial V} + \frac 12 \sigma^2 V \frac{\partial ^2 C}{\partial V^2} - rC = 0
 \label{eq:heston_feynman_kac_pde}
@@ -50,7 +50,7 @@ With this in mind, let's define the characteristic functions
 \end{equation}
 which admits the Ansatz
 \begin{equation}
-    \phi_j(\omega) = \exp\left(C_j(\tau, \omega) + D_j(\tau, \omega) V + i \omega x\right), \qquad \tau := T-t
+    \phi_j(x, V, t; \omega) = \exp\left(C_j(\tau, \omega) + D_j(\tau, \omega) V + i \omega x\right), \qquad \tau := T-t
 \end{equation}
 since the coefficients in the PDE for $P_j$ are independent of $x$ (justifying the $e^{i\omega x}$ term) and affine in $V$ (justifying the $e^{D_j V}$ term)\cite{duffie2000transform}.
 
@@ -58,7 +58,7 @@ We can insert this Ansatz into the PDE for $P_j$ to get a system of ODEs for $C_
 \begin{equation}
     \frac{\partial D_j}{\partial \tau} = \frac 12 \sigma^2 D_j^2 + (\rho \sigma i \omega - b_j)D_j + u_j i \omega - \frac 12 \omega^2, \qquad \frac{\partial C_j}{\partial \tau } = ri\omega + aD_j
 \end{equation}
-with the terminal conditions $C_j(0, \omega) = D_j(0, \omega) = 0$. There exists a closed-form solution to this system of ODEs, where we first define
+with the boundary conditions $C_j(0, \omega) = D_j(0, \omega) = 0$. There exists a closed-form solution to this system of ODEs, where we first define
 \begin{align}
     d_j & := \sqrt{(\rho \sigma i \omega - b_j)^2 - \sigma^2 (2u_j i\omega - \omega^2)} \\
     g_j & := \frac{b_j - \rho \sigma i \omega - d_j}{b_j - \rho \sigma i \omega + d_j}
@@ -88,7 +88,7 @@ For the algorithm, we will work under the variance process $V$ and log stock pri
     \mathrm dV_t &= \kappa(\theta - V_t)\mathrm dt + \sigma \sqrt{V_t} \mathrm dW_t^1 \\
     \mathrm d Z_t &= (r-\tfrac 12 V_t)\mathrm dt + \sqrt {V_t} \mathrm dW_t^2
 \end{align}
-where $\mathrm d\langle W^1, W^2\rangle_t = \rho$ under the risk-neutral measure $\mathbb Q$ and $\kappa, \sigma, \theta, r > 0$ as before. Of course, the value $C$ of the European option with maturity $T$ and payoff function in terms of stock and volatility values $g:\mathbb R^+ \times \mathbb R^+ \to \mathbb R$ will be
+where $\mathrm d\langle W^1, W^2\rangle_t = \rho \,\mathrm dt$ under the risk-neutral measure $\mathbb Q$ and $\kappa, \sigma, \theta, r > 0$ as before. Of course, the value $C$ of the European option with maturity $T$ and payoff function in terms of stock and volatility values $g:\mathbb R^+ \times \mathbb R^+ \to \mathbb R$ will be
 \begin{equation}
     C(t, V_t, Z_t) = e^{-r(T-t)}\mathbb E^\mathbb Q [g(e^{Z_t}, \sqrt {V_t})\mid \mathcal F_t]
 \end{equation}
@@ -532,7 +532,7 @@ This will be very similar to the one-dimensional case, but we will make a few mo
 \subsection{Interpolating tree method}
 \label{sec:heston_tree_results}
 
-As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which allows a faithful approximation of closed form solution while keeping runtime low. Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $v_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
+As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which allows a faithful approximation of closed form solution while keeping runtime low. Figure \ref{fig:heston_tree} are the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $V_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
 
 \begin{figure}[ht!]
     \centering
@@ -598,7 +598,7 @@ Even though the accuracy of the option price for the multi-asset case is not per
 
 \subsubsection{One-dimensional case}
 
-We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as a cross section, where one variable will be fixed at their default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. This would be cleaner and more interpretable than a colour-coded 3D plot. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to 1 for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}
+We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as a cross section, where one variable will be fixed at their default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. This would be cleaner and more interpretable than a colour-coded 3D plot. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to 1 for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}.
 
 \begin{figure}[ht!]
     \centering
@@ -631,4 +631,4 @@ We now present the free boundary on the $S$-$t$ plane in Figure \ref{fig:heston_
     \label{fig:heston_nd_continuation_probs_time}
 \end{figure}
 
-We see that the Heston tree free boundary is no longer smooth as we are using an interpolation method which has some degree of error, and the PINN struggles to capture the curvature of the free boundary, linked to the fact that the model is settling for an average price prediction across the time cross section since deviations from this is not penalised enough. With experimentation with different activation functions and different weights for the loss components, results seem to be somewhat similar, so further improvements to the free boundary estimation would require a more fundamental change to the model, whether it be increasing its capacity or the sampling algorithm.
+We first notice that the Heston tree free boundary is no longer smooth: this is likely due to the fact we are using an interpolation method which has some degree of error. The PINN also noticably struggles to capture the curvature of the free boundary. This is linked to the limitations of the model, which has settled for an average price prediction across the time cross section, as an efficient and easy way of minimising the loss. To remedy this, we would need to do further experimentation with different training conditions. Even through changing the activation function between Sigmoid, Tanh and ReLU, trying different weights for the loss components, and even adding dropout layers, the results seem to be somewhat similar, so further improvements to the free boundary estimation would require a more fundamental change to the model, whether it be increasing its capacity or the sampling algorithm.
