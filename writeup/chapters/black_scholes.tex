@@ -477,7 +477,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
-    where our space $H^{\frac 14, \frac 12} (\Sigma)$ is again selected from \cite{zhao2025neural}, and the normal derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ with $x_{i^\star}$ the coordinate normal to the face of the boundary we are on, justifying the choice of the representation of $\Gamma$ as a union of faces. Rigorously, we require the sign, but in practice this is not necessary, as we will take the square in the end. The fractional norm is thus written
+    where our space $H^{\frac 14, \frac 12} (\Sigma)$ is again selected from, and $\nu$ is the unit normal vector pointing outwards from the domain $\Omega$ \cite{zhao2025neural}. That is to say from an implementation perspective, the normal derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ with $x_{i^\star}$ the coordinate normal to the face of the boundary we are on, justifying the choice of the representation of $\Gamma$ as a union of faces. Rigorously, we require the sign, but in practice this is not necessary, as we will take the square in the end. The fractional norm is thus written
     \begin{equation}
         \begin{aligned}
             \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d\sigma (y)\mathrm dt
