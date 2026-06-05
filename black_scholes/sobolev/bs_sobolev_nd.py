@@ -203,9 +203,9 @@ class BlackScholesSobolevMultiAsset(PINN):
         cov_bc = cov.unsqueeze(0).expand(batch_size, -1, -1)
         diffusion = 0.5 * torch.sum(cov_bc * S_outer * v_SS, dim=(1, 2)).unsqueeze(-1)
 
-        # Forward (time-to-maturity) Black-Scholes operator: v_t - A[v] + r v,
-        # consistent with the payoff condition being imposed at t = 0 (see J2 below).
-        residual = v_t - drift - diffusion + self.r * v
+        # Backward (calendar-time) Black-Scholes operator: -(v_t + A[v] - r v),
+        # consistent with the payoff condition being imposed at t = T (see J2 below).
+        residual = -v_t - drift - diffusion + self.r * v
         return residual, v
 
     def __pde_loss(self, t, S):
@@ -228,22 +228,22 @@ class BlackScholesSobolevMultiAsset(PINN):
         device = S_interior.device
 
         # ------------------------------------------------------------------
-        # J2: H^1 norm of u(0, S) = v(0, S) - g(S) on the interior
-        #     (payoff condition imposed at t = 0, per the writeup)
+        # J2: H^1 norm of u(T, S) = v(T, S) - g(S) on the interior
+        #     (payoff condition imposed at t = T)
         # ------------------------------------------------------------------
         S_interior = S_interior.detach().requires_grad_(True)
         batch = S_interior.shape[0]
-        t_0 = torch.zeros(batch, 1)
+        t_T = torch.ones(batch, 1) * self.T
 
-        v_0 = self.model(t_0, S_interior)
-        g_0 = F.relu(self.K - torch.prod(S_interior, dim=1, keepdim=True))
-        u_0 = v_0 - g_0
+        v_T = self.model(t_T, S_interior)
+        g_T = F.relu(self.K - torch.prod(S_interior, dim=1, keepdim=True))
+        u_T = v_T - g_T
 
-        J2_L2 = torch.mean(u_0 ** 2)
-        grad_u_0 = torch.autograd.grad(
-            u_0, S_interior, grad_outputs=torch.ones_like(u_0), create_graph=True
+        J2_L2 = torch.mean(u_T ** 2)
+        grad_u_T = torch.autograd.grad(
+            u_T, S_interior, grad_outputs=torch.ones_like(u_T), create_graph=True
         )[0]
-        J2_H1 = torch.mean(torch.sum(grad_u_0 ** 2, dim=1, keepdim=True))
+        J2_H1 = torch.mean(torch.sum(grad_u_T ** 2, dim=1, keepdim=True))
         J2 = J2_L2 + J2_H1
 
         # ------------------------------------------------------------------
