@@ -79,9 +79,6 @@ class Sampler:
         the distance within that face (the face coordinate cancels).
         """
 
-        # Sample bigger batch to account for rejections
-        big_batch_size = int(batch_size * 1.2)
-
         if isinstance(left, Number):
             left = np.full((dimensions,), left)
         if isinstance(right, Number):
@@ -90,42 +87,49 @@ class Sampler:
         assert len(left) == dimensions
         assert len(right) == dimensions
 
-        def sample_interior():
-            return np.column_stack([
-                self.rng.uniform(left[d], right[d], big_batch_size)
-                for d in range(dimensions)
+        # Rejection-sample in chunks until `batch_size` valid pairs are collected.
+        # A fixed over-sample factor is not enough when the epsilon-separation
+        # acceptance rate is low (e.g. large epsilon on a small domain such as
+        # time in [0, T]); looping guarantees a full batch at any epsilon.
+        chunk = int(batch_size * 1.5) + 1
+        x1_parts, x2_parts, face_parts = [], [], []
+        n_collected = 0
+
+        while n_collected < batch_size:
+            x1 = np.column_stack([
+                self.rng.uniform(left[d], right[d], chunk) for d in range(dimensions)
+            ])
+            x2 = np.column_stack([
+                self.rng.uniform(left[d], right[d], chunk) for d in range(dimensions)
             ])
 
-        x1 = sample_interior()
-        x2 = sample_interior()
+            face = None
+            if boundary:
+                # One shared face (coordinate + side) per pair.
+                face = self.rng.integers(0, dimensions, size=chunk)
+                side = self.rng.integers(0, 2, size=chunk)
+                boundary_val = np.where(side == 0, left[face], right[face])
+
+                rows = np.arange(chunk)
+                x1[rows, face] = boundary_val
+                x2[rows, face] = boundary_val
+
+            valid = np.where(np.linalg.norm(x1 - x2, axis=1) >= epsilon)[0]
+            x1_parts.append(x1[valid])
+            x2_parts.append(x2[valid])
+            if boundary:
+                face_parts.append(face[valid])
+            n_collected += len(valid)
+
+        x1 = torch.tensor(np.concatenate(x1_parts)[:batch_size], dtype=torch.float32)
+        x2 = torch.tensor(np.concatenate(x2_parts)[:batch_size], dtype=torch.float32)
 
         face1 = face2 = None
-
         if boundary:
-            # One shared face (coordinate + side) per pair.
-            face = self.rng.integers(0, dimensions, size=big_batch_size)
-            side = self.rng.integers(0, 2, size=big_batch_size)
-            boundary_val = np.where(side == 0, left[face], right[face])
-
-            rows = np.arange(big_batch_size)
-            x1[rows, face] = boundary_val
-            x2[rows, face] = boundary_val
-
             # Both points lie on the same face, so they share its index.
-            face1 = face
-            face2 = face
-
-        valid_indices = np.where(
-            np.linalg.norm(x1 - x2, axis=1) >= epsilon
-        )[0]
-
-        valid_indices = valid_indices[:batch_size]
-
-        x1 = torch.tensor(x1[valid_indices], dtype=torch.float32)
-        x2 = torch.tensor(x2[valid_indices], dtype=torch.float32)
-
-        face1 = face1[valid_indices] if face1 is not None else None
-        face2 = face2[valid_indices] if face2 is not None else None
+            faces = np.concatenate(face_parts)[:batch_size]
+            face1 = faces
+            face2 = faces
 
         return x1, x2, face1, face2
 

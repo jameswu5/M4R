@@ -50,7 +50,8 @@ class BlackScholesSobolevMultiAsset(PINN):
         self.S_maxs = S_maxs  # array of length n_assets
         self.n_assets = len(sigmas)
 
-    def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9):
+    def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9,
+              grad_clip=1.0):
         """
         Train using Sobolev regularity losses J2, J3, J4 with automatic loss reweighting.
 
@@ -66,6 +67,11 @@ class BlackScholesSobolevMultiAsset(PINN):
             Epochs between loss weight updates (default 500).
         alpha : float, optional
             EMA smoothing factor for loss weight updates (default 0.9).
+        grad_clip : float or None, optional
+            Max global gradient norm. The Gagliardo seminorms J3/J4 are heavy-tailed
+            MC estimators that occasionally produce huge gradients near the free
+            boundary; clipping bounds their effect on a single step (default 1.0).
+            Pass None to disable.
         """
         # Respect weights set via set_loss_weights(); otherwise default to equal.
         if not getattr(self, 'loss_weights', None):
@@ -91,6 +97,8 @@ class BlackScholesSobolevMultiAsset(PINN):
 
             self.optimizer.zero_grad()
             loss.backward()
+            if grad_clip is not None:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip)
             self.optimizer.step()
             self.scheduler.step()
 
@@ -111,10 +119,6 @@ class BlackScholesSobolevMultiAsset(PINN):
                 early_stopping.restore(self.model)
                 break
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
     def __process_loss(self, pde_loss, J2, J3, J4, update_dict=True):
         """Apply loss weights, sum, and optionally append to history."""
         w_pde = self.loss_weights['pde'] * pde_loss
@@ -124,11 +128,25 @@ class BlackScholesSobolevMultiAsset(PINN):
         loss = w_pde + w_J2 + w_J3 + w_J4
         if update_dict:
             self.history['loss'].append(loss.item())
-            self.history['pde_loss'].append(w_pde.item())
-            self.history['J2_loss'].append(w_J2.item())
-            self.history['J3_loss'].append(w_J3.item())
-            self.history['J4_loss'].append(w_J4.item())
+            self.history['pde_loss'].append(pde_loss.item())
+            self.history['J2_loss'].append(J2.item())
+            self.history['J3_loss'].append(J3.item())
+            self.history['J4_loss'].append(J4.item())
         return loss
+
+    @staticmethod
+    def __robust_mean(ratio, q):
+        """Winsorised mean of a heavy-tailed per-sample fractional ratio.
+
+        Caps each contribution at the q-quantile (computed on detached values)
+        before averaging, so the handful of near-singular Gagliardo pairs at the
+        free boundary cannot dominate the seminorm estimate or its gradient.
+        q=None (or q>=1) disables clipping and recovers the plain mean.
+        """
+        if q is not None and q < 1.0:
+            cap = torch.quantile(ratio.detach(), q)
+            ratio = ratio.clamp(max=cap)
+        return ratio.mean()
 
     def __anneal_weights(self, unweighted_losses: dict, alpha: float, frozen=('J4',)):
         """Rescale loss weights by gradient-norm ratios, apply EMA, and renormalise.
@@ -181,7 +199,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         `eps` bounds the fractional-seminorm denominators |t1 - t2|^(1+2s) away
         from zero; raise it if the time Gagliardo terms still spike.
         """
-        eps = 0.05
+        eps = 0.1
         t1, t2, _, _ = self.sampler.uniform_pair(
             0, self.T, batch_size, 1, epsilon=eps, boundary=False
         )
@@ -199,7 +217,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         away from zero (the distance is now measured within the shared face);
         raise it if the spatial terms still spike.
         """
-        eps = 0.05
+        eps = 0.1
         S1, S2, face1, face2 = self.sampler.uniform_pair(
             self.S_mins, self.S_maxs, batch_size, self.n_assets,
             epsilon=eps, boundary=True
@@ -251,7 +269,8 @@ class BlackScholesSobolevMultiAsset(PINN):
     def __sobolev_loss(self, t1, t2, S_interior, S1_boundary, S2_boundary,
                        face1, face2,
                        s_time_J3=0.75, s_space_J3=1.5,
-                       s_time_J4=0.25, s_space_J4=0.5):
+                       s_time_J4=0.25, s_space_J4=0.5,
+                       robust_q=0.99):
         """Sobolev regularity losses J2 (H^1 payoff), J3 (mixed lateral), J4 (normal derivative lateral)."""
         d = self.n_assets
         device = S_interior.device
@@ -304,8 +323,8 @@ class BlackScholesSobolevMultiAsset(PINN):
         J3_val = 0.5 * (torch.mean(d_t1_S1 ** 2) + torch.mean(d_t1_S2 ** 2))
 
         denom_time_J3 = (dt ** (1 + 2 * s_time_J3)).clamp_min(1e-8)
-        time_frac_S1 = torch.mean(((d_t1_S1 - d_t2_S1) ** 2) / denom_time_J3)
-        time_frac_S2 = torch.mean(((d_t1_S2 - d_t2_S2) ** 2) / denom_time_J3)
+        time_frac_S1 = self.__robust_mean(((d_t1_S1 - d_t2_S1) ** 2) / denom_time_J3, robust_q)
+        time_frac_S2 = self.__robust_mean(((d_t1_S2 - d_t2_S2) ** 2) / denom_time_J3, robust_q)
         J3_time = 0.5 * (time_frac_S1 + time_frac_S2)
 
         # Gradient of u at boundary points (needed for the H^{0,1} spatial term
@@ -329,8 +348,8 @@ class BlackScholesSobolevMultiAsset(PINN):
         s_exp_J3 = 2 * frac_space_J3 + d - 1
         diff_xy = S1_boundary - S2_boundary
         dist_xy = torch.norm(diff_xy, dim=1, keepdim=True).clamp_min(1e-8)
-        J3_space = torch.mean(
-            ((d_t1_S1 - d_t1_S2) ** 2) / (dist_xy ** s_exp_J3)
+        J3_space = self.__robust_mean(
+            ((d_t1_S1 - d_t1_S2) ** 2) / (dist_xy ** s_exp_J3), robust_q
         )
 
         J3 = J3_val + J3_grad_L2 + J3_time + J3_space
@@ -364,14 +383,14 @@ class BlackScholesSobolevMultiAsset(PINN):
 
         denom_time_J4 = (dt ** (1 + 2 * s_time_J4)).clamp_min(1e-8)
         J4_time = 0.5 * (
-            torch.mean(((dnu_t1_S1 - dnu_t2_S1) ** 2) / denom_time_J4) +
-            torch.mean(((dnu_t1_S2 - dnu_t2_S2) ** 2) / denom_time_J4)
+            self.__robust_mean(((dnu_t1_S1 - dnu_t2_S1) ** 2) / denom_time_J4, robust_q) +
+            self.__robust_mean(((dnu_t1_S2 - dnu_t2_S2) ** 2) / denom_time_J4, robust_q)
         )
 
         # Spatial fractional part: compare normal derivatives at S1 vs S2
         frac_space_J4 = s_space_J4 % 1
         s_exp_J4 = 2 * frac_space_J4 + d - 1
-        J4_space = torch.mean(((dnu_t1_S1 - dnu_t1_S2) ** 2) / (dist_xy ** s_exp_J4))
+        J4_space = self.__robust_mean(((dnu_t1_S1 - dnu_t1_S2) ** 2) / (dist_xy ** s_exp_J4), robust_q)
 
         J4 = J4_L2 + J4_time + J4_space
 
