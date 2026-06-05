@@ -67,12 +67,13 @@ class BlackScholesSobolevMultiAsset(PINN):
         alpha : float, optional
             EMA smoothing factor for loss weight updates (default 0.9).
         """
-        self.loss_weights = {
-            'pde': 0.25,
-            'J2':  0.25,
-            'J3':  0.25,
-            'J4':  0.25,
-        }
+        if self.loss_weights is None:
+            self.loss_weights = {
+                'pde': 0.25,
+                'J2':  0.25,
+                'J3':  0.25,
+                'J4':  0.25,
+            }
 
         # Fixed validation batches
         val_t1, val_t2 = self.__sample_time_pairs(batch_size)
@@ -99,10 +100,10 @@ class BlackScholesSobolevMultiAsset(PINN):
 
             # Validation
             val_pde = self.__pde_loss(val_t1, val_S)
-            val_J2, val_J3, val_J4 = self.__sobolev_loss(
+            val_J2, _, _ = self.__sobolev_loss(
                 val_t1, val_t2, val_S, val_S1_bnd, val_S2_bnd, val_face1, val_face2
             )
-            val_loss = val_pde + val_J2 + val_J3 + val_J4
+            val_loss = val_pde + val_J2  # Ignore J3/J4 on validation for early stopping to focus on payoff and PDE accuracy
 
             if i % 500 == 0:
                 weight_str = "  ".join(f"{k}={v:.3f}" for k, v in self.loss_weights.items())
