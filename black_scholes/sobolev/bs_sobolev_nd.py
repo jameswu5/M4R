@@ -67,13 +67,9 @@ class BlackScholesSobolevMultiAsset(PINN):
         alpha : float, optional
             EMA smoothing factor for loss weight updates (default 0.9).
         """
-        if self.loss_weights is None:
-            self.loss_weights = {
-                'pde': 0.25,
-                'J2':  0.25,
-                'J3':  0.25,
-                'J4':  0.25,
-            }
+        # Respect weights set via set_loss_weights(); otherwise default to equal.
+        if not getattr(self, 'loss_weights', None):
+            self.set_loss_weights({'pde': 1.0, 'J2': 1.0, 'J3': 1.0, 'J4': 1.0})
 
         # Fixed validation batches
         val_t1, val_t2 = self.__sample_time_pairs(batch_size)
@@ -103,7 +99,7 @@ class BlackScholesSobolevMultiAsset(PINN):
             val_J2, _, _ = self.__sobolev_loss(
                 val_t1, val_t2, val_S, val_S1_bnd, val_S2_bnd, val_face1, val_face2
             )
-            val_loss = val_pde + val_J2  # Ignore J3/J4 on validation for early stopping to focus on payoff and PDE accuracy
+            val_loss = val_pde + val_J2
 
             if i % 500 == 0:
                 weight_str = "  ".join(f"{k}={v:.3f}" for k, v in self.loss_weights.items())
@@ -134,8 +130,15 @@ class BlackScholesSobolevMultiAsset(PINN):
             self.history['J4_loss'].append(w_J4.item())
         return loss
 
-    def __anneal_weights(self, unweighted_losses: dict, alpha: float):
-        """Rescale loss weights by gradient-norm ratios, apply EMA, and renormalise."""
+    def __anneal_weights(self, unweighted_losses: dict, alpha: float, frozen=('J4',)):
+        """Rescale loss weights by gradient-norm ratios, apply EMA, and renormalise.
+
+        Weights named in `frozen` are held fixed and excluded from the
+        gradient-norm balancing. Their (noisy) gradients therefore cannot drive
+        the weight update, and the remaining terms share the leftover budget
+        (1 - sum of frozen weights). This stops the balancer from pumping weight
+        into a noise-dominated term such as J4.
+        """
         params = list(self.model.parameters())
         total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
         total_grads = torch.autograd.grad(
@@ -143,8 +146,11 @@ class BlackScholesSobolevMultiAsset(PINN):
         )
         peak_grad = max(g.abs().max().item() for g in total_grads if g is not None)
 
+        balanced = [k for k in unweighted_losses if k not in frozen]
+
         new_weights = {}
-        for name, loss_term in unweighted_losses.items():
+        for name in balanced:
+            loss_term = unweighted_losses[name]
             grads = torch.autograd.grad(
                 self.loss_weights[name] * loss_term, params,
                 retain_graph=True, create_graph=True, allow_unused=True
@@ -156,13 +162,28 @@ class BlackScholesSobolevMultiAsset(PINN):
             lambda_hat = peak_grad / (mean_grad + 1e-8)
             new_weights[name] = alpha * self.loss_weights[name] + (1.0 - alpha) * lambda_hat
 
-        total = sum(new_weights.values())
-        self.loss_weights = {k: v / total for k, v in new_weights.items()}
+        # Hold frozen weights fixed; let the balanced terms share the rest.
+        frozen_mass = sum(self.loss_weights[k] for k in unweighted_losses if k in frozen)
+        balanced_total = sum(new_weights.values())
+        if balanced_total > 0:
+            scale = (1.0 - frozen_mass) / balanced_total
+            for k in balanced:
+                new_weights[k] *= scale
+        for k in unweighted_losses:
+            if k in frozen:
+                new_weights[k] = self.loss_weights[k]
+
+        self.loss_weights = new_weights
 
     def __sample_time_pairs(self, batch_size):
-        """Sample pairs of time coordinates separated by at least 0.01 from [0, T]."""
+        """Sample pairs of time coordinates separated by at least `eps` from [0, T].
+
+        `eps` bounds the fractional-seminorm denominators |t1 - t2|^(1+2s) away
+        from zero; raise it if the time Gagliardo terms still spike.
+        """
+        eps = 0.05
         t1, t2, _, _ = self.sampler.uniform_pair(
-            0, self.T, batch_size, 1, epsilon=0.01, boundary=False
+            0, self.T, batch_size, 1, epsilon=eps, boundary=False
         )
         return t1, t2
 
@@ -171,10 +192,17 @@ class BlackScholesSobolevMultiAsset(PINN):
         return self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
 
     def __sample_S_boundary_pairs(self, batch_size):
-        """Sample pairs of boundary asset-price points with their face indices for normal derivative extraction."""
+        """Sample pairs of boundary asset-price points (both on the SAME face) with
+        their shared face index, for a well-defined normal-derivative comparison.
+
+        `eps` bounds the spatial Gagliardo denominator ||S1 - S2||^(2*theta+n-1)
+        away from zero (the distance is now measured within the shared face);
+        raise it if the spatial terms still spike.
+        """
+        eps = 0.05
         S1, S2, face1, face2 = self.sampler.uniform_pair(
             self.S_mins, self.S_maxs, batch_size, self.n_assets,
-            epsilon=0.01, boundary=True
+            epsilon=eps, boundary=True
         )
         return S1, S2, face1, face2
 

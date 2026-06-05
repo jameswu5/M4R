@@ -70,9 +70,13 @@ class Sampler:
 
     def uniform_pair(self, left, right, batch_size, dimensions, epsilon, boundary=False):
         """
-        Samples uniformly pairs of points (x1, x2) such that |x1 - x2| < epsilon.
+        Samples uniformly pairs of points (x1, x2) such that |x1 - x2| >= epsilon.
 
-        boundary: if true, for each sample, one of the points is at the boundary
+        boundary: if true, BOTH points of each pair are placed on the SAME face
+        (same coordinate pinned to the same min/max value). This gives the pair a
+        single shared outward normal, so the normal-derivative comparison in the
+        J4 spatial Gagliardo seminorm is well-defined, and ||x1 - x2|| reduces to
+        the distance within that face (the face coordinate cancels).
         """
 
         # Sample bigger batch to account for rejections
@@ -86,24 +90,30 @@ class Sampler:
         assert len(left) == dimensions
         assert len(right) == dimensions
 
-        def sample_point():
-            x = np.column_stack([
+        def sample_interior():
+            return np.column_stack([
                 self.rng.uniform(left[d], right[d], big_batch_size)
                 for d in range(dimensions)
             ])
 
-            face = None
+        x1 = sample_interior()
+        x2 = sample_interior()
 
-            if boundary:
-                face = self.rng.integers(0, dimensions, size=big_batch_size)
-                side = self.rng.integers(0, 2, size=big_batch_size)
-                replace = np.where(side == 0, left[face], right[face])
-                x[np.arange(big_batch_size), face] = replace
+        face1 = face2 = None
 
-            return x, face
+        if boundary:
+            # One shared face (coordinate + side) per pair.
+            face = self.rng.integers(0, dimensions, size=big_batch_size)
+            side = self.rng.integers(0, 2, size=big_batch_size)
+            boundary_val = np.where(side == 0, left[face], right[face])
 
-        x1, face1 = sample_point()
-        x2, face2 = sample_point()
+            rows = np.arange(big_batch_size)
+            x1[rows, face] = boundary_val
+            x2[rows, face] = boundary_val
+
+            # Both points lie on the same face, so they share its index.
+            face1 = face
+            face2 = face
 
         valid_indices = np.where(
             np.linalg.norm(x1 - x2, axis=1) >= epsilon
