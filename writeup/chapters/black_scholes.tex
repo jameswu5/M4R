@@ -448,7 +448,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
 
     \item The energy loss: before we were only controlling the L2 norm of the payoff, but we require the option value to equal the payoff as a function and not just pointwise. Thus we need to incorporate the gradient into the loss so that the spatial slope of the payoff is respected.
     \begin{equation}
-        J_2 = \|f(0, \cdot) - g(\cdot) \|^2_{H^1(\Omega)}
+        J_2 = \|f(T, \cdot) - g(\cdot) \|^2_{H^1(\Omega)}
     \end{equation}
     where we have the norm defined as
     \begin{equation}
