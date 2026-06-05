@@ -42,9 +42,7 @@ with terminal conditions $P_j(x, V, T) = \boldsymbol{1}_{\{x \ge \ln K\}}$ so th
 \begin{equation}
     \frac{\partial P_j}{\partial t} + (r + u_jV) \frac{\partial P_j}{\partial x} + (a - b_j V) \frac{\partial P_j}{\partial V} + \frac 12 V \frac{\partial^2P_j}{\partial x^2} + \rho \sigma V \frac{\partial^2 P_j}{\partial x \partial V} + \frac 12 \sigma^2 V \frac{\partial^2 P_j}{\partial V^2} = 0
 \end{equation}
-where $u_1 = \frac 12$, $u_2 = -\frac 12$, $a = \kappa\theta$, $b_1 = \kappa - \rho \sigma$ and $b_2 = \kappa$ \cite{heston1993closed}. Another interpretation is, by Feynman-Kac, that $P_j$ is the probability $\mathbb Q_j(x_T \ge \ln K \mid \mathcal F_t)$ where $\mathbb Q_j$ is a measure with the same dynamics as $\mathbb Q$ but with the drift of the log stock price process $x_t = \ln S_t$ changed to $r + u_j V_t$. This is a change of measure that can be done with Girsanov's theorem \cite{karatzas2014brownian}.
-
-With this in mind, let's define the characteristic functions
+where $u_1 = \frac 12$, $u_2 = -\frac 12$, $a = \kappa\theta$, $b_1 = \kappa - \rho \sigma$ and $b_2 = \kappa$ \cite{heston1993closed}. With this in mind, let's define the characteristic functions
 \begin{equation}
     \phi_j(x, V, t; \omega) = \mathbb E^{\mathbb Q_j}\left[e^{i\omega x_T}\mid \mathcal F_t\right]
 \end{equation}
@@ -72,7 +70,7 @@ where we use the opposite sign convention compared to Heston's original formulat
 By the Gil-Pelaez inversion theorem \cite{gil1951note}, we can retrieve $P_j$ from its characteristic function $\phi_j$:
 
 \begin{equation}
-P_j = \frac 12 + \frac 1\pi \int_0^\infty \Re\left[\frac{e^{-i\omega \ln K} \phi_j(\omega)}{i\omega}\right]\,\mathrm d\omega
+P_j = \frac 12 + \frac 1\pi \int_0^\infty \Re\left[\frac{e^{-i\omega \ln K} \phi_j(x, V, t; \omega)}{i\omega}\right]\,\mathrm d\omega
 \label{eq:heston_gil_pelaez}
 \end{equation}
 
@@ -220,7 +218,7 @@ We would now like to derive the variational equation for options on assets under
 \begin{equation}
 \mathrm dX_t = b(X_t) \mathrm dt + \sigma(X_t)\mathrm d W_t
 \end{equation}
-where we have the drift $b:\mathbb R^d \to \mathbb R^d$, the volatility $\sigma:\mathbb R^d \to \mathbb R^{d \times m}$ and the $m$-dimensional Brownian motion $W_t$. On second-order smooth functions $f \in C^2(\mathbb R^d)$, the infinitesimal generator $\mathcal L$ is defined as \cite{bressloff2025sde}
+where we have the drift $b:\mathbb R^d \to \mathbb R^d$, the volatility $\sigma:\mathbb R^d \to \mathbb R^{d \times m}$ and the $m$-dimensional Brownian motion $W_t$. On second-order smooth functions $f \in \mathcal C^2(\mathbb R^d)$, the infinitesimal generator $\mathcal L$ is defined as \cite{bressloff2025sde}
 \begin{equation}
 \mathcal{L}[f](x) := \lim_{t \to 0}
 \frac{\mathbb{E}[f(X_t) \mid X_0=x] - f(x)}{t}
@@ -276,7 +274,7 @@ S^2 V & \rho \sigma SV \\ \rho \sigma SV & \sigma^2 V \end{pmatrix}
 
 Note here we have many forms of $\sigma$ which may be confusing: $\sigma$ without any arguments is the volatility of the variance process, $\sigma(S, V)$ is the volatility matrix of the SDE, and $\boldsymbol \sigma$ is the same as $\sigma(S, V)$ but with a bold symbol to distinguish it from the scalar $\sigma$.
 
-We now have everything we need for the formula. For any function $f = f(S, V) \in C^2(\mathbb R^d)$, we have
+We now have everything we need for the formula. For any function $f = f(S, V) \in \mathcal C^2(\mathbb R^d)$, we have
 \begin{equation}
 \mathcal L[f] = rS\frac{\partial f}{\partial S} + \kappa(\theta - V_t)\frac{\partial f}{\partial V} + \frac 12\left(S^2V \frac{\partial ^2f}{\partial S^2} + 2\rho\sigma SV \frac{\partial ^2f}{\partial S\partial V} + \sigma^2V\frac{\partial ^2f}{\partial V^2} \right)
 \end{equation}
@@ -343,9 +341,9 @@ Let us have $n$ assets with price processes $S = (S^1, \dots, S^n)^\top$ which a
     \dd S &= r\diag(S) \,\dd t + \sqrt V \diag(S) \diag(\sigma) L \,\dd W^1 \\
     \dd V &= \kappa(\theta - V)\,\dd t + \bar \sigma \sqrt V \,\dd W^2
 \end{align}
-where we have the vector of iid Brownian motions $W^1 = (W^{1, 1}, \dots, W^{1, n})^\top$, volatility vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the lower-triangular Cholesky decomposition of the correlation matrix $L$ such that $\Sigma = LL^\top$ where its diagonals have non-negative entries. This is guaranteed to exist as $\Sigma$ is positive semi-definite (more precisely, if $\Sigma \succ 0$ then $L$ exists and is unique, and if $\Sigma \succeq 0$ then $L$ exists but may not be unique).
+where we have the vector of iid Brownian motions $W^1 = (W^{1, 1}, \dots, W^{1, n})^\top$, volatility vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the lower-triangular Cholesky decomposition of the correlation matrix $L$ such that $\Sigma = LL^\top$ where its diagonal has non-negative entries. This is guaranteed to exist as $\Sigma$ is positive semi-definite (more precisely, if $\Sigma \succ 0$ then $L$ exists and is unique, and if $\Sigma \succeq 0$ then $L$ exists but may not be unique).
 
-For simplicity, in this model we will assume equicorrelation between the assets: that is $\Sigma_{ij} = \varrho$ for $i \ne j$ and $\Sigma_{ii} = 1$.  We will also assume that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$, the cross-correlation vectors between assets and the variance process. Note that this means the asset $S^i$ satisfies
+For simplicity, in this model we will assume equicorrelation between the assets: that is $\Sigma_{ij} = \varrho$ for $i \ne j$ and $\Sigma_{ii} = 1$. We will require $\varrho \in [-1, 1]$, and be such that $\Sigma \succeq 0$ to be a valid correlation matrix. We will also assume that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$, the cross-correlation vectors between assets and the variance process. Note that this means the asset $S^i$ satisfies
 
 \begin{equation}
     \dd S^i = S^i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n L_{ij}\,\dd W^{1, j}\right)
@@ -422,7 +420,7 @@ This is close to the Heston model, with the diffusion $\tilde V = VB$ which give
     \dd\tilde V &= B\,\dd V \\
     &= \kappa(B\theta - \tilde V)\,\dd t + \bar\sigma \sqrt B \sqrt{\tilde V} \,\dd W^2
 \end{align}
-which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, $\tilde \theta = B\theta$ and $\tilde \sigma = \bar \sigma \sqrt B$ (as $B$ is constant). The product of assets nearly gives a direct reduction to a one-dimensional Heston process, but the drift of $X$ contains $V$ which is a stochastic process itself. Thus for simplicity and for our benchmark, we will set $\varrho = 0$ which means $B = A$ and the drift term becomes deterministic. The last thing to check is the Feller condition for $\tilde V$, which is satisfied as
+which is a new CIR process $\tilde V$ with parameters $\tilde \kappa = \kappa$, $\tilde \theta = B\theta$ and $\tilde \sigma = \bar \sigma \sqrt B$ (as $B$ is constant). The product of assets nearly gives a direct reduction to a one-dimensional Heston process, but the drift of $X$ contains $V$ which is a stochastic process itself. Thus for our benchmark, we will set $\varrho = 0$ which means $B = A$ and the drift term becomes deterministic. The last thing to check is the Feller condition for $\tilde V$, which is satisfied as
 \begin{equation}
     2\tilde\kappa \tilde \theta \ge \tilde \sigma^2 \iff 2 \kappa B \theta \ge \bar \sigma^2 B \iff 2 \kappa \theta \ge \bar \sigma^2
 \end{equation}
@@ -451,7 +449,7 @@ We need to be more careful with the variance matrix, as our Brownian motions are
     \mathrm dW^2 = \sum_{j=1}^n \rho_j \mathrm dW^{1, j} + \sqrt{1 - |\rho|^2}\,\mathrm dB^{n+1}
 \end{equation}
 
-where we have $|\rho|^2 = \sum_{j=1}^n \rho_j^2$ and where $B^{n+1}$ is an 1-dimensional Brownian motion, independent of all $W^{1, j}$. Clearly we need $|\rho|^2 \le 1$ for this to be well-defined, which is equivalent to requiring positive semi-definiteness of the covariance matrix of the Brownian motions. Note this is quite a strong condition as it means the variance process cannot be too strongly correlated with all the assets at the same time, so care must be taken to ensure this holds before proceeding in practice.
+where we have $|\rho|^2 = \sum_{j=1}^n \rho_j^2$ and where $B^{n+1}$ is an 1-dimensional Brownian motion, independent of all $W^{1, j}$. Clearly we need $|\rho|^2 \le 1$ for this to be well-defined. Note this is quite a strong condition as it means the variance process cannot be too strongly correlated with all the assets at the same time, so care must be taken to ensure this holds before proceeding in practice.
 
 We can easily verify that this satisfies the quadratic variation
 \begin{equation}
