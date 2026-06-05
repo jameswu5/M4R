@@ -26,7 +26,7 @@ model_config = ModelConfig(
 )
 
 loss_weights = {
-    'pde': 3,
+    'pde': 8,
     'J2': 5,
     'J3': 3,
     'J4': 1,

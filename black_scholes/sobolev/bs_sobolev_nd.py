@@ -1,6 +1,7 @@
 """Sobolev-regularised PINN for pricing an American put (product payoff) under
 n-dimensional Black-Scholes."""
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -51,9 +52,14 @@ class BlackScholesSobolevMultiAsset(PINN):
         self.n_assets = len(sigmas)
 
     def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9,
-              grad_clip=1.0):
+              grad_clip=1.0, lbfgs_steps=500, causal_eps=1.0, fb_frac=0.5):
         """
         Train using Sobolev regularity losses J2, J3, J4 with automatic loss reweighting.
+
+        Adam optimises for `epochs`, then (optionally) an LBFGS phase refines the
+        same 4-term loss. Adam plateaus on PINN residuals around 1e-2; LBFGS drives
+        the continuation-region complementarity residual down by 1-2 orders of
+        magnitude, which is what removes the accumulated t=0 overpricing.
 
         Parameters
         ----------
@@ -72,6 +78,22 @@ class BlackScholesSobolevMultiAsset(PINN):
             MC estimators that occasionally produce huge gradients near the free
             boundary; clipping bounds their effect on a single step (default 1.0).
             Pass None to disable.
+        lbfgs_steps : int, optional
+            Total LBFGS iteration budget for the post-Adam refinement phase
+            (default 500). Set 0 to skip. Run in short rounds on freshly resampled
+            collocation batches to avoid overfitting a single batch.
+        causal_eps : float, optional
+            Causality tolerance for time weighting of the PDE residual (default 1.0).
+            The terminal condition anchors t=T; this weights each point's residual by
+            exp(-causal_eps * accumulated residual over later times, i.e. closer to T),
+            so the residual is enforced near t=T first and propagated backward instead
+            of being averaged uniformly (which lets t=0 error accumulate). Set 0 to
+            disable (plain mean).
+        fb_frac : float, optional
+            Fraction of PDE collocation points drawn near the free boundary
+            prod(S) = K (default 0.5), where the residual/curvature is largest. The
+            remaining points stay uniform for domain coverage. J2/J3/J4 sampling is
+            unchanged. Set 0 to disable.
         """
         # Respect weights set via set_loss_weights(); otherwise default to equal.
         if not getattr(self, 'loss_weights', None):
@@ -85,9 +107,10 @@ class BlackScholesSobolevMultiAsset(PINN):
         for i in range(epochs):
             t1, t2 = self.__sample_time_pairs(batch_size)
             S = self.__sample_S_interior(batch_size)
+            S_pde = self.__sample_S_interior(batch_size, fb_frac=fb_frac)
             S1_bnd, S2_bnd, face1, face2 = self.__sample_S_boundary_pairs(batch_size)
 
-            pde_loss = self.__pde_loss(t1, S)
+            pde_loss = self.__pde_loss(t1, S_pde, causal_eps=causal_eps)
             J2, J3, J4 = self.__sobolev_loss(t1, t2, S, S1_bnd, S2_bnd, face1, face2)
 
             if i > 2000 and i % anneal_freq == 0:
@@ -119,6 +142,49 @@ class BlackScholesSobolevMultiAsset(PINN):
                 early_stopping.restore(self.model)
                 break
 
+        if lbfgs_steps:
+            self.__lbfgs_refine(batch_size, lbfgs_steps, fb_frac=fb_frac)
+
+    def __lbfgs_refine(self, batch_size, total_steps, inner_iter=25, fb_frac=0.0):
+        """Second-order refinement of the 4-term loss after Adam.
+
+        Runs LBFGS in short rounds, resampling the collocation batch each round so
+        the optimiser cannot overfit a single fixed batch. Loss weights are held at
+        their final annealed values; no new loss terms are introduced. Causal time
+        weighting is left off here so the closure loss is stationary within a round's
+        line search; free-boundary importance sampling (fb_frac) is still applied.
+        """
+        rounds = max(1, total_steps // inner_iter)
+        print(f"LBFGS refinement: {rounds} rounds x {inner_iter} iters...")
+
+        optimizer = torch.optim.LBFGS(
+            self.model.parameters(), max_iter=inner_iter, history_size=50,
+            line_search_fn='strong_wolfe', tolerance_grad=1e-9, tolerance_change=1e-12,
+        )
+
+        for rnd in range(rounds):
+            t1, t2 = self.__sample_time_pairs(batch_size)
+            S = self.__sample_S_interior(batch_size)
+            S_pde = self.__sample_S_interior(batch_size, fb_frac=fb_frac)
+            S1_bnd, S2_bnd, face1, face2 = self.__sample_S_boundary_pairs(batch_size)
+
+            def closure():
+                optimizer.zero_grad()
+                pde_loss = self.__pde_loss(t1, S_pde)
+                J2, J3, J4 = self.__sobolev_loss(t1, t2, S, S1_bnd, S2_bnd, face1, face2)
+                loss = self.__process_loss(pde_loss, J2, J3, J4, update_dict=False)
+                loss.backward()
+                return loss
+
+            optimizer.step(closure)
+
+            # Record one point per round so the loss history stays continuous.
+            pde_loss = self.__pde_loss(t1, S_pde)
+            J2, J3, J4 = self.__sobolev_loss(t1, t2, S, S1_bnd, S2_bnd, face1, face2)
+            loss = self.__process_loss(pde_loss, J2, J3, J4)
+            if rnd % max(1, rounds // 10) == 0:
+                print(f"  LBFGS round {rnd:>4} | Loss: {loss.item():.4e}")
+
     def __process_loss(self, pde_loss, J2, J3, J4, update_dict=True):
         """Apply loss weights, sum, and optionally append to history."""
         w_pde = self.loss_weights['pde'] * pde_loss
@@ -148,14 +214,20 @@ class BlackScholesSobolevMultiAsset(PINN):
             ratio = ratio.clamp(max=cap)
         return ratio.mean()
 
-    def __anneal_weights(self, unweighted_losses: dict, alpha: float, frozen=('J4',)):
+    def __anneal_weights(self, unweighted_losses: dict, alpha: float, frozen=('pde', 'J4')):
         """Rescale loss weights by gradient-norm ratios, apply EMA, and renormalise.
 
         Weights named in `frozen` are held fixed and excluded from the
-        gradient-norm balancing. Their (noisy) gradients therefore cannot drive
-        the weight update, and the remaining terms share the leftover budget
-        (1 - sum of frozen weights). This stops the balancer from pumping weight
-        into a noise-dominated term such as J4.
+        gradient-norm balancing. Their gradients therefore cannot drive the
+        weight update, and the remaining terms share the leftover budget
+        (1 - sum of frozen weights).
+
+        Both `pde` and `J4` are frozen by default. J4 because it is noise-
+        dominated; `pde` because the continuation-region price *level* is governed
+        almost entirely by the complementarity residual, and gradient-norm
+        balancing otherwise dilutes it against the terminal/regularity terms,
+        leaving the residual under-converged (the cause of the t=0 overpricing).
+        Freezing `pde` keeps its authority at the user-set weight throughout.
         """
         params = list(self.model.parameters())
         total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
@@ -205,9 +277,42 @@ class BlackScholesSobolevMultiAsset(PINN):
         )
         return t1, t2
 
-    def __sample_S_interior(self, batch_size):
-        """Sample asset prices uniformly from the interior domain."""
-        return self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
+    def __sample_S_interior(self, batch_size, fb_frac=0.0):
+        """Sample asset prices from the interior domain.
+
+        With fb_frac>0, the first int(batch_size*fb_frac) rows are drawn near the
+        free-boundary manifold prod(S) = K (where the obstacle constraint switches
+        and the complementarity residual/curvature is largest), and the rest stay
+        uniform for domain coverage. fb_frac=0 recovers a fully uniform batch.
+        """
+        S = self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
+        n_fb = int(batch_size * fb_frac)
+        if n_fb > 0:
+            S[:n_fb] = self.__sample_near_free_boundary(n_fb)
+        return S
+
+    def __sample_near_free_boundary(self, n, width=0.2):
+        """Sample n interior points clustered near the manifold prod(S) = K.
+
+        Draw a base point uniformly, pick a target product spread lognormally
+        around K (multiplicative width), then rescale every coordinate by
+        (target / prod)^(1/n_assets) so the product hits the target while the
+        point stays in the interior. Coordinates are clamped back into the domain,
+        which slightly perturbs the product but keeps the cluster tight.
+        """
+        S_mins = torch.as_tensor(self.S_mins, dtype=torch.float32)
+        S_maxs = torch.as_tensor(self.S_maxs, dtype=torch.float32)
+        lo = torch.clamp(S_mins, min=1e-3)
+
+        base = lo + (S_maxs - lo) * torch.rand(n, self.n_assets)
+        prod = torch.prod(base, dim=1, keepdim=True).clamp_min(1e-8)
+
+        log_target = np.log(self.K) + width * torch.randn(n, 1)
+        target = torch.exp(log_target)
+
+        scale = (target / prod) ** (1.0 / self.n_assets)
+        S = base * scale
+        return torch.clamp(S, min=lo, max=S_maxs)
 
     def __sample_S_boundary_pairs(self, batch_size):
         """Sample pairs of boundary asset-price points (both on the SAME face) with
@@ -255,8 +360,13 @@ class BlackScholesSobolevMultiAsset(PINN):
         residual = -v_t - drift - diffusion + self.r * v
         return residual, v
 
-    def __pde_loss(self, t, S):
-        """American put complementarity loss min(L[v], v-g)^2 with product payoff at interior points."""
+    def __pde_loss(self, t, S, causal_eps=0.0, n_bins=16):
+        """American put complementarity loss min(L[v], v-g)^2 with product payoff at interior points.
+
+        With causal_eps>0 the per-point squared residual is weighted so that points
+        near the terminal anchor t=T are enforced before earlier ones (see
+        __causal_weighted); causal_eps=0 averages uniformly.
+        """
         t = t.detach().requires_grad_(True)
         S = S.detach().requires_grad_(True)
 
@@ -264,7 +374,42 @@ class BlackScholesSobolevMultiAsset(PINN):
         g = F.relu(self.K - torch.prod(S, dim=1, keepdim=True))
 
         complementarity = torch.min(residual, v - g)
-        return torch.mean(complementarity ** 2)
+        sq = complementarity ** 2
+        if causal_eps > 0:
+            return self.__causal_weighted(sq, t, causal_eps, n_bins)
+        return torch.mean(sq)
+
+    def __causal_weighted(self, sq, t, eps, n_bins):
+        """Causal (terminal-anchored) time weighting of the per-point residual.
+
+        The terminal payoff is imposed at t=T, so the solution is trustworthy near
+        T and propagates backward. Bin points by time, and weight each bin by
+        exp(-eps * cumulative residual over all *later* bins, i.e. those nearer T).
+        A bin is down-weighted until the residual at every later time has fallen,
+        which enforces the residual front-to-back instead of letting t=0 error
+        accumulate under a uniform average. Weights are detached (they gate the
+        loss, they are not differentiated through).
+        """
+        t_flat = t.detach().reshape(-1)
+        sq_flat = sq.reshape(-1)
+
+        edges = torch.linspace(0.0, self.T, n_bins + 1, device=t_flat.device)[1:-1]
+        bin_idx = torch.bucketize(t_flat, edges)
+
+        bin_sum = torch.zeros(n_bins, device=t_flat.device)
+        bin_cnt = torch.zeros(n_bins, device=t_flat.device)
+        bin_sum.scatter_add_(0, bin_idx, sq_flat.detach())
+        bin_cnt.scatter_add_(0, bin_idx, torch.ones_like(sq_flat))
+        bin_mean = bin_sum / bin_cnt.clamp_min(1.0)
+
+        # Exclusive cumulative residual over later (nearer-T) bins, going backward.
+        rev = torch.flip(bin_mean, dims=[0])
+        cum_rev = torch.cumsum(rev, dim=0) - rev          # exclusive
+        cum = torch.flip(cum_rev, dims=[0])
+        bin_w = torch.exp(-eps * cum)
+
+        w = bin_w[bin_idx]
+        return torch.sum(w * sq_flat) / w.sum().clamp_min(1e-8)
 
     def __sobolev_loss(self, t1, t2, S_interior, S1_boundary, S2_boundary,
                        face1, face2,
