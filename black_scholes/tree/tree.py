@@ -45,7 +45,6 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     assert 0 < p < 1, f"Risk-neutral probability p must be between 0 and 1 [params: S={S}, K={K}, r={r}, sigma={sigma}, T={T}, n={n}]"
 
     # Compute binomial price tree
-    # Here price_tree[i, j] = S * u^j * d^(i-j)
     price_tree = np.zeros((n+1, n+1))
     price_tree[0, 0] = S
     for i in range(1, n+1):
@@ -59,7 +58,7 @@ def binomial_tree(S, K, r, sigma, T, n, option_type="put", exercise_type="americ
     else:
         option_tree[n, :] = np.maximum(0, K - price_tree[n, :])
 
-    # Backward induction to calculate option price
+    # Backwards induction to calculate option price
     for i in range(n-1, -1, -1):
         # Binomial value
         option_tree[i, :i+1] = np.exp(-r * dt) * (p * option_tree[i+1, 1:i+2] + (1 - p) * option_tree[i+1, 0:i+1])
@@ -120,20 +119,19 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
     if len(T) == 1:
         T = np.broadcast_to(T, (B,))
 
-    dt = T / n                              # (B,)
-    u = np.exp(sigma * np.sqrt(dt))         # (B,)
-    d = 1.0 / u                             # (B,)
-    p = (np.exp(r * dt) - d) / (u - d)     # (B,)
+    dt = T / n
+    u = np.exp(sigma * np.sqrt(dt))
+    d = 1.0 / u
+    p = (np.exp(r * dt) - d) / (u - d)
 
     assert np.all((p > 0) & (p < 1))
 
     # Reshape to (B, 1) for broadcasting against (B, i) tree slices
     d_bc = d[:, None]
     p_bc = p[:, None]
-    discount_bc = np.exp(-r * dt)[:, None]  # (B, 1)
+    discount_bc = np.exp(-r * dt)[:, None]
 
     # Compute binomial price tree
-    # price_tree[b, i, j] = price of path j at time i for batch b
     price_tree = np.zeros((B, n+1, n+1))
     price_tree[:, 0, 0] = S
 
@@ -148,7 +146,7 @@ def binomial_tree_batch(S, K, r, sigma, T, n, option_type="put", exercise_type="
     else:
         option_tree[:, n, :] = np.maximum(0, K - price_tree[:, n, :])
 
-    # Backward induction to calculate option price
+    # Backwards induction to calculate option price
     for i in range(n-1, -1, -1):
         option_tree[:, i, :i+1] = discount_bc * (
             p_bc * option_tree[:, i+1, 1:i+2]
