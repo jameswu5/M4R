@@ -45,8 +45,8 @@ class BSMultiPINN(PINN, ABC):
         """
         self.K = K
         self.r = r
-        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # array of length n_assets
-        self.corr = torch.tensor(corr, dtype=torch.float32)  # n_assets x n_assets correlation matrix
+        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)
+        self.corr = torch.tensor(corr, dtype=torch.float32)
         self.T = T
         self.S_mins = S_mins
         self.S_maxs = S_maxs
@@ -173,27 +173,24 @@ class BSMultiPINN(PINN, ABC):
         rows = []
         for i in range(self.n_assets):
             f_i = f_S[:, i].unsqueeze(-1)
-            # retain_graph must be True between loop iterations so the shared f_S graph
-            # isn't freed before all Hessian rows are computed; also True on the final
-            # iteration when create_graph=True so the training backward can traverse it.
             retain = (i < self.n_assets - 1) or create_graph
             f_i_S = torch.autograd.grad(
                 f_i, S, grad_outputs=torch.ones_like(f_i), create_graph=create_graph, retain_graph=retain
             )[0]
-            rows.append(f_i_S.unsqueeze(1))  # (batch, 1, n_assets)
-        f_SS = torch.cat(rows, dim=1)        # (batch, n_assets, n_assets)
+            rows.append(f_i_S.unsqueeze(1))
+        f_SS = torch.cat(rows, dim=1)
 
         cov_matrix = torch.outer(self.sigmas, self.sigmas) * self.corr
 
-        drift = self.r * torch.sum(S * f_S, dim=1, keepdim=True)  # shape (batch_size, 1)
+        drift = self.r * torch.sum(S * f_S, dim=1, keepdim=True)
 
-        S_outer = S.unsqueeze(2) * S.unsqueeze(1)  # shape (batch_size, n_assets, n_assets)
-        cov_broadcast = cov_matrix.unsqueeze(0).expand(batch_size, self.n_assets, self.n_assets)  # shape (batch_size, n_assets, n_assets)
+        S_outer = S.unsqueeze(2) * S.unsqueeze(1)
+        cov_broadcast = cov_matrix.unsqueeze(0).expand(batch_size, self.n_assets, self.n_assets)
 
-        elements = cov_broadcast * S_outer * f_SS  # shape (batch_size, n_assets, n_assets)
-        diffusion = 0.5 * torch.sum(elements, dim=(1, 2), keepdim=False).unsqueeze(-1)  # → (batch_size, 1)
+        elements = cov_broadcast * S_outer * f_SS
+        diffusion = 0.5 * torch.sum(elements, dim=(1, 2), keepdim=False).unsqueeze(-1)
 
-        residual = -f_t - drift - diffusion + self.r * f  # shape (batch_size, 1)
+        residual = -f_t - drift - diffusion + self.r * f
 
         return residual, f
 
@@ -261,9 +258,7 @@ class BSProductPINN(BSMultiPINN):
             )**2)
         Smin_loss /= self.n_assets
 
-        # S_max loss: at the upper boundary, the option value equals the intrinsic value.
-        # With S_mins = 0, the product can still be near 0 when other assets are small, so
-        # enforcing f = 0 uniformly conflicts with the S_min condition. Use max(K - product, 0).
+        # S_max loss: at the upper boundary, we have f(t, S) = g(S)
         Smax_loss = 0
         for i in range(self.n_assets):
             S_ = S.clone()
@@ -313,8 +308,8 @@ class BSMaxPINN(BSMultiPINN):
         """
         self.K = K
         self.r = r
-        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)  # array of length n_assets
-        self.corr = torch.tensor(corr, dtype=torch.float32)  # n_assets x n_assets correlation matrix
+        self.sigmas = torch.tensor(sigmas, dtype=torch.float32)
+        self.corr = torch.tensor(corr, dtype=torch.float32)
         self.T = T
         self.S_mins = S_mins
         self.S_maxs = S_maxs
@@ -322,9 +317,7 @@ class BSMaxPINN(BSMultiPINN):
         self.n_assets = len(sigmas)
         assert self.n_assets == 2, "BSMaxPINN is currently implemented only for 2 assets"
 
-        # Precompute American put price on a (t, S) grid for each asset and store
-        # a bilinear interpolator. Avoids running O(B * n_steps^2) tree evaluations
-        # per training batch; interpolation is O(B log n_grid) instead.
+        # Precompute American put price on a (t, S) grid for each asset and store a bilinear interpolator
         if compute_interpolators:
             t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)  # avoid tau = 0 at T
             self.interpolators = []
@@ -346,13 +339,13 @@ class BSMaxPINN(BSMultiPINN):
             print("Done.")
 
     def _payoff(self, S):
-        """Max-put payoff max(K - max(S), 0)."""
+        """Max-put payoff max(K - max(S), 0)"""
         S_max, _ = torch.max(S, dim=1, keepdim=True)
         payoff = torch.maximum(self.K - S_max, torch.zeros_like(S_max))
         return payoff
 
     def _boundary_loss(self, batch_size, t=None, S=None):
-        """Boundary condition losses for the max-put option, using precomputed interpolators at S=0."""
+        """Boundary condition losses for the max-put option, using precomputed interpolators at S=0"""
         if t is None or S is None:
             t, S = self._sample_interior(batch_size)
 
@@ -374,15 +367,15 @@ class BSMaxPINN(BSMultiPINN):
             S_ = S.clone()
             S_[:, i] = 0
 
-            S_other = S_[:, 1 - i].detach().numpy().ravel()  # (batch_size,)
-            points = np.stack([t_numpy, S_other], axis=1)    # (batch_size, 2)
+            S_other = S_[:, 1 - i].detach().numpy().ravel()
+            points = np.stack([t_numpy, S_other], axis=1)
             v_put = torch.tensor(
                 self.interpolators[1 - i](points), dtype=torch.float32
             ).unsqueeze(1)
             Smin_loss += torch.mean((self.model(t, S_) - v_put) ** 2)
         Smin_loss /= self.n_assets
 
-        # S_max loss: if any S_i is very large, then f(t, S) = intrinsic value
+        # S_max loss: if any S_i is very large, then f(t, S) = g(S)
         Smax_loss = 0
         for i in range(self.n_assets):
             S_ = S.clone()
@@ -439,9 +432,7 @@ class BSMinPINN(BSMultiPINN):
         self.n_assets = len(sigmas)
         assert self.n_assets == 2, "BSMinPINN is currently implemented only for 2 assets"
 
-        # Precompute American put price on a (t, S) grid for each asset.
-        # When S_i -> S_maxs[i], the min collapses to S_{1-i}, so the option
-        # reduces to an American put on asset (1-i) with volatility sigma[1-i].
+        # Precompute American put price on a (t, S) grid for each asset
         if compute_interpolators:
             t_grid = np.linspace(0, T * (1 - 1e-6), n_grid_t)
             self.interpolators = []
@@ -493,14 +484,14 @@ class BSMinPINN(BSMultiPINN):
         # S_max loss: when S_i -> S_maxs[i], min(S_0, S_1) = S_{1-i}, so the
         # option reduces to an American put on asset (1-i) with sigma[1-i].
         Smax_loss = 0
-        t_numpy = t.squeeze().detach().numpy()  # (batch_size,)
+        t_numpy = t.squeeze().detach().numpy()
 
         for i in range(self.n_assets):
             S_ = S.clone()
             S_[:, i] = self.S_maxs[i]
 
-            S_other = S_[:, 1 - i].detach().numpy().ravel()   # (batch_size,)
-            points = np.stack([t_numpy, S_other], axis=1)     # (batch_size, 2)
+            S_other = S_[:, 1 - i].detach().numpy().ravel()
+            points = np.stack([t_numpy, S_other], axis=1)
             v_put = torch.tensor(
                 self.interpolators[1 - i](points), dtype=torch.float32
             ).unsqueeze(1)
