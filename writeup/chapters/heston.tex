@@ -314,14 +314,15 @@ We can fit the variational equation (\ref{eq:heston_variational_inequality}) int
     \begin{equation}
         v(t, \infty, V) = 0
     \end{equation}
-    \item $V \to 0$: volatility being zero is a slightly more complicated case as Heston proposes a collapsed first-order PDE, which does not yield good results in practice. Instead, we will set the condition to be the payoff under the guise that asset price becomes deterministic, which is only true instantaneously due to the mean-reverting nature of the variance process, but it is a good approximation for small volatilities:
+    \item $V \to 0$: volatility being zero is a slightly more complicated case, as this would only be true instantaneously due to the mean-reverting nature of the variance process, and the fact the variance process is guaranteed to be positive by the Feller condition. The original paper by Heston \cite{heston1993closed} proposes a collapsed first-order PDE, but this turns out to be a bit overkill for the one-dimensional case, as it doesn't yield better results. We will take this case to be that the asset price process becomes approximately deterministic, a simplification of small volatilities, and hence the value of the option can be taken to be the payoff
     \begin{equation}
         v(t, S, 0) = \max(0, K - S)
     \end{equation}
-    \item $V \to \infty$: when the volatility is very high, it is almost sure that the product of assets would be zero at some point before expiry, so the value of the option is the strike:
+    \item $V \to \infty$: when the volatility is very high, we will take it that it is almost sure that the product of assets would be zero at some point before expiry, so the value of the option is the strike:
     \begin{equation}
         v(t, S, \infty) = K
     \end{equation}
+    which is the asymptotic condition.
 \end{enumerate}
 
 In practice, as we clearly cannot represent infinity, we will settle for large constants for the asset price $S_\text{inf}$ and variance $V_\text{inf}$. The minimum for both of these will be taken to be zero. Thus our domain is
@@ -517,14 +518,20 @@ This will be very similar to the one-dimensional case, but we will make a few mo
     \begin{equation}
         v(t, \bar S, V) = 0
     \end{equation}
-    \item $V \to 0$: with the same logic as the one-dimensional case, we will set the price under zero volatility to be zero. Hence we have
+    \item $V \to 0$: the simplification in the one-dimensional case doesn't work well in practice for the multi-asset case, so we will consider the degenerate PDE as proposed in the original paper by Heston \cite{heston1993closed}, where we have the complimentary condition
     \begin{equation}
-        v(t, S, 0) = \max\left(0, K - \prod_{k=1}^n S^k\right)
+        \min \left(rv -\frac{\partial v}{\partial t} - r \sum_{i=1}^n S^i \frac{\partial v}{\partial S^i} - \kappa \theta \frac{\partial v}{\partial V}, v - g \right) = 0
     \end{equation}
-    \item $V \to \infty$: with infinite volatility, it is almost sure that the intrinsic value of the option would reach the strike at some time before expiry, and thus the value of the option is the strike for the put. To implement this, set $V_\text{inf}$ a large constant, and we have
+    where we evaluate $v$ at $(t, S, 0)$.
+    \item $V \to \infty$: with infinite volatility, we could enforce the asympotic condition as in the one-dimensional case, where
     \begin{equation}
         v(t, S, V_\text{inf}) = K
     \end{equation}
+    for some large constant $V_\text{inf}$. However, in practice, the PINN struggles to learn this boundary condition, and hence we will use a softer version of this constraint, taking into account the first order:
+    \begin{equation}
+        \frac{\partial v}{\partial V}(t, S, V_\text{max}) = 0
+    \end{equation}
+    using the fact that the value of the option flattens as volatility increases, since our practical implementation of $V_\text{max}$ is not large enough to be in the asymptotic region, and using $V_\text{inf}$ creates a great gap between the practical domain and the asymptotic region, decreasing the accuracy of the solution in the practical domain.
 \end{enumerate}
 
 

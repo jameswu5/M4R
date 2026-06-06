@@ -30,8 +30,8 @@ class HestonMultiAssetPINN(PINN):
             'Vmin_loss': [],
             'Vmax_loss': []
         }
-        # Worst-point interior residual per step (tracked separately from the
-        # weighted history so it does not distort plot_losses, which it dwarfs).
+
+        # Worst-point interior residual per step
         self.interior_max_history = []
 
     def set_params(self, K, r, T, kappa, theta, sigma_bar, sigmas, corr, rho_cross, S_min, S_max, V_min, V_max):
@@ -278,8 +278,7 @@ class HestonMultiAssetPINN(PINN):
         """Sample (t, S, V) collocation points, concentrating a fraction near the free boundary prod(S) = K."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
 
-        # Concentrate V density near theta so the enlarged [V_min, V_max] domain
-        # does not starve the region of interest (V ~ a few * theta) of points.
+        # Concentrate V density near theta
         V = self.sampler.segmented_uniform_1d(
             self.V_min, self.V_max, centre=self.theta, radius=3 * self.theta,
             weight=self.v_band_frac, shape=(batch_size,)
@@ -336,7 +335,7 @@ class HestonMultiAssetPINN(PINN):
         )
         Lf += 0.5 * V * diffusion.unsqueeze(1)
 
-        # Variance diffusion.
+        # Variance diffusion
         Lf += 0.5 * self.sigma_bar ** 2 * V * f_VV
 
         cross = V * self.sigma_bar * torch.sum(
@@ -385,9 +384,7 @@ class HestonMultiAssetPINN(PINN):
         g = torch.maximum(self.K - S_prod, zeros)
         terminal_loss = torch.mean((f_T - g)**2)
 
-        # Smin loss: when any asset is at 0 the product is identically 0, so the
-        # American put is worth K. The other assets are sampled away from 0 to
-        # avoid double-counting against the Smax boundary.
+        # Smin loss: when any asset is at 0 the product is identically 0, so the value is K
         Smin_loss = 0
         for i in range(self.n_assets):
             S_boundary = S.clone()
@@ -399,16 +396,12 @@ class HestonMultiAssetPINN(PINN):
 
         # Smax loss: for the product payoff the option is only worthless when ALL
         # assets are simultaneously large, so set every coordinate to its upper
-        # bound (the in-domain edge) rather than only one at a time.
+        # bound (the in-domain edge) rather than only one at a time (corner instead of edge)
         S_far = torch.tensor(np.asarray(self.S_max), dtype=torch.float32).expand(batch_size, self.n_assets)
         Smax_loss = torch.mean(self._f(t, S_far, V) ** 2)
 
         # Vmin loss: at V = 0 every variance-multiplied term vanishes, leaving the
-        # degenerate PDE  -f_t - (r * sum_i S_i f_{S_i} + kappa*theta f_V) + r f = 0.
-        # The variance characteristic points inward there (kappa*theta > 0), so by
-        # the Fichera condition no Dirichlet value is admissible; instead impose the
-        # American complementarity min(G0[f], f - g) = 0 with this degenerate G0.
-        # Evaluating __heston_residual at V = 0 reproduces G0 automatically.
+        # degenerate PDE  -f_t - (r * sum_i S_i f_{S_i} + kappa*theta f_V) + r f = 0
         t_v0 = t.detach().clone().requires_grad_(True)
         S_v0 = S.detach().clone().requires_grad_(True)
         V_v0 = torch.zeros((batch_size, 1), requires_grad=True)
@@ -416,7 +409,7 @@ class HestonMultiAssetPINN(PINN):
         Vmin_loss = torch.mean(torch.minimum(residual_0, f_v0 - g) ** 2)
 
         # Vmax loss: at the top of the variance domain the value becomes
-        # insensitive to V, so impose the far-field Neumann condition dV f = 0 at
+        # insensitive to V, so try the far-field Neumann condition dV f = 0 at
         # V_max instead of the (only asymptotically valid) Dirichlet value f = K.
         V_top = (ones * self.V_max).requires_grad_(True)
         f_Vmax = self._f(t, *S_list, V_top)
