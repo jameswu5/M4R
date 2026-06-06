@@ -111,14 +111,14 @@ class HestonClosed:
 
 
 if __name__ == "__main__":
-    S0 = 100.0    # Initial stock price
-    K = 100.0     # Strike price
-    T = 1.0       # Time to maturity
-    r = 0.05      # Risk-free rate
-    kappa = 2.0   # Mean reversion rate
-    theta = 0.04  # Long-term variance
-    sigma = 0.3   # Volatility of variance
-    rho = -0.7    # Correlation
-    v0 = 0.04     # Initial variance
+    S0 = 100.0
+    K = 100.0
+    T = 1.0
+    r = 0.05
+    kappa = 2.0
+    theta = 0.04
+    sigma = 0.3
+    rho = -0.7
+    v0 = 0.04
     price = heston_call_price(S0, K, T, r, kappa, theta, sigma, rho, v0)
     print(f"Heston model European call option price: {price:.4f}")

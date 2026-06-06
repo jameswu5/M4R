@@ -160,10 +160,6 @@ class HestonMultiAssetPINN(PINN):
     def __lbfgs_finetune(self, batch_size, max_iter, clip_norm):
         """
         Refine the network with L-BFGS on a fixed collocation set.
-
-        L-BFGS assumes a deterministic objective, so the collocation points are
-        sampled once and reused for every closure evaluation (unlike the Adam
-        phase, which resamples each step).
         """
         t_int, S_int, V_int = self.__sample_interior(batch_size)
         t_bnd, S_bnd, V_bnd = self.__sample_boundary(batch_size)
@@ -223,11 +219,6 @@ class HestonMultiAssetPINN(PINN):
     def _normalize(self, t, *args):
         """
         Scale raw (t, S..., V) inputs into ~[0, 1] before the network.
-
-        The last positional argument is always the variance V; the rest are the
-        asset prices (either a single (N, n_assets) tensor or individual
-        columns). Normalisation is differentiable, so gradients taken w.r.t. the
-        raw t, S, V (used by the PDE residual) remain correct via the chain rule.
         """
         t = torch.as_tensor(t, dtype=torch.float32)
         args = [torch.as_tensor(a, dtype=torch.float32) for a in args]
@@ -316,10 +307,10 @@ class HestonMultiAssetPINN(PINN):
                 torch.ones_like(f_S[:, i:i+1]),
                 create_graph=True
             )
-            f_SS.append(grads[0].unsqueeze(1))  # (N, 1, n)
-            f_SV.append(grads[1])               # (N, 1)
-        f_SS = torch.cat(f_SS, dim=1)   # (N, n, n)
-        f_SV = torch.cat(f_SV, dim=1)  # (N, n)
+            f_SS.append(grads[0].unsqueeze(1))
+            f_SV.append(grads[1])
+        f_SS = torch.cat(f_SS, dim=1)
+        f_SV = torch.cat(f_SV, dim=1)
 
         f_VV = torch.autograd.grad(
             f_V, V, torch.ones_like(f_V), create_graph=True
@@ -328,7 +319,7 @@ class HestonMultiAssetPINN(PINN):
         Lf = self.r * torch.sum(S * f_S, dim=1, keepdim=True)
         Lf += self.kappa * (self.theta - V) * f_V
 
-        S_outer = S.unsqueeze(2) * S.unsqueeze(1)  # (N, n, n)
+        S_outer = S.unsqueeze(2) * S.unsqueeze(1)
         diffusion = torch.einsum(
             'ik, bik, bik -> b',
             self.sigma_outer, S_outer, f_SS
@@ -384,7 +375,7 @@ class HestonMultiAssetPINN(PINN):
         g = torch.maximum(self.K - S_prod, zeros)
         terminal_loss = torch.mean((f_T - g)**2)
 
-        # Smin loss: when any asset is at 0 the product is identically 0, so the value is K
+        # Smin loss: f(t, S_min, V) = payoff(S_min) (here we use 0 so payoff is K)
         Smin_loss = 0
         for i in range(self.n_assets):
             S_boundary = S.clone()
@@ -394,23 +385,18 @@ class HestonMultiAssetPINN(PINN):
                 self._f(t, *S_boundary_list, V) - self.K
             )**2)
 
-        # Smax loss: for the product payoff the option is only worthless when ALL
-        # assets are simultaneously large, so set every coordinate to its upper
-        # bound (the in-domain edge) rather than only one at a time (corner instead of edge)
+        # Smax loss: f(t, S_max, V) = 0
         S_far = torch.tensor(np.asarray(self.S_max), dtype=torch.float32).expand(batch_size, self.n_assets)
         Smax_loss = torch.mean(self._f(t, S_far, V) ** 2)
 
-        # Vmin loss: at V = 0 every variance-multiplied term vanishes, leaving the
-        # degenerate PDE  -f_t - (r * sum_i S_i f_{S_i} + kappa*theta f_V) + r f = 0
+        # Vmin loss: degenerate PDE
         t_v0 = t.detach().clone().requires_grad_(True)
         S_v0 = S.detach().clone().requires_grad_(True)
         V_v0 = torch.zeros((batch_size, 1), requires_grad=True)
         residual_0, f_v0 = self.__heston_residual(t_v0, S_v0, V_v0)
         Vmin_loss = torch.mean(torch.minimum(residual_0, f_v0 - g) ** 2)
 
-        # Vmax loss: at the top of the variance domain the value becomes
-        # insensitive to V, so try the far-field Neumann condition dV f = 0 at
-        # V_max instead of the (only asymptotically valid) Dirichlet value f = K.
+        # Vmax loss: Neumann condition df/dV = 0
         V_top = (ones * self.V_max).requires_grad_(True)
         f_Vmax = self._f(t, *S_list, V_top)
         f_Vmax_V = torch.autograd.grad(
