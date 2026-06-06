@@ -557,7 +557,7 @@ In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option pric
 
 \subsection{One-dimensional PINN solution}
 
-We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$ obtain the plots as shown in Figure \ref{fig:heston_1d_comparison_heatmap} for the American put.
+We are now ready to train the neural network to price our option. We choose to use a learning rate of $1\times 10^{-3}$ with the Adam optimiser and a scheduler with step size $2000$ and gamma $0.7$ and the Sigmoid activation function. By using parameters $K=1, T=1, r = 0.1, \kappa=2, \theta = 0.04, \sigma=0.3, \rho=-0.7$, we obtain the plots as shown in Figure \ref{fig:heston_1d_comparison_heatmap} for the American put.
 
 \begin{figure}[htb]
     \centering
@@ -566,7 +566,7 @@ We are now ready to train the neural network to price our option. We choose to u
     \label{fig:heston_1d_comparison_heatmap}
 \end{figure}
 
-We can see that the neural network indeed faithfully reproduces the solution approximated by the binomial tree, even though it tends to perform less well at the money especially at lower volatilities. We can take slices of our three dimensional heatmap on the triple $(t, S, V)$ to get a better understanding of the performance, by fixing two of the variables at the default $(t=0, S=1.0, V=0.1)$ and plotting the option price against the other variable. This is shown in Figure \ref{fig:heston_1d_comparison_line}.
+We can see that the neural network indeed reproduces the solution approximated by the binomial tree faithfully, even though it tends to perform less well at the money especially at lower volatilities. We can take slices of our three dimensional heatmap on the triple $(t, S, V)$ to get a better understanding of the performance, by fixing two of the variables at the default $(t=0, S=1.0, V=0.1)$ and plotting the option price against the other variable. This is shown in Figure \ref{fig:heston_1d_comparison_line}.
 
 \begin{figure}[htb]
     \centering
@@ -575,12 +575,11 @@ We can see that the neural network indeed faithfully reproduces the solution app
     \label{fig:heston_1d_comparison_line}
 \end{figure}
 
-We can see that the PINN does indeed capture well the general shape and behaviour of the option price, especially for varying across $S$ and $V$ but it struggles a bit more with the term-structure. That said, it is still able to capture the theta decay with its monoticity, which is a good sign.
-
+We can see that the PINN does indeed capture well the general shape and behaviour of the option price, especially for varying across $S$ and $V$ but it struggles a bit more with the term-structure (varying $t$). That said, it is still able to capture the theta decay with its monoticity, which is a good sign. Overall, the results are very promising for the one-dimensional case, with the PINN capable of capturing the option price across the whole input domain with good accuracy.
 
 \subsection{Multi-asset PINN solution}
 
-The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. We choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will only train three instances. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction (cross-asset correlations equal to zero). The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S^1$-$S^2$ plane with the time fixed at $t=0$ and initial variance fixed at $V=V_0=0.04$.
+The multi-asset case is more difficult to train, as we have a higher dimensional input space and requires a greater batch size. We choose $10000$ to be the batch size with the same learning rate and scheduler as before, but training takes several hours to complete and hence we will only train three instances. As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction (cross-asset correlations equal to zero). The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S^1$-$S^2$ plane with the time fixed at $t=0$ and initial variance fixed at $V_0=0.04$.
 
 \begin{figure}[htb]
     \centering
