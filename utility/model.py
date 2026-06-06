@@ -7,6 +7,8 @@ from utility.sampler import Sampler
 
 
 class ModelConfig:
+    """Container for network architecture and optimiser hyperparameters."""
+
     def __init__(self, input_size: int, hidden_sizes: list, output_size: int, activation: nn.Module, learning_rate: float, dropout=0.0, step_size=500, gamma=0.5):
         self.input_size = input_size
         self.hidden_sizes = hidden_sizes
@@ -19,6 +21,8 @@ class ModelConfig:
 
 
 class BaseNetwork(nn.Module):
+    """Fully-connected feed-forward network mapping (t, S) to an output."""
+
     def __init__(self, act_fn: nn.Module, input_size: int, output_size: int, hidden_sizes: list, dropout: float):
         super().__init__()
 
@@ -32,6 +36,21 @@ class BaseNetwork(nn.Module):
         self.layers = nn.Sequential(*layers)
 
     def forward(self, t, *S_args):
+        """Concatenate time and asset inputs and run them through the network.
+
+        Parameters
+        ----------
+        t : scalar, array_like or torch.Tensor
+            Time input; reshaped to a column of shape ``(batch, 1)``.
+        *S_args : scalar, array_like or torch.Tensor
+            Either a single tensor of shape ``(batch, n_assets)`` or one tensor
+            per asset of shape ``(batch,)`` or ``(batch, 1)``.
+
+        Returns
+        -------
+        torch.Tensor
+            Network output of shape ``(batch, output_size)``.
+        """
         # Accept python scalars, numpy arrays or tensors for `t`.
         if not torch.is_tensor(t):
             t = torch.as_tensor(t, dtype=torch.float32)
@@ -79,6 +98,16 @@ class BaseNetwork(nn.Module):
 
 
 class EarlyStopping:
+    """Stop training when the loss stops improving, tracking the best weights.
+
+    Parameters
+    ----------
+    patience : int
+        Number of non-improving steps tolerated before stopping.
+    min_delta : float
+        Minimum loss decrease that counts as an improvement.
+    """
+
     def __init__(self, patience, min_delta):
         self.patience = patience
         self.min_delta = min_delta
@@ -87,11 +116,19 @@ class EarlyStopping:
         self.best_state = None
 
     def reset(self):
+        """Clear the counter and best-loss/state tracking."""
         self.counter = 0
         self.best_loss = float('inf')
         self.best_state = None
 
     def step(self, loss, model):
+        """Record the latest loss and report whether to stop.
+
+        Returns
+        -------
+        bool
+            True once ``patience`` consecutive non-improving steps have elapsed.
+        """
         if loss < self.best_loss - self.min_delta:
             self.best_loss = loss
             self.counter = 0
@@ -102,11 +139,22 @@ class EarlyStopping:
         return self.counter >= self.patience
 
     def restore(self, model):
+        """Load the best recorded weights back into ``model`` (if any)."""
         if self.best_state is not None:
             model.load_state_dict(self.best_state)
 
 
 class PINN(ABC):
+    """Abstract base for physics-informed networks (model, optimiser, sampler).
+
+    Parameters
+    ----------
+    model_config : ModelConfig
+        Architecture and optimiser hyperparameters.
+    seed : int
+        Seed for Torch and the sampler, for reproducibility.
+    """
+
     def __init__(self, model_config, seed):
         torch.manual_seed(seed)
 
@@ -132,17 +180,31 @@ class PINN(ABC):
 
     @abstractmethod
     def set_params(self, *args, **kwargs):
+        """Set the PDE/problem parameters (implemented by subclasses)."""
         pass
 
     def set_loss_weights(self, loss_weights):
+        """Store loss-term weights, normalised to sum to one."""
         total_weight = sum(loss_weights.values())
         self.loss_weights = {key: weight / total_weight for key, weight in loss_weights.items()}
 
     @abstractmethod
     def train(self, batch_size, epochs, early_stopping):
+        """Train the network (implemented by subclasses)."""
         pass
 
     def plot_losses(self, start_epoch=0, detailed=False, save_path=None):
+        """Plot the training loss history.
+
+        Parameters
+        ----------
+        start_epoch : int, optional
+            First iteration to include in the plot.
+        detailed : bool, optional
+            If True, plot the individual loss components instead of the total.
+        save_path : str or None, optional
+            If given, save the figure to this path before showing it.
+        """
         x = range(start_epoch, len(self.history['loss']))
         for key in self.history:
             if (key == 'loss') ^ (detailed):  # one or the other but not both = xor
@@ -159,12 +221,15 @@ class PINN(ABC):
         plt.show()
 
     def predict(self, t, *S):
+        """Evaluate the network in eval mode without tracking gradients."""
         self.model.eval()
         with torch.no_grad():
             return self.model(t, *S)
 
     def save(self, path):
+        """Save the model's ``state_dict`` to ``path``."""
         torch.save(self.model.state_dict(), path)
 
     def load(self, path):
+        """Load the model's ``state_dict`` from ``path``."""
         self.model.load_state_dict(torch.load(path))
