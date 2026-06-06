@@ -576,29 +576,6 @@ We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across
     \label{fig:bs_1d_train_atm_price}
 \end{figure}
 
-\subsection{Sobolev PINN results}
-
-We will now train a PINN with the Sobolev loss function, with the same model architecture and training setup as the vanilla PINN, and compare the results against the tree benchmark. We can see from Figure \ref{fig:bs_sobolev_pinn_price_comparison} that the Sobolev PINN price also gets close to the tree price across the domain, but the inaccuracy here is more significant than the vanilla PINN, especially at the $(t=0, S=K)$ point, which is arguably the point we are most interested in. However, considering that the boundary conditions of the loss function isn't manufactured from the payoff function directly, we can see that this method could be effective for more general problems where boundary conditions are not as straightforward to implement, and the price is still in the right ballpark.
-
-\begin{figure}[htb]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison.png}
-    \caption[Sobolev PINN vs tree heatmap]{Sobolev PINN vs tree price comparison heatmap across domain}
-    \label{fig:bs_sobolev_pinn_price_comparison}
-\end{figure}
-
-We can see especially in Figure \ref{fig:bs_sobolev_pinn_price_comparison_line} that the Sobolev PINN manages to capture the term structure of the option price with the theta collapse as we approach maturity, and the error is more significant due to a hump in the price against asset price around the strike price. This suggests that the model is capable of a good fit across the domain, but may be undertrained or have too small a capacity.
-
-\begin{figure}[htb]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison_line.png}
-    \caption[Sobolev PINN vs tree: varying $S$ and term structure]{Price comparison for varying underlying price, and for term structure at $S=K$ with the Sobolev PINN}
-    \label{fig:bs_sobolev_pinn_price_comparison_line}
-\end{figure}
-
-Overall this method is promising, but it may require more careful training and tuning to get better results as presented in \cite{zhao2025fractional}, who demonstrated its effectiveness through extensive training on the GPU with much larger networks, which is beyond our scope. With the one-dimensional case already underperforming the vanilla PINN, it is unsurprising that the multi-dimensional case yielded me less accurate results, so for the multi-dimensional case and studies on the free boundary, we will only present the results for the vanilla PINN, which is already a good method for this problem. That said, it was interesting nonetheless to see how we could construct the loss function from another angle altogether, without relying on manual boundary conditions.
-
-
 \subsection{Multi-dimensional PINN}
 
 We move onto training a PINN on multiple assets. For simplicity and visualisation purposes, we will train a two-dimensional PINN on the American put with the product of two assets as the payoff. We choose arbitrarily the parameters $K=1, r=0.1, T=1$ with asset volatilities $\sigma = (0.3, 0.2)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will have a truncated interior domain $\Omega = (0, 3)$ and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence the absolute error is not as significant when we take relative error into consideration.
@@ -635,6 +612,59 @@ We can also take the cross section at $S^1 = S^2$ to evaluate the term structure
     \caption[PINN vs tree: at the money and term structure]{PINN vs tree price comparison for at the money cross section and term structure}
     \label{fig:bs_pinn_nd_price_comparison_line}
 \end{figure}
+
+
+
+\subsection{Sobolev PINN results}
+
+\subsubsection{One-dimensional case}
+
+We will now train a PINN with the Sobolev loss function, with the same model architecture and training setup as the vanilla PINN, and compare the results against the tree benchmark. We can see from Figure \ref{fig:bs_sobolev_pinn_price_comparison} that the Sobolev PINN price also gets close to the tree price across the domain, but the inaccuracy here is more significant than the vanilla PINN, especially at the $(t=0, S=K)$ point, which is arguably the point we are most interested in. However, considering that the boundary conditions of the loss function isn't manufactured from the payoff function directly, we can see that this method could be effective for more general problems where boundary conditions are not as straightforward to implement, and the price is still in the right ballpark.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison.png}
+    \caption[Sobolev PINN vs tree heatmap]{Sobolev PINN vs tree price comparison heatmap across domain}
+    \label{fig:bs_sobolev_pinn_price_comparison}
+\end{figure}
+
+We can see especially in Figure \ref{fig:bs_sobolev_pinn_price_comparison_line} that the Sobolev PINN manages to capture the term structure of the option price with the theta collapse as we approach maturity, and the error is more significant due to a hump in the price against asset price around the strike price. This suggests that the model is capable of a good fit across the domain, but may be undertrained or have too small a capacity.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_pinn_price_comparison_line.png}
+    \caption[Sobolev PINN vs tree: varying $S$ and term structure]{Price comparison for varying underlying price, and for term structure at $S=K$ with the Sobolev PINN}
+    \label{fig:bs_sobolev_pinn_price_comparison_line}
+\end{figure}
+
+Overall this method is promising, but it may require more careful training and tuning to get better results as presented in \cite{zhao2025fractional}, who demonstrated its effectiveness through extensive training on the GPU with much larger networks, which is beyond our scope.
+
+\subsubsection{Multi-dimensional case}
+
+We will finish this section by presenting our results for the multi-dimensional case, where we have added a L-BFGS optimiser after having trained with Adam for a good number of epochs.
+
+Figure \ref{fig:bs_sobolev_nd_price_comparison} shows the heatmap of the Sobolev PINN price against the tree price across the $S^1$-$S^2$ cross section at $t=0$. We can see that the Sobolev PINN price has captured the correct shape of the price across the domain, with greater inaccuracy than the vanilla PINN.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_nd_price_comparison.png}
+    \caption[Sobolev PINN vs tree: price heatmap]{Sobolev PINN vs tree price comparison heatmap across $S^1$-$S^2$ cross section at $t=0$}
+    \label{fig:bs_sobolev_nd_price_comparison}
+\end{figure}
+
+We can see that the bias is the strongest on the at-the-money line, which we can examine more closely in the left figure of Figure \ref{fig:bs_sobolev_nd_price_comparison_line}. We see a similar behaviour as the vanilla case exhibited here, where the PINN overprices for more moderate values of $S^1$ and underprices for more extreme values of $S^1$. This brings the case of training a enlarged domain into question, where we only evaluate our model on a smaller interior of the domain.
+
+The right figure of Figure \ref{fig:bs_sobolev_nd_price_comparison_line} shows the term structure of the option price, with the asset prices fixed at $S^1 = S^2 = \sqrt{K}$. We can see that the Sobolev PINN captures the theta decay of the option price better than the vanilla PINN, but there is a systematic overpricing bias across the whole time dimension. We have attempted to combat this by noticing that the errors cumulate backwards from expiry $t=T$ backwards to the initial time $t=0$, so we have attempted to train the model with causal weighting instead of a uniform average, where we put more weight on the later time steps until the residual loss is sufficiently small, and then relax this causal weighting gradually to a uniform average. This has improved the accuracy from over $100\%$ relative error to around $20\%$ relative error, which is not ideal but is still a significant improvement nonetheless.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_sobolev_nd_price_comparison_line.png}
+    \caption[Sobolev PINN vs tree: varying $S$ and term structure]{Price comparison for varying underlying price, and for term structure at $S=K$ with the Sobolev PINN}
+    \label{fig:bs_sobolev_nd_price_comparison_line}
+\end{figure}
+
+Even though this approach yielded lower accuracy than that of the vanilla PINN, we could still see its strengths over the vanilla PINN (such as it being capable of capturing the collapse of the option price to zero as we approach maturity). With more careful training and tuning, the accuracy could definitely improved, which is an avenue for future work. We will prefer the vanilla PINN for the free boundary calculation due to its better accuracy, but it was  interesting nonetheless to see how we could construct the loss function from another angle altogether, without relying on manual boundary conditions.
+
 
 \subsection{Free boundary}
 
