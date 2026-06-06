@@ -384,7 +384,7 @@ For ease of notation, let $A=\sum_{i=1}^n \sigma_i^2$ and $b_j = \sum_{i=1}^n\si
 
 Now $Y$ has variance
 \begin{equation}
-    \dd Y\dd Y = V\sum_{j=1}^n b_j^2 \,\dd t =: VB\,\dd t
+    \dd \langle Y\rangle_t = V\sum_{j=1}^n b_j^2 \,\dd t =: VB\,\dd t
 \end{equation}
 where we let $B := \sum_{j=1}^n b_j^2$ for convenience, we can rewrite $\dd Y$ with a new Brownian motion:
 \begin{equation}
@@ -546,14 +546,14 @@ We can see that the Heston tree does indeed replicate the closed form solution v
 
 To compute the American option price with the tree model, all we need to do is to introduce the stopping condition at every node: we evaluate the intrinsic value of the option at each node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
 
+In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option price indeed bounds the American prices from below, as we would expect. We have confidence that our American prices are accurate since our binomial tree faithfully approximates the closed-form solution for European options. We will now use this as a benchmark for neural network approximations.
+
 \begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_tree_put_eu_vs_am.png}
     \caption[Heston tree: American vs European put options]{American vs European option prices for the put}
     \label{fig:heston_put_eu_vs_am}
 \end{figure}
-
-In Figure \ref{fig:heston_put_eu_vs_am} we can see that the European option price indeed bounds the American prices from below, as we would expect. We have confidence that our American prices are accurate since our binomial tree faithfully approximates the closed-form solution for European options. We will now use this as a benchmark for neural network approximations.
 
 \subsection{One-dimensional PINN solution}
 
