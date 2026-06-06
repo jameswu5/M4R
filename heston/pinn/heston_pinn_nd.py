@@ -12,9 +12,15 @@ class HestonMultiAssetPINN(PINN):
     def __init__(self, model_config, seed):
         super().__init__(model_config, seed)
 
+        # Fraction of interior collocation points drawn near the free boundary
+        # prod(S) = K, and the multiplicative spread of that cloud around it.
+        self.boundary_frac = 0.5
+        self.boundary_band = 0.25
+
         self.history = {
             'loss': [],
             'variational_loss': [],
+            'variational_max': [],
             'terminal_loss': [],
             'Smin_loss': [],
             'Smax_loss': [],
@@ -70,6 +76,9 @@ class HestonMultiAssetPINN(PINN):
         self.V_min = V_min
         self.V_max = V_max
 
+        # Per-asset upper bound used to scale the asset inputs into ~[0, 1].
+        self.S_max_t = torch.tensor(np.asarray(S_max, dtype=float), dtype=torch.float32)
+
         self.sigmas = torch.tensor(sigmas, dtype=torch.float32)
         self.corr = torch.tensor(corr, dtype=torch.float32)
 
@@ -85,18 +94,24 @@ class HestonMultiAssetPINN(PINN):
             np.outer(sigmas, sigmas) * corr, dtype=torch.float32
         )
 
-    def train(self, batch_size, epochs, early_stopping):
+    def train(self, batch_size, epochs, early_stopping, clip_norm=1.0, lbfgs_epochs=500):
         """
-        Train the PINN using equal loss weights (no annealing).
+        Train the PINN with Adam (gradient-clipped) followed by an L-BFGS
+        refinement phase.
 
         Parameters
         ----------
         batch_size : int
             Collocation points per training batch.
         epochs : int
-            Maximum training epochs.
+            Maximum Adam training epochs.
         early_stopping : EarlyStopping
-            Halts training and restores best model when validation loss stagnates.
+            Halts the Adam phase when validation loss stagnates; its best model
+            is restored before the L-BFGS phase begins.
+        clip_norm : float, optional
+            Max global gradient norm for the Adam phase (set None/0 to disable).
+        lbfgs_epochs : int, optional
+            Max L-BFGS iterations for the refinement phase (set 0 to skip).
         """
         # Create held-out validation set for early stopping
         val_t_interior, val_S_interior, val_V_interior = self.__sample_interior(batch_size)
@@ -104,12 +119,16 @@ class HestonMultiAssetPINN(PINN):
 
         for i in range(epochs):
             variational_loss = self.__interior_loss(batch_size)
+            interior_max = self._last_interior_max
             terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss = self.__boundary_loss(batch_size)
 
             loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss)
+            self.history['variational_max'].append(interior_max)
 
             self.optimizer.zero_grad()
             loss.backward()
+            if clip_norm:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_norm)
             self.optimizer.step()
             self.scheduler.step()
 
@@ -119,11 +138,59 @@ class HestonMultiAssetPINN(PINN):
             val_loss = self.__process_loss(variational_loss_val, terminal_loss_val, Smin_loss_val, Smax_loss_val, Vmin_loss_val, Vmax_loss_val, update_dict=False)
 
             if i % 500 == 0:
-                print(f"Iteration {i} | Training Loss: {loss.item()} | Validation Loss: {val_loss.item()}")
+                print(f"Iteration {i} | Training Loss: {loss.item():.3e} | Validation Loss: {val_loss.item():.3e} | Max interior sq-residual: {interior_max:.3e}")
 
             if early_stopping and early_stopping.step(val_loss.item(), self.model):
                 print(f"Early stopping at epoch {i}")
                 break
+
+        # Restore the best Adam iterate so refinement starts from the best point.
+        if early_stopping is not None:
+            early_stopping.restore(self.model)
+
+        if lbfgs_epochs:
+            self.__lbfgs_finetune(batch_size, lbfgs_epochs, clip_norm)
+
+    def __lbfgs_finetune(self, batch_size, max_iter, clip_norm):
+        """
+        Refine the network with L-BFGS on a fixed collocation set.
+
+        L-BFGS assumes a deterministic objective, so the collocation points are
+        sampled once and reused for every closure evaluation (unlike the Adam
+        phase, which resamples each step).
+        """
+        t_int, S_int, V_int = self.__sample_interior(batch_size)
+        t_bnd, S_bnd, V_bnd = self.__sample_boundary(batch_size)
+
+        optimizer = torch.optim.LBFGS(
+            self.model.parameters(),
+            max_iter=max_iter,
+            history_size=50,
+            line_search_fn='strong_wolfe',
+            tolerance_grad=1e-9,
+            tolerance_change=1e-12,
+        )
+
+        step = [0]
+
+        def closure():
+            optimizer.zero_grad()
+            variational_loss = self.__interior_loss(batch_size, t=t_int, S=S_int, V=V_int)
+            terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss = self.__boundary_loss(batch_size, t=t_bnd, S=S_bnd, V=V_bnd)
+            loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss)
+            self.history['variational_max'].append(self._last_interior_max)
+
+            loss.backward()
+            if clip_norm:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_norm)
+
+            step[0] += 1
+            if step[0] % 50 == 0:
+                print(f"L-BFGS closure {step[0]} | Loss: {loss.item():.3e} | Max interior sq-residual: {self._last_interior_max:.3e}")
+            return loss
+
+        print("Starting L-BFGS refinement...")
+        optimizer.step(closure)
 
     def __process_loss(self, variational_loss, terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss, update_dict=True):
         """Apply loss weights, sum, and optionally append to history."""
@@ -147,24 +214,75 @@ class HestonMultiAssetPINN(PINN):
 
         return total_loss
 
+    def _normalize(self, t, *args):
+        """
+        Scale raw (t, S..., V) inputs into ~[0, 1] before the network.
+
+        The last positional argument is always the variance V; the rest are the
+        asset prices (either a single (N, n_assets) tensor or individual
+        columns). Normalisation is differentiable, so gradients taken w.r.t. the
+        raw t, S, V (used by the PDE residual) remain correct via the chain rule.
+        """
+        t = torch.as_tensor(t, dtype=torch.float32)
+        args = [torch.as_tensor(a, dtype=torch.float32) for a in args]
+
+        *S_args, V = args
+        t_n = t / self.T
+        V_n = (V - self.V_min) / (self.V_max - self.V_min)
+
+        if len(S_args) == 1 and S_args[0].dim() == 2 and S_args[0].shape[-1] == self.n_assets:
+            S_n = [S_args[0] / self.S_max_t]
+        else:
+            S_n = [s / self.S_max_t[i] for i, s in enumerate(S_args)]
+
+        return [t_n, *S_n, V_n]
+
     def _f(self, t, *args):
         """Network output passed through softplus to enforce f >= 0."""
-        return F.softplus(self.model(t, *args))
+        return F.softplus(self.model(*self._normalize(t, *args)))
 
     def predict(self, t, *S):
         self.model.eval()
         with torch.no_grad():
-            return F.softplus(self.model(t, *S))
+            return F.softplus(self.model(*self._normalize(t, *S)))
+
+    def __sample_curve(self, n):
+        """
+        Sample asset prices concentrated near the free boundary prod(S) = K.
+
+        The first n_assets-1 coordinates are drawn log-uniformly; the last is set
+        to K / prod(others) and given a multiplicative log-normal spread so the
+        cloud straddles the exercise manifold rather than sitting exactly on it.
+        Points whose final coordinate falls outside the domain are clipped.
+        """
+        lo = np.maximum(np.asarray(self.S_min, dtype=float), 1e-3)
+        hi = np.asarray(self.S_max, dtype=float)
+
+        S = np.empty((n, self.n_assets))
+        for i in range(self.n_assets - 1):
+            S[:, i] = np.exp(self.sampler.rng.uniform(np.log(lo[i]), np.log(hi[i]), n))
+
+        prod_prev = np.prod(S[:, :self.n_assets - 1], axis=1) if self.n_assets > 1 else np.ones(n)
+        noise = np.exp(self.sampler.rng.normal(0.0, self.boundary_band, n))
+        S[:, -1] = np.clip(self.K / prod_prev * noise, lo[-1], hi[-1])
+
+        return torch.tensor(S, dtype=torch.float32)
 
     def __sample_interior(self, batch_size):
-        """Sample (t, S, V) collocation points with extra density near the ATM region (prod(S) ~ K)."""
+        """Sample (t, S, V) collocation points, concentrating a fraction near the free boundary prod(S) = K."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
+        V = self.sampler.uniform(self.V_min, self.V_max, (batch_size, 1))
+
+        n_curve = int(batch_size * self.boundary_frac)
+        n_bulk = batch_size - n_curve
+
         atm = self.K ** (1.0 / self.n_assets)
         centres = np.full(self.n_assets, atm)
         radii = np.full(self.n_assets, atm)
         weights = np.full(self.n_assets, 0.5)
-        S = self.sampler.segmented_uniform(self.S_min, self.S_max, centres, radii, weights, batch_size)
-        V = self.sampler.uniform(self.V_min, self.V_max, (batch_size, 1))
+        S_bulk = self.sampler.segmented_uniform(self.S_min, self.S_max, centres, radii, weights, n_bulk)
+
+        S = torch.cat([S_bulk, self.__sample_curve(n_curve)], dim=0)
         return t, S, V
 
     def __sample_boundary(self, batch_size):
@@ -233,9 +351,9 @@ class HestonMultiAssetPINN(PINN):
         S_prod = torch.prod(S, dim=1, keepdim=True)
         g = torch.maximum(self.K - S_prod, zeros)
 
-        variational_loss = torch.mean(
-            torch.minimum(residual, f - g) ** 2
-        )
+        per_point = torch.minimum(residual, f - g) ** 2
+        variational_loss = torch.mean(per_point)
+        self._last_interior_max = per_point.max().item()
 
         return variational_loss
 
@@ -268,19 +386,23 @@ class HestonMultiAssetPINN(PINN):
             )**2)
 
         # Smax loss: for the product payoff the option is only worthless when ALL
-        # assets are simultaneously large, so set every coordinate to a large
-        # multiple of its upper bound rather than only one at a time.
-        S_max_tensor = torch.tensor(np.asarray(self.S_max) * 10, dtype=torch.float32)
-        S_far = S_max_tensor.expand(batch_size, self.n_assets)
+        # assets are simultaneously large, so set every coordinate to its upper
+        # bound (the in-domain edge) rather than only one at a time.
+        S_far = torch.tensor(np.asarray(self.S_max), dtype=torch.float32).expand(batch_size, self.n_assets)
         Smax_loss = torch.mean(self._f(t, S_far, V) ** 2)
 
         # Vmin loss: f(t, S, 0) = payoff(S)
         f_Vmin = self._f(t, *S_list, zeros)
         Vmin_loss = torch.mean((f_Vmin - g) ** 2)
 
-        # Vmax loss: f(t, S, v_inf) = K
-        V_inf = ones * self.V_max * 2
-        f_Vinf = self._f(t, *S_list, V_inf)
-        Vmax_loss = torch.mean((f_Vinf - self.K) ** 2)
+        # Vmax loss: at the top of the variance domain the value becomes
+        # insensitive to V, so impose the far-field Neumann condition dV f = 0 at
+        # V_max instead of the (only asymptotically valid) Dirichlet value f = K.
+        V_top = (ones * self.V_max).requires_grad_(True)
+        f_Vmax = self._f(t, *S_list, V_top)
+        f_Vmax_V = torch.autograd.grad(
+            f_Vmax, V_top, torch.ones_like(f_Vmax), create_graph=True
+        )[0]
+        Vmax_loss = torch.mean(f_Vmax_V ** 2)
 
         return terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss

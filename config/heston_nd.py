@@ -33,15 +33,15 @@ model_config = ModelConfig(
     output_size=1,
     activation=nn.Tanh(),
     learning_rate=0.001,
-    step_size=2000,
-    gamma=0.7,
+    step_size=1500,
+    gamma=0.9,
 )
 
 loss_weights = {
-    'variational': 5,
-    'terminal': 5,
-    'Smin': 3,
-    'Smax': 3,
-    'Vmin': 3,
-    'Vmax': 3,
+    'variational': 6,
+    'terminal': 2,
+    'Smin': 1,
+    'Smax': 1,
+    'Vmin': 1,
+    'Vmax': 1,
 }
