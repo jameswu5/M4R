@@ -179,7 +179,7 @@ class BlackScholesSobolevMultiAsset(PINN):
 
             optimizer.step(closure)
 
-            # Record one point per round so the loss history stays continuous.
+            # Record one point per round so the loss history stays continuous
             pde_loss = self.__pde_loss(t1, S_pde)
             J2, J3, J4 = self.__sobolev_loss(t1, t2, S, S1_bnd, S2_bnd, face1, face2)
             loss = self.__process_loss(pde_loss, J2, J3, J4)
@@ -253,7 +253,7 @@ class BlackScholesSobolevMultiAsset(PINN):
             lambda_hat = peak_grad / (mean_grad + 1e-8)
             new_weights[name] = alpha * self.loss_weights[name] + (1.0 - alpha) * lambda_hat
 
-        # Hold frozen weights fixed; let the balanced terms share the rest.
+        # Hold frozen weights fixed; let the balanced terms share the rest
         frozen_mass = sum(self.loss_weights[k] for k in unweighted_losses if k in frozen)
         balanced_total = sum(new_weights.values())
         if balanced_total > 0:
@@ -345,19 +345,17 @@ class BlackScholesSobolevMultiAsset(PINN):
             v_Si_S = torch.autograd.grad(
                 v_Si, S, grad_outputs=torch.ones_like(v_Si), create_graph=True
             )[0]
-            rows.append(v_Si_S.unsqueeze(1))   # (batch, 1, n_assets)
-        v_SS = torch.cat(rows, dim=1)           # (batch, n_assets, n_assets)
+            rows.append(v_Si_S.unsqueeze(1))
+        v_SS = torch.cat(rows, dim=1)
 
-        cov = torch.outer(self.sigmas, self.sigmas) * self.corr  # (n_assets, n_assets)
+        cov = torch.outer(self.sigmas, self.sigmas) * self.corr
 
         drift = self.r * torch.sum(S * v_S, dim=1, keepdim=True)
 
-        S_outer = S.unsqueeze(2) * S.unsqueeze(1)   # (batch, n_assets, n_assets)
+        S_outer = S.unsqueeze(2) * S.unsqueeze(1)
         cov_bc = cov.unsqueeze(0).expand(batch_size, -1, -1)
         diffusion = 0.5 * torch.sum(cov_bc * S_outer * v_SS, dim=(1, 2)).unsqueeze(-1)
 
-        # Backward (calendar-time) Black-Scholes operator: -(v_t + A[v] - r v),
-        # consistent with the payoff condition being imposed at t = T (see J2 below).
         residual = -v_t - drift - diffusion + self.r * v
         return residual, v
 
@@ -384,7 +382,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         """Causal (terminal-anchored) time weighting of the per-point residual.
 
         The terminal payoff is imposed at t=T, so the solution is trustworthy near
-        T and propagates backward. Bin points by time, and weight each bin by
+        T and propagates backwards. Group points into bins by time, and weight each bin by
         exp(-eps * cumulative residual over all *later* bins, i.e. those nearer T).
         A bin is down-weighted until the residual at every later time has fallen,
         which enforces the residual front-to-back instead of letting t=0 error
@@ -403,9 +401,9 @@ class BlackScholesSobolevMultiAsset(PINN):
         bin_cnt.scatter_add_(0, bin_idx, torch.ones_like(sq_flat))
         bin_mean = bin_sum / bin_cnt.clamp_min(1.0)
 
-        # Exclusive cumulative residual over later (nearer-T) bins, going backward.
+        # Exclusive cumulative residual over later (nearer-T) bins, going backwards
         rev = torch.flip(bin_mean, dims=[0])
-        cum_rev = torch.cumsum(rev, dim=0) - rev          # exclusive
+        cum_rev = torch.cumsum(rev, dim=0) - rev
         cum = torch.flip(cum_rev, dims=[0])
         bin_w = torch.exp(-eps * cum)
 
@@ -421,10 +419,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         d = self.n_assets
         device = S_interior.device
 
-        # ------------------------------------------------------------------
-        # J2: H^1 norm of u(T, S) = v(T, S) - g(S) on the interior
-        #     (payoff condition imposed at t = T)
-        # ------------------------------------------------------------------
+        # J2 term
         S_interior = S_interior.detach().requires_grad_(True)
         batch = S_interior.shape[0]
         t_T = torch.ones(batch, 1) * self.T
@@ -440,10 +435,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         J2_H1 = torch.mean(torch.sum(grad_u_T ** 2, dim=1, keepdim=True))
         J2 = J2_L2 + J2_H1
 
-        # ------------------------------------------------------------------
         # Boundary evaluations (shared between J3 and J4)
-        # requires_grad=True needed for the normal-derivative computation in J4
-        # ------------------------------------------------------------------
         S1_boundary = S1_boundary.detach().requires_grad_(True)
         S2_boundary = S2_boundary.detach().requires_grad_(True)
 
@@ -462,10 +454,7 @@ class BlackScholesSobolevMultiAsset(PINN):
 
         dt = torch.abs(t1 - t2)
 
-        # ------------------------------------------------------------------
-        # J3: H^{0,1} term (L^2 value + spatial-gradient L^2) + time Gagliardo
-        #     seminorm + space Gagliardo seminorm on the lateral boundary
-        # ------------------------------------------------------------------
+        # J3 term
         J3_val = 0.5 * (torch.mean(d_t1_S1 ** 2) + torch.mean(d_t1_S2 ** 2))
 
         denom_time_J3 = (dt ** (1 + 2 * s_time_J3)).clamp_min(1e-8)
@@ -473,8 +462,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         time_frac_S2 = self.__robust_mean(((d_t1_S2 - d_t2_S2) ** 2) / denom_time_J3, robust_q)
         J3_time = 0.5 * (time_frac_S1 + time_frac_S2)
 
-        # Gradient of u at boundary points (needed for the H^{0,1} spatial term
-        # and reused for the J4 normal derivative)
+        # Gradient of u at boundary points
         grad_u_S1 = torch.autograd.grad(
             d_t1_S1, S1_boundary, grad_outputs=torch.ones_like(d_t1_S1), create_graph=True
         )[0]
@@ -482,14 +470,11 @@ class BlackScholesSobolevMultiAsset(PINN):
             d_t1_S2, S2_boundary, grad_outputs=torch.ones_like(d_t1_S2), create_graph=True
         )[0]
 
-        # H^{0,1} contribution: L^2 norm of the spatial gradients on the boundary
         J3_grad_L2 = 0.5 * (
             torch.mean(torch.sum(grad_u_S1 ** 2, dim=1, keepdim=True)) +
             torch.mean(torch.sum(grad_u_S2 ** 2, dim=1, keepdim=True))
         )
 
-        # Spatial Gagliardo seminorm on the function value (writeup form):
-        # |u(t1, S1) - u(t1, S2)|^2 / |S1 - S2|^(2*theta + n - 1)
         frac_space_J3 = s_space_J3 % 1
         s_exp_J3 = 2 * frac_space_J3 + d - 1
         diff_xy = S1_boundary - S2_boundary
@@ -500,10 +485,8 @@ class BlackScholesSobolevMultiAsset(PINN):
 
         J3 = J3_val + J3_grad_L2 + J3_time + J3_space
 
-        # ------------------------------------------------------------------
-        # J4: outward normal derivative dnu = du/dS_{face_i} on each face
-        #     L^2 term + time Gagliardo + spatial Gagliardo
-        # ------------------------------------------------------------------
+        # J4 term
+
         # Reuse grad_u_S1 / grad_u_S2 already computed for J3
         idx = torch.arange(S1_boundary.shape[0], device=device)
         face1_t = torch.tensor(face1, dtype=torch.long, device=device)
@@ -512,8 +495,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         dnu_t1_S1 = grad_u_S1[idx, face1_t].unsqueeze(1)
         dnu_t1_S2 = grad_u_S2[idx, face2_t].unsqueeze(1)
 
-        # L^2 term: single ||d||^2_{L^2(Sigma)} estimated by averaging the
-        # two boundary-sample batches (matches the J3 value-term convention)
+        # L^2 term
         J4_L2 = 0.5 * (torch.mean(dnu_t1_S1 ** 2) + torch.mean(dnu_t1_S2 ** 2))
 
         # Time fractional part: compare normal derivatives at t1 vs t2

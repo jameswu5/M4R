@@ -107,10 +107,6 @@ class BlackScholesSobolev(PINN):
                 early_stopping.restore(self.model)
                 break
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def __process_loss(self, pde_loss, J2, J3, J4, update_dict=True):
         """Apply loss weights, sum, and optionally append to history."""
         w_pde = self.loss_weights['pde'] * pde_loss
@@ -129,9 +125,6 @@ class BlackScholesSobolev(PINN):
     def __anneal_weights(self, unweighted_losses: dict, alpha: float):
         """Rescale loss weights using the PDE gradient as the reference peak, apply EMA, and renormalise."""
         params = list(self.model.parameters())
-        # Use the PDE residual loss gradient as the reference.
-        # Using the total loss here makes all lambda_hat values equal after
-        # normalisation, so the annealing would have no effect.
         pde_grads = torch.autograd.grad(
             unweighted_losses['pde'], params, retain_graph=True, create_graph=False, allow_unused=True
         )
@@ -200,9 +193,7 @@ class BlackScholesSobolev(PINN):
         batch = S_interior.shape[0]
         ones = torch.ones(batch, 1, device=S_interior.device, dtype=S_interior.dtype)
 
-        # ------------------------------------------------------------------
-        # J2: H^1 norm of u(T, S) = v(T, S) - g(S) at t = T
-        # ------------------------------------------------------------------
+        # J2 term
         t_terminal = ones * self.T
         v_T = self.model(t_terminal, S_interior)
         g_T = F.relu(self.K - S_interior)
@@ -215,12 +206,9 @@ class BlackScholesSobolev(PINN):
         J2_H1 = torch.mean(grad_u_T ** 2)
         J2 = J2_L2 + J2_H1
 
-        # ------------------------------------------------------------------
         # Boundary evaluations for J3 and J4
-        # ------------------------------------------------------------------
-        # Need requires_grad for computing spatial derivatives at boundaries
-        x1 = (ones * self.S_min).requires_grad_(True)   # S_min boundary
-        x2 = (ones * self.S_max).requires_grad_(True)   # S_max boundary
+        x1 = (ones * self.S_min).requires_grad_(True)
+        x2 = (ones * self.S_max).requires_grad_(True)
 
         v_t1_x1 = self.model(t1, x1)
         v_t1_x2 = self.model(t1, x2)
@@ -237,11 +225,7 @@ class BlackScholesSobolev(PINN):
 
         dt = torch.abs(t1 - t2)
 
-        # ------------------------------------------------------------------
-        # J3: H^{3/4} fractional norm in time on {S_min, S_max}
-        #     Gagliardo seminorm: |u(t1,x) - u(t2,x)|^2 / |t1-t2|^{1+2s}
-        #     with s = 3/4  =>  exponent = 2.5
-        # ------------------------------------------------------------------
+        # J3 term
         denom_t_J3 = (dt ** 2.5).clamp_min(1e-8)
 
         time_frac_x1 = torch.mean(((u_t1_x1 - u_t2_x1) ** 2) / denom_t_J3)
@@ -250,11 +234,7 @@ class BlackScholesSobolev(PINN):
         J3_L2 = 0.5 * (torch.mean(u_t1_x1 ** 2) + torch.mean(u_t1_x2 ** 2))
         J3 = J3_L2 + time_frac_x1 + time_frac_x2
 
-        # ------------------------------------------------------------------
-        # J4: H^{1/4} fractional norm in time for the normal derivative
-        #     ∂u/∂S on {S_min, S_max}
-        #     s = 1/4  =>  exponent = 1.5
-        # ------------------------------------------------------------------
+        # J4 term
         dv_dS_t1_x1 = torch.autograd.grad(
             v_t1_x1, x1, grad_outputs=torch.ones_like(v_t1_x1), create_graph=True
         )[0]
@@ -268,9 +248,6 @@ class BlackScholesSobolev(PINN):
             v_t2_x2, x2, grad_outputs=torch.ones_like(v_t2_x2), create_graph=True
         )[0]
 
-        # g(S) = relu(K - S).  dg/dS = -1 if S < K, else 0.
-        # At fixed boundary points this is a constant, so the fractional
-        # differences of du/dS = dv/dS - dg/dS reduce to differences of dv/dS.
         dg_dS_x1 = -1.0 if self.S_min < self.K else 0.0
         dg_dS_x2 = -1.0 if self.S_max < self.K else 0.0
 
