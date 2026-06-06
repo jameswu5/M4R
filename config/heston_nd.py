@@ -25,7 +25,7 @@ v0 = 0.04
 S_min = np.full(n_assets, 0.0)
 V_min = 0.01
 S_max = np.full(n_assets, 3 * S0)
-V_max = 4 * v0
+V_max = 16 * v0  # far-field variance boundary, kept well above the eval range (<= 3*v0)
 
 model_config = ModelConfig(
     input_size=4,
@@ -41,7 +41,7 @@ loss_weights = {
     'variational': 6,
     'terminal': 2,
     'Smin': 1,
-    'Smax': 1,
-    'Vmin': 1,
-    'Vmax': 1,
+    'Smax': 0.5,
+    'Vmin': 2,
+    'Vmax': 2,
 }

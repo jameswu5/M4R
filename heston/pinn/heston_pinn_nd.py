@@ -17,16 +17,22 @@ class HestonMultiAssetPINN(PINN):
         self.boundary_frac = 0.5
         self.boundary_band = 0.25
 
+        # Fraction of interior V samples drawn from a high-density band around the
+        # long-run variance theta (the rest spread over the full [V_min, V_max]).
+        self.v_band_frac = 0.6
+
         self.history = {
             'loss': [],
             'variational_loss': [],
-            'variational_max': [],
             'terminal_loss': [],
             'Smin_loss': [],
             'Smax_loss': [],
             'Vmin_loss': [],
             'Vmax_loss': []
         }
+        # Worst-point interior residual per step (tracked separately from the
+        # weighted history so it does not distort plot_losses, which it dwarfs).
+        self.interior_max_history = []
 
     def set_params(self, K, r, T, kappa, theta, sigma_bar, sigmas, corr, rho_cross, S_min, S_max, V_min, V_max):
         """
@@ -123,7 +129,7 @@ class HestonMultiAssetPINN(PINN):
             terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss = self.__boundary_loss(batch_size)
 
             loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss)
-            self.history['variational_max'].append(interior_max)
+            self.interior_max_history.append(interior_max)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -178,7 +184,7 @@ class HestonMultiAssetPINN(PINN):
             variational_loss = self.__interior_loss(batch_size, t=t_int, S=S_int, V=V_int)
             terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss = self.__boundary_loss(batch_size, t=t_bnd, S=S_bnd, V=V_bnd)
             loss = self.__process_loss(variational_loss, terminal_loss, Smin_loss, Smax_loss, Vmin_loss, Vmax_loss)
-            self.history['variational_max'].append(self._last_interior_max)
+            self.interior_max_history.append(self._last_interior_max)
 
             loss.backward()
             if clip_norm:
@@ -271,7 +277,13 @@ class HestonMultiAssetPINN(PINN):
     def __sample_interior(self, batch_size):
         """Sample (t, S, V) collocation points, concentrating a fraction near the free boundary prod(S) = K."""
         t = self.sampler.uniform(0, self.T, (batch_size, 1))
-        V = self.sampler.uniform(self.V_min, self.V_max, (batch_size, 1))
+
+        # Concentrate V density near theta so the enlarged [V_min, V_max] domain
+        # does not starve the region of interest (V ~ a few * theta) of points.
+        V = self.sampler.segmented_uniform_1d(
+            self.V_min, self.V_max, centre=self.theta, radius=3 * self.theta,
+            weight=self.v_band_frac, shape=(batch_size,)
+        ).reshape(-1, 1)
 
         n_curve = int(batch_size * self.boundary_frac)
         n_bulk = batch_size - n_curve
@@ -391,9 +403,17 @@ class HestonMultiAssetPINN(PINN):
         S_far = torch.tensor(np.asarray(self.S_max), dtype=torch.float32).expand(batch_size, self.n_assets)
         Smax_loss = torch.mean(self._f(t, S_far, V) ** 2)
 
-        # Vmin loss: f(t, S, 0) = payoff(S)
-        f_Vmin = self._f(t, *S_list, zeros)
-        Vmin_loss = torch.mean((f_Vmin - g) ** 2)
+        # Vmin loss: at V = 0 every variance-multiplied term vanishes, leaving the
+        # degenerate PDE  -f_t - (r * sum_i S_i f_{S_i} + kappa*theta f_V) + r f = 0.
+        # The variance characteristic points inward there (kappa*theta > 0), so by
+        # the Fichera condition no Dirichlet value is admissible; instead impose the
+        # American complementarity min(G0[f], f - g) = 0 with this degenerate G0.
+        # Evaluating __heston_residual at V = 0 reproduces G0 automatically.
+        t_v0 = t.detach().clone().requires_grad_(True)
+        S_v0 = S.detach().clone().requires_grad_(True)
+        V_v0 = torch.zeros((batch_size, 1), requires_grad=True)
+        residual_0, f_v0 = self.__heston_residual(t_v0, S_v0, V_v0)
+        Vmin_loss = torch.mean(torch.minimum(residual_0, f_v0 - g) ** 2)
 
         # Vmax loss: at the top of the variance domain the value becomes
         # insensitive to V, so impose the far-field Neumann condition dV f = 0 at
