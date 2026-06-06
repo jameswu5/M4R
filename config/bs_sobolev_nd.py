@@ -21,8 +21,8 @@ model_config = ModelConfig(
     output_size=1,
     activation=nn.Tanh(),
     learning_rate=0.001,
-    step_size=1000,
-    gamma=0.8,
+    step_size=1500,
+    gamma=0.9,
 )
 
 loss_weights = {

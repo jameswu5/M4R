@@ -113,7 +113,8 @@ class BlackScholesSobolevMultiAsset(PINN):
             pde_loss = self.__pde_loss(t1, S_pde, causal_eps=causal_eps)
             J2, J3, J4 = self.__sobolev_loss(t1, t2, S, S1_bnd, S2_bnd, face1, face2)
 
-            if i > 2000 and i % anneal_freq == 0:
+            # Freeze weights after 10000 epochs
+            if i > 1500 and i < 10000 and i % anneal_freq == 0:
                 self.__anneal_weights({'pde': pde_loss, 'J2': J2, 'J3': J3, 'J4': J4}, alpha)
 
             loss = self.__process_loss(pde_loss, J2, J3, J4)
@@ -291,7 +292,7 @@ class BlackScholesSobolevMultiAsset(PINN):
             S[:n_fb] = self.__sample_near_free_boundary(n_fb)
         return S
 
-    def __sample_near_free_boundary(self, n, width=0.2):
+    def __sample_near_free_boundary(self, n, width=0.3):
         """Sample n interior points clustered near the manifold prod(S) = K.
 
         Draw a base point uniformly, pick a target product spread lognormally
