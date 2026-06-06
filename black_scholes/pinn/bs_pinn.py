@@ -105,7 +105,6 @@ class BlackScholesPINN(PINN):
             # Compute validation loss for early stopping
             variational_loss_val = self.__interior_loss(batch_size, t=val_t_interior, S=val_S_interior)
             terminal_loss_val, Smin_loss_val, Smax_loss_val = self.__boundary_loss(batch_size, t=val_t_boundary, S=val_S_boundary)
-            # val_loss = self.__process_loss(variational_loss_val, terminal_loss_val, Smin_loss_val, Smax_loss_val, update_dict=False)
             val_loss = variational_loss_val + terminal_loss_val + Smin_loss_val + Smax_loss_val
 
             if i % 500 == 0:
