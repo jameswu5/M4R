@@ -7,14 +7,27 @@ def simulate_gbm(S0, r, sigma, T, N, n_paths=1, seed=None):
     """
     Simulate a single asset price path using Geometric Brownian Motion (GBM).
 
-    Parameters:
-    - S0: Initial asset price (scalar).
-    - r: Risk-free interest rate (scalar).
-    - sigma: Volatility of the asset (scalar).
-    - T: Time horizon (scalar).
-    - N: Number of time steps (scalar).
-    - n_paths: Number of paths to simulate (scalar).
-    - seed: Random seed for reproducibility (scalar or None).
+    Parameters
+    ----------
+    S0 : float
+        Initial asset price.
+    r : float
+        Risk-free interest rate.
+    sigma : float
+        Volatility of the asset.
+    T : float
+        Time horizon.
+    N : int
+        Number of time steps.
+    n_paths : int, optional
+        Number of paths to simulate.
+    seed : int or None, optional
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    S : ndarray of shape (n_paths, N + 1)
+        Simulated asset price paths.
     """
     rng = np.random.default_rng(seed)
 
@@ -32,6 +45,27 @@ def simulate_gbm(S0, r, sigma, T, N, n_paths=1, seed=None):
 
 
 def correlated_brownian_increments(T, N, corr, n_paths, seed=None):
+    """
+    Generate correlated Brownian motion increments.
+
+    Parameters
+    ----------
+    T : float
+        Time horizon.
+    N : int
+        Number of time steps.
+    corr : array_like of shape (k, k)
+        Correlation matrix of the Brownian motions.
+    n_paths : int
+        Number of paths to simulate.
+    seed : int or None, optional
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    dW : ndarray of shape (n_paths, N, k)
+        Correlated Brownian increments.
+    """
     rng = np.random.default_rng(seed)
 
     k = corr.shape[0]
@@ -47,15 +81,29 @@ def simulate_correlated_gbm(S0, r, sigma, corr, T, N, n_paths=1, seed=None):
     """
     Simulate correlated asset price paths using Geometric Brownian Motion (GBM).
 
-    Parameters:
-    - S0: Initial asset prices (array-like of shape (k,)).
-    - r: Risk-free interest rate (scalar).
-    - sigma: Volatility of the assets (array-like of shape (k,)).
-    - corr: Correlation matrix of the assets (array-like of shape (k, k)).
-    - T: Time horizon (scalar).
-    - N: Number of time steps (scalar).
-    - n_paths: Number of paths to simulate (scalar).
-    - seed: Random seed for reproducibility (scalar or None).
+    Parameters
+    ----------
+    S0 : array_like of shape (k,)
+        Initial asset prices.
+    r : float
+        Risk-free interest rate.
+    sigma : array_like of shape (k,)
+        Volatility of the assets.
+    corr : array_like of shape (k, k)
+        Correlation matrix of the assets.
+    T : float
+        Time horizon.
+    N : int
+        Number of time steps.
+    n_paths : int, optional
+        Number of paths to simulate.
+    seed : int or None, optional
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    S : ndarray of shape (n_paths, N + 1, k)
+        Simulated asset price paths.
     """
     S0 = np.asarray(S0)
     sigma = np.asarray(sigma)
@@ -78,18 +126,37 @@ def simulate_heston(S0, V0, r, T, kappa, theta, sigma, rho, N, n_paths=1, seed=N
     """
     Simulate asset price paths using the Heston model.
 
-    Parameters:
-    - S0: Initial asset price (scalar).
-    - V0: Initial variance (scalar).
-    - r: Risk-free interest rate (scalar).
-    - T: Time horizon (scalar).
-    - kappa: Speed of mean reversion (scalar).
-    - theta: Long-term variance (scalar).
-    - sigma: Volatility of variance (scalar).
-    - rho: Correlation between asset and variance (scalar).
-    - N: Number of time steps (scalar).
-    - n_paths: Number of paths to simulate (scalar).
-    - seed: Random seed for reproducibility (scalar or None).
+    Parameters
+    ----------
+    S0 : float
+        Initial asset price.
+    V0 : float
+        Initial variance.
+    r : float
+        Risk-free interest rate.
+    T : float
+        Time horizon.
+    kappa : float
+        Speed of mean reversion.
+    theta : float
+        Long-term variance.
+    sigma : float
+        Volatility of variance.
+    rho : float
+        Correlation between asset and variance.
+    N : int
+        Number of time steps.
+    n_paths : int, optional
+        Number of paths to simulate.
+    seed : int or None, optional
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    S : ndarray of shape (n_paths, N + 1)
+        Simulated asset price paths.
+    V : ndarray of shape (n_paths, N + 1)
+        Simulated variance paths.
     """
 
     rng = np.random.default_rng(seed)
@@ -113,7 +180,7 @@ def simulate_heston(S0, V0, r, T, kappa, theta, sigma, rho, N, n_paths=1, seed=N
         V_pos = np.maximum(V[:, t], 0)
         sqrt_V = np.sqrt(V_pos)
 
-        # Milstein scheme for variance (need to explain in write-up)
+        # Milstein scheme for variance
         V[:, t+1] = np.maximum(
             V[:, t]
             + kappa * (theta - V_pos) * dt
@@ -139,24 +206,39 @@ def simulate_heston_multi(
 
     Parameters
     ----------
-    S0        : float or array (n,) — initial asset prices
-    V0        : float            — initial variance (shared)
-    r         : float            — risk-free rate
-    T         : float            — time horizon
-    kappa     : float            — mean reversion speed
-    theta     : float            — long-run variance
-    sigma_bar : float            — vol-of-vol
-    sigmas    : array (n,)       — per-asset volatility scaling
-    corr      : array (n, n)     — asset correlation matrix (corr_ij = rho for i≠j)
-    rho_cross : array (n,)       — correlation of each W_{1,j} with W_2
-    N         : int              — number of time steps
-    n_paths   : int              — number of Monte Carlo paths
-    seed      : int or None
+    S0 : float or array_like of shape (n,)
+        Initial asset prices.
+    V0 : float
+        Initial variance (shared).
+    r : float
+        Risk-free rate.
+    T : float
+        Time horizon.
+    kappa : float
+        Mean reversion speed.
+    theta : float
+        Long-run variance.
+    sigma_bar : float
+        Vol-of-vol.
+    sigmas : array_like of shape (n,)
+        Per-asset volatility scaling.
+    corr : array_like of shape (n, n)
+        Asset correlation matrix (corr_ij = rho for i != j).
+    rho_cross : array_like of shape (n,)
+        Correlation of each W_{1,j} with W_2.
+    N : int
+        Number of time steps.
+    n_paths : int, optional
+        Number of Monte Carlo paths.
+    seed : int or None, optional
+        Random seed for reproducibility.
 
     Returns
     -------
-    S : array (n_paths, N+1, n)  — asset price paths
-    V : array (n_paths, N+1)     — variance paths
+    S : ndarray of shape (n_paths, N + 1, n)
+        Asset price paths.
+    V : ndarray of shape (n_paths, N + 1)
+        Variance paths.
     """
     n = len(sigmas)
     sigmas = np.asarray(sigmas)
@@ -164,31 +246,27 @@ def simulate_heston_multi(
     rho_cross = np.asarray(rho_cross)
     dt = T / N
 
-    # Build full (n+1)×(n+1) correlation matrix
     full_corr = np.eye(n + 1)
     full_corr[:n, n] = rho_cross
     full_corr[n, :n] = rho_cross
 
-    # dW shape: (n_paths, N, n+1)
     dW  = correlated_brownian_increments(T, N, full_corr, n_paths, seed)
-    dW1 = dW[:, :, :n]   # (n_paths, N, n)  — asset BMs
-    dW2 = dW[:, :,  n]   # (n_paths, N)     — variance BM
+    dW1 = dW[:, :, :n]
+    dW2 = dW[:, :,  n]
 
-    # Itô correction for log S_i:
-    ito_diag = np.diag(corr @ corr.T)          # (n,)
-    ito_coef = 0.5 * sigmas**2 * ito_diag        # (n,)  — multiply by V at each step
+    ito_diag = np.diag(corr @ corr.T)
+    ito_coef = 0.5 * sigmas**2 * ito_diag
 
-    # Storage
     S = np.zeros((n_paths, N + 1, n))
     V = np.zeros((n_paths, N + 1))
     S[:, 0, :] = S0
     V[:, 0]    = V0
 
     for t in range(N):
-        V_pos  = np.maximum(V[:, t], 0)   # (n_paths,)  full truncation
-        sqrt_V = np.sqrt(V_pos)           # (n_paths,)
+        V_pos  = np.maximum(V[:, t], 0)
+        sqrt_V = np.sqrt(V_pos)
 
-        # Variance (Milstein + full truncation)
+        # Variance (Milstein)
         V[:, t+1] = np.maximum(
             V[:, t]
             + kappa * (theta - V_pos) * dt
