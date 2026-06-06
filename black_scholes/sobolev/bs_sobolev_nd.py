@@ -52,7 +52,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         self.n_assets = len(sigmas)
 
     def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9,
-              grad_clip=1.0, lbfgs_steps=500, causal_eps=2.0, fb_frac=0.65):
+              grad_clip=1.0, lbfgs_steps=500, causal_eps=1.0, fb_frac=0.5):
         """
         Train using Sobolev regularity losses J2, J3, J4 with automatic loss reweighting.
 
@@ -83,7 +83,7 @@ class BlackScholesSobolevMultiAsset(PINN):
             (default 500). Set 0 to skip. Run in short rounds on freshly resampled
             collocation batches to avoid overfitting a single batch.
         causal_eps : float, optional
-            Causality tolerance for time weighting of the PDE residual (default 2.0).
+            Causality tolerance for time weighting of the PDE residual (default 1.0).
             The terminal condition anchors t=T; this weights each point's residual by
             exp(-causal_eps * accumulated residual over later times, i.e. closer to T),
             so the residual is enforced near t=T first and propagated backward instead
@@ -91,7 +91,7 @@ class BlackScholesSobolevMultiAsset(PINN):
             disable (plain mean).
         fb_frac : float, optional
             Fraction of PDE collocation points drawn near the free boundary
-            prod(S) = K (default 0.65), where the residual/curvature is largest. The
+            prod(S) = K (default 0.5), where the residual/curvature is largest. The
             remaining points stay uniform for domain coverage. J2/J3/J4 sampling is
             unchanged. Set 0 to disable.
         """
@@ -147,13 +147,9 @@ class BlackScholesSobolevMultiAsset(PINN):
             self.__lbfgs_refine(batch_size, lbfgs_steps, fb_frac=fb_frac)
 
     def __lbfgs_refine(self, batch_size, total_steps, inner_iter=25, fb_frac=0.0):
-        """Second-order refinement of the 4-term loss after Adam.
-
-        Runs LBFGS in short rounds, resampling the collocation batch each round so
-        the optimiser cannot overfit a single fixed batch. Loss weights are held at
-        their final annealed values; no new loss terms are introduced. Causal time
-        weighting is left off here so the closure loss is stationary within a round's
-        line search; free-boundary importance sampling (fb_frac) is still applied.
+        """
+        Second-order refinement of the 4-term loss after Adam, as part of fine-tuning
+        to converge more tightly to the solution.
         """
         rounds = max(1, total_steps // inner_iter)
         print(f"LBFGS refinement: {rounds} rounds x {inner_iter} iters...")
@@ -205,10 +201,10 @@ class BlackScholesSobolevMultiAsset(PINN):
     def __robust_mean(ratio, q):
         """Winsorised mean of a heavy-tailed per-sample fractional ratio.
 
-        Caps each contribution at the q-quantile (computed on detached values)
-        before averaging, so the handful of near-singular Gagliardo pairs at the
-        free boundary cannot dominate the seminorm estimate or its gradient.
-        q=None (or q>=1) disables clipping and recovers the plain mean.
+        This caps each contribution at the q-quantile before averaging, so is robust against
+        near-singular Galiardo pairs that would dominate the seminorm estimate or its gradient.
+
+        Setting q=None or q>=1 disables the capping and returns the plain mean.
         """
         if q is not None and q < 1.0:
             cap = torch.quantile(ratio.detach(), q)
@@ -219,16 +215,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         """Rescale loss weights by gradient-norm ratios, apply EMA, and renormalise.
 
         Weights named in `frozen` are held fixed and excluded from the
-        gradient-norm balancing. Their gradients therefore cannot drive the
-        weight update, and the remaining terms share the leftover budget
-        (1 - sum of frozen weights).
-
-        Both `pde` and `J4` are frozen by default. J4 because it is noise-
-        dominated; `pde` because the continuation-region price *level* is governed
-        almost entirely by the complementarity residual, and gradient-norm
-        balancing otherwise dilutes it against the terminal/regularity terms,
-        leaving the residual under-converged (the cause of the t=0 overpricing).
-        Freezing `pde` keeps its authority at the user-set weight throughout.
+        gradient-norm balancing.
         """
         params = list(self.model.parameters())
         total_loss = sum(self.loss_weights[k] * v for k, v in unweighted_losses.items())
@@ -267,7 +254,8 @@ class BlackScholesSobolevMultiAsset(PINN):
         self.loss_weights = new_weights
 
     def __sample_time_pairs(self, batch_size):
-        """Sample pairs of time coordinates separated by at least `eps` from [0, T].
+        """
+        Sample pairs of time coordinates separated by at least `eps` from [0, T].
 
         `eps` bounds the fractional-seminorm denominators |t1 - t2|^(1+2s) away
         from zero; raise it if the time Gagliardo terms still spike.
@@ -279,12 +267,8 @@ class BlackScholesSobolevMultiAsset(PINN):
         return t1, t2
 
     def __sample_S_interior(self, batch_size, fb_frac=0.0):
-        """Sample asset prices from the interior domain.
-
-        With fb_frac>0, the first int(batch_size*fb_frac) rows are drawn near the
-        free-boundary manifold prod(S) = K (where the obstacle constraint switches
-        and the complementarity residual/curvature is largest), and the rest stay
-        uniform for domain coverage. fb_frac=0 recovers a fully uniform batch.
+        """
+        Sample asset prices from the interior domain.
         """
         S = self.sampler.uniform(self.S_mins, self.S_maxs, (batch_size, self.n_assets))
         n_fb = int(batch_size * fb_frac)
@@ -293,13 +277,8 @@ class BlackScholesSobolevMultiAsset(PINN):
         return S
 
     def __sample_near_free_boundary(self, n, width=0.3):
-        """Sample n interior points clustered near the manifold prod(S) = K.
-
-        Draw a base point uniformly, pick a target product spread lognormally
-        around K (multiplicative width), then rescale every coordinate by
-        (target / prod)^(1/n_assets) so the product hits the target while the
-        point stays in the interior. Coordinates are clamped back into the domain,
-        which slightly perturbs the product but keeps the cluster tight.
+        """
+        Sample n interior points clustered near the manifold prod(S) = K.
         """
         S_mins = torch.as_tensor(self.S_mins, dtype=torch.float32)
         S_maxs = torch.as_tensor(self.S_maxs, dtype=torch.float32)
@@ -316,12 +295,9 @@ class BlackScholesSobolevMultiAsset(PINN):
         return torch.clamp(S, min=lo, max=S_maxs)
 
     def __sample_S_boundary_pairs(self, batch_size):
-        """Sample pairs of boundary asset-price points (both on the SAME face) with
+        """
+        Sample pairs of boundary asset-price points (both on the SAME face) with
         their shared face index, for a well-defined normal-derivative comparison.
-
-        `eps` bounds the spatial Gagliardo denominator ||S1 - S2||^(2*theta+n-1)
-        away from zero (the distance is now measured within the shared face);
-        raise it if the spatial terms still spike.
         """
         eps = 0.1
         S1, S2, face1, face2 = self.sampler.uniform_pair(
@@ -331,7 +307,9 @@ class BlackScholesSobolevMultiAsset(PINN):
         return S1, S2, face1, face2
 
     def __bs_residual(self, t, S):
-        """Evaluate the multi-asset Black-Scholes PDE residual at (t, S) via automatic differentiation."""
+        """
+        Evaluate the multi-asset Black-Scholes PDE residual at (t, S) via automatic differentiation.
+        """
         batch_size = S.shape[0]
         v = self.model(t, S)
 
@@ -360,12 +338,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         return residual, v
 
     def __pde_loss(self, t, S, causal_eps=0.0, n_bins=16):
-        """American put complementarity loss min(L[v], v-g)^2 with product payoff at interior points.
-
-        With causal_eps>0 the per-point squared residual is weighted so that points
-        near the terminal anchor t=T are enforced before earlier ones (see
-        __causal_weighted); causal_eps=0 averages uniformly.
-        """
+        """American put complementarity loss min(L[v], v-g)^2 with product payoff at interior points."""
         t = t.detach().requires_grad_(True)
         S = S.detach().requires_grad_(True)
 
@@ -379,15 +352,11 @@ class BlackScholesSobolevMultiAsset(PINN):
         return torch.mean(sq)
 
     def __causal_weighted(self, sq, t, eps, n_bins):
-        """Causal (terminal-anchored) time weighting of the per-point residual.
+        """
+        Causal (terminal-anchored) time weighting of the per-point residual.
 
-        The terminal payoff is imposed at t=T, so the solution is trustworthy near
-        T and propagates backwards. Group points into bins by time, and weight each bin by
-        exp(-eps * cumulative residual over all *later* bins, i.e. those nearer T).
-        A bin is down-weighted until the residual at every later time has fallen,
-        which enforces the residual front-to-back instead of letting t=0 error
-        accumulate under a uniform average. Weights are detached (they gate the
-        loss, they are not differentiated through).
+        This combats the error accumulation at t=0 due to the terminal condition being the only anchor.
+        Down-weight earlier points until the residual at every later time has fallen sufficiently.
         """
         t_flat = t.detach().reshape(-1)
         sq_flat = sq.reshape(-1)
@@ -415,7 +384,9 @@ class BlackScholesSobolevMultiAsset(PINN):
                        s_time_J3=0.75, s_space_J3=1.5,
                        s_time_J4=0.25, s_space_J4=0.5,
                        robust_q=0.99):
-        """Sobolev regularity losses J2 (H^1 payoff), J3 (mixed lateral), J4 (normal derivative lateral)."""
+        """
+        Sobolev regularity losses J2 (H^1 payoff), J3 (mixed lateral), J4 (normal derivative lateral).
+        """
         d = self.n_assets
         device = S_interior.device
 
