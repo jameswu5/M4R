@@ -6,13 +6,67 @@ from numbers import Number
 
 class Sampler:
     def __init__(self, seed=None):
+        """Create a sampler backed by a NumPy random generator.
+
+        Parameters
+        ----------
+        seed : int or None, optional
+            Seed for reproducible draws. If None, the generator is seeded from
+            the operating system's entropy source.
+        """
         self.rng = np.random.default_rng(seed)
 
     def uniform(self, left, right, shape):
+        """Draw samples uniformly from the box [left, right].
+
+        Parameters
+        ----------
+        left : float or array_like
+            Lower bound(s) of the interval; scalar or array broadcastable to
+            ``shape``.
+        right : float or array_like
+            Upper bound(s) of the interval; scalar or array broadcastable to
+            ``shape``.
+        shape : int or tuple of int
+            Output shape passed to the underlying generator.
+
+        Returns
+        -------
+        torch.Tensor
+            A ``float32`` tensor of the given shape with uniform samples.
+        """
         sample = self.rng.uniform(left, right, shape)
         return torch.tensor(sample, dtype=torch.float32)
 
     def segmented_uniform_1d(self, left, right, centre, radius, weight, shape):
+        """Sample a 1-D mixture of two uniforms with a denser central region.
+
+        With probability ``weight`` a sample is drawn uniformly from the
+        high-density window ``[centre - radius, centre + radius]`` (clipped to
+        ``[left, right]``); otherwise it is drawn uniformly from the remainder
+        of ``[left, right]`` outside that window. The result is a piecewise-
+        constant density that places extra mass around ``centre``.
+
+        Parameters
+        ----------
+        left : float
+            Lower bound of the support.
+        right : float
+            Upper bound of the support.
+        centre : float
+            Centre of the high-density window.
+        radius : float
+            Half-width of the high-density window.
+        weight : float
+            Probability in [0, 1] of drawing from the high-density window.
+        shape : int or tuple of int
+            Output shape passed to the underlying generator.
+
+        Returns
+        -------
+        torch.Tensor
+            A ``float32`` tensor of the given shape.
+        """
         left_high_density = max(left, centre - radius)
         right_high_density = min(right, centre + radius)
         true_width = right_high_density - left_high_density
@@ -31,6 +85,35 @@ class Sampler:
         return torch.tensor(samples, dtype=torch.float32)
 
     def segmented_uniform(self, left, right, centres, radii, weights, batch_size):
+        """Sample independent segmented uniforms in each dimension.
+
+        Applies :meth:`segmented_uniform_1d` per coordinate, so each dimension
+        has its own high-density window but all share the same per-dimension
+        bounds when scalars are supplied.
+
+        Parameters
+        ----------
+        left : float or array_like
+            Lower bound(s); scalar (broadcast to all dimensions) or a
+            per-dimension array.
+        right : float or array_like
+            Upper bound(s); scalar or per-dimension array.
+        centres : array_like
+            Per-dimension centres of the high-density windows; its length
+            defines the number of dimensions.
+        radii : array_like
+            Per-dimension half-widths of the high-density windows.
+        weights : float or array_like
+            Per-dimension probabilities of drawing from the high-density window;
+            scalar or per-dimension array.
+        batch_size : int
+            Number of points to sample.
+
+        Returns
+        -------
+        torch.Tensor
+            A ``float32`` tensor of shape ``(batch_size, dimensions)``.
+        """
         dimensions = len(centres)
         if isinstance(left, Number):
             left = np.ones(dimensions) * left
@@ -54,6 +137,29 @@ class Sampler:
         return torch.tensor(samples, dtype=torch.float32)
 
     def truncated_normal_1d(self, mean, std, left, right, batch_size):
+        """Sample a 1-D normal truncated to ``[left, right]`` by rejection.
+
+        Draws are taken from ``N(mean, std**2)`` and those falling outside the
+        interval are discarded, repeating until ``batch_size`` samples remain.
+
+        Parameters
+        ----------
+        mean : float
+            Mean of the underlying normal distribution.
+        std : float
+            Standard deviation of the underlying normal distribution.
+        left : float
+            Lower truncation bound (inclusive).
+        right : float
+            Upper truncation bound (inclusive).
+        batch_size : int
+            Number of samples to return.
+
+        Returns
+        -------
+        torch.Tensor
+            A ``float32`` tensor of shape ``(batch_size, 1)``.
+        """
         samples = []
         while len(samples) < batch_size:
             sample = self.rng.normal(mean, std, batch_size - len(samples))
@@ -64,19 +170,61 @@ class Sampler:
         return result.view(-1, 1)
 
     def sample_from_points(self, points, shape):
+        """Sample with replacement from a fixed collection of points.
+
+        Parameters
+        ----------
+        points : array_like
+            Indexable array-like of candidate points; rows are drawn uniformly
+            at random with replacement.
+        shape : int or tuple of int
+            Shape of the index array, determining how many points (and in what
+            arrangement) are returned.
+
+        Returns
+        -------
+        torch.Tensor
+            A ``float32`` tensor of the points selected at the drawn indices.
+        """
         indices = self.rng.integers(0, len(points), size=shape)
         sampled_points = points[indices]
         return torch.tensor(sampled_points, dtype=torch.float32)
 
     def uniform_pair(self, left, right, batch_size, dimensions, epsilon, boundary=False):
-        """
-        Samples uniformly pairs of points (x1, x2) such that |x1 - x2| >= epsilon.
+        """Sample uniform pairs of points (x1, x2) with ``||x1 - x2|| >= epsilon``.
 
-        boundary: if true, BOTH points of each pair are placed on the SAME face
-        (same coordinate pinned to the same min/max value). This gives the pair a
-        single shared outward normal, so the normal-derivative comparison in the
-        J4 spatial Gagliardo seminorm is well-defined, and ||x1 - x2|| reduces to
-        the distance within that face (the face coordinate cancels).
+        When ``boundary`` is True, BOTH points of each pair are placed on the
+        SAME face (same coordinate pinned to the same min/max value). This gives
+        the pair a single shared outward normal, so the normal-derivative
+        comparison in the J4 spatial Gagliardo seminorm is well-defined, and
+        ``||x1 - x2||`` reduces to the distance within that face (the face
+        coordinate cancels).
+
+        Parameters
+        ----------
+        left : float or array_like
+            Lower bound(s) of the box; scalar (broadcast to all dimensions) or a
+            per-dimension array.
+        right : float or array_like
+            Upper bound(s) of the box; scalar or per-dimension array.
+        batch_size : int
+            Number of valid pairs to return.
+        dimensions : int
+            Dimensionality of each point.
+        epsilon : float
+            Minimum Euclidean separation ``||x1 - x2||`` required for a pair to
+            be accepted.
+        boundary : bool, optional
+            If True, pin both points of each pair to a shared randomly chosen
+            face (see above). Default is False.
+
+        Returns
+        -------
+        x1, x2 : torch.Tensor
+            ``float32`` tensors of shape ``(batch_size, dimensions)``.
+        face1, face2 : numpy.ndarray or None
+            When ``boundary`` is True, identical integer arrays giving the
+            shared face index of each pair; otherwise both are None.
         """
 
         if isinstance(left, Number):
@@ -87,10 +235,7 @@ class Sampler:
         assert len(left) == dimensions
         assert len(right) == dimensions
 
-        # Rejection-sample in chunks until `batch_size` valid pairs are collected.
-        # A fixed over-sample factor is not enough when the epsilon-separation
-        # acceptance rate is low (e.g. large epsilon on a small domain such as
-        # time in [0, T]); looping guarantees a full batch at any epsilon.
+        # Rejection-sample in chunks until `batch_size` valid pairs are collected
         chunk = int(batch_size * 1.5) + 1
         x1_parts, x2_parts, face_parts = [], [], []
         n_collected = 0
@@ -134,6 +279,13 @@ class Sampler:
         return x1, x2, face1, face2
 
     def plot_samples(self, samples):
+        """Plot a normalised histogram of 1-D samples.
+
+        Parameters
+        ----------
+        samples : array_like
+            1-D array-like of values to histogram.
+        """
         plt.hist(samples, bins=100, density=True)
         plt.xlabel('Value')
         plt.ylabel('Density')
