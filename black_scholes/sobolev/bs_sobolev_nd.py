@@ -52,7 +52,7 @@ class BlackScholesSobolevMultiAsset(PINN):
         self.n_assets = len(sigmas)
 
     def train(self, batch_size, epochs, early_stopping, anneal_freq=500, alpha=0.9,
-              grad_clip=1.0, lbfgs_steps=500, causal_eps=1.0, fb_frac=0.5):
+              grad_clip=1.0, lbfgs_steps=500, causal_eps=2.0, fb_frac=0.65):
         """
         Train using Sobolev regularity losses J2, J3, J4 with automatic loss reweighting.
 
@@ -83,7 +83,7 @@ class BlackScholesSobolevMultiAsset(PINN):
             (default 500). Set 0 to skip. Run in short rounds on freshly resampled
             collocation batches to avoid overfitting a single batch.
         causal_eps : float, optional
-            Causality tolerance for time weighting of the PDE residual (default 1.0).
+            Causality tolerance for time weighting of the PDE residual (default 2.0).
             The terminal condition anchors t=T; this weights each point's residual by
             exp(-causal_eps * accumulated residual over later times, i.e. closer to T),
             so the residual is enforced near t=T first and propagated backward instead
@@ -91,7 +91,7 @@ class BlackScholesSobolevMultiAsset(PINN):
             disable (plain mean).
         fb_frac : float, optional
             Fraction of PDE collocation points drawn near the free boundary
-            prod(S) = K (default 0.5), where the residual/curvature is largest. The
+            prod(S) = K (default 0.65), where the residual/curvature is largest. The
             remaining points stay uniform for domain coverage. J2/J3/J4 sampling is
             unchanged. Set 0 to disable.
         """
