@@ -3,13 +3,30 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "M4R"
-version = "0.1"
+name = "m4r"
+version = "0.1.0"
+description = "Neural network and classical methods for pricing American options under Black-Scholes and Heston dynamics."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "James Wu" }]
 dependencies = [
     "numpy",
+    "scipy",
     "matplotlib",
+    "cycler",
     "torch",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "flake8-docstrings",
+]
+
 [tool.hatch.build.targets.wheel]
-packages = ["binomial_tree", "neural_network"]
+packages = [
+    "black_scholes",
+    "config",
+    "heston",
+    "utility",
+]
