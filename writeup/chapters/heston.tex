@@ -1,6 +1,6 @@
 \chapter{The Heston Model}
 
-The classic Black Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black Scholes formula does not depend on the mean of the log returns $\mu$ (since we perform a change of measure, and it depends instead on the risk-free rate $r$). We therefore have two directions in which we can take this project: we can model the risk-free rate as a stochastic process, or we can allow the volatility to vary according to a stochastic process. We will focus on the latter. Heston \cite{heston1993closed} proposes a model involving a stochastic variance process in which a closed-form solution for European call options exists. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
+The classic Black-Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black-Scholes formula does not depend on the mean of the log returns $\mu$ (since we perform a change of measure, and it depends instead on the risk-free rate $r$). We therefore have two directions in which we can take this project: we can model the risk-free rate as a stochastic process, or we can allow the volatility to vary according to a stochastic process. We will focus on the latter. Heston \cite{heston1993closed} proposes a model involving a stochastic variance process in which a closed-form solution for European call options exists. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
 \begin{align}
 \mathrm dS_t &= rS_t\mathrm dt + S_t \sqrt {V_t} \mathrm dW_t^1 \\
 \mathrm d V_t &= \kappa (\theta - V_t) \mathrm dt + \sigma \sqrt {V_t} \mathrm dW_t^2
@@ -74,7 +74,7 @@ P_j = \frac 12 + \frac 1\pi \int_0^\infty \Re\left[\frac{e^{-i\omega \ln K} \phi
 \label{eq:heston_gil_pelaez}
 \end{equation}
 
-which we can substitute back into our original Ansatz for the call option (\ref{eq:heston_ansatz}) to get the closed-form solution for the call option price. If we would like to be pedantic, we could argue this is not strictly closed form as we require numerical integration to compute the second term of (\ref{eq:heston_gil_pelaez}), but this remains a semi-analytical and tractable solution nonetheless, that we could use as a benchmark for our other methods.
+which we can substitute back into our original Ansatz for the call option (\ref{eq:heston_ansatz}) to get the closed-form solution for the call option price. If we would like to be pedantic, we could argue this is not strictly closed-form as we require numerical integration to compute the second term of (\ref{eq:heston_gil_pelaez}), but this remains a semi-analytical and tractable solution nonetheless, that we could use as a benchmark for our other methods.
 
 \section{Tree Solution}
 
@@ -93,7 +93,7 @@ where $\mathrm d\langle W^1, W^2\rangle_t = \rho \,\mathrm dt$ under the risk-ne
 \end{equation}
 
 \subsection{Euler scheme}
-To construct the tree, we need to discretise the process. Suppose we have $n$ steps, then $\Delta t = \frac Tn$. Using the standard Euler scheme, we can have
+To construct the tree, we need to discretise the process. If we have $n$ steps, then $\Delta t = \frac Tn$. Using the standard Euler scheme, we can have
 \begin{align}
     V_{k+1} &= V_k + \kappa (\theta - V_k^+)\Delta t + Y^1_{k+1} \sigma \sqrt{V_k^+ \Delta t} \\
     Z_{k+1} &= Z_k + (r - \tfrac 12 V_k)\Delta t + Y^2_{k+1} \sqrt{V_k^+ \Delta t}
@@ -106,7 +106,7 @@ We use a different measure $\mathbb Q^n$ (with $n$ indicating the number of time
 
 \subsection{Interpolation optimisation}
 
-The problem with the naïve Euler scheme is that the tree is not recombining, and hence the number of nodes scales exponentially with increasing time steps, which is not feasible computationally. We will hence, for each time step $k$, construct a grid of option prices at time $k$ and the backward induction would be a bilinear interpolation of the four nearest points.
+The problem with the naïve Euler scheme is that the tree is not recombining, and hence the number of nodes scales exponentially with increasing time steps, which is not feasible computationally. We will hence, for each time step $k$, construct a grid of option prices at time $k$ and the backward induction will be a bilinear interpolation of the four nearest points.
 
 To set this up, we need the boundaries of the grid at each time step $k$, which is given by the minimum and maximum values of $V_k$ and $Z_k$ in the support. In other words, we have
 \begin{align}
@@ -131,7 +131,7 @@ We will now define the discretised process $(\tilde V, \tilde Z)$ on the grid sp
     \nu(y, v, z) &= v + \kappa (\theta - v^+) \Delta t + y \sigma \sqrt{v^+ \Delta t} \\
     \zeta(y, v, z) &= z + (r - \tfrac 12 v)\Delta t + y \sqrt{v^+\Delta t}
 \end{align}
-where we notice $\nu$ doesn't depend on $z$, but I will put $z$ in as an argument nonetheless for a uniform function signature.
+where we notice $\nu$ doesn't depend on $z$, but we will put $z$ in as an argument nonetheless for a uniform function signature.
 
 Then using these functions, we can retrieve the next step. We can evolve our process to the next step with
 \begin{equation}
@@ -274,13 +274,13 @@ Note here we have many forms of $\sigma$ which may be confusing: $\sigma$ withou
 
 We now have everything we need for the formula. For any function $f = f(S, V) \in \mathcal C^2(\mathbb R^d)$, we have
 \begin{equation}
-\mathcal L[f] = rS\frac{\partial f}{\partial S} + \kappa(\theta - V_t)\frac{\partial f}{\partial V} + \frac 12\left(S^2V \frac{\partial ^2f}{\partial S^2} + 2\rho\sigma SV \frac{\partial ^2f}{\partial S\partial V} + \sigma^2V\frac{\partial ^2f}{\partial V^2} \right)
+\mathcal L[f] = rS\frac{\partial f}{\partial S} + \kappa(\theta - V)\frac{\partial f}{\partial V} + \frac 12\left(S^2V \frac{\partial ^2f}{\partial S^2} + 2\rho\sigma SV \frac{\partial ^2f}{\partial S\partial V} + \sigma^2V\frac{\partial ^2f}{\partial V^2} \right)
 \end{equation}
-This is our infinitesimal generator $\mathcal L$ acting on smooth functions $f$. Suppose we have a European option with payoff $g : \mathbb R^+ \to \mathbb R^+$, then our price function $u(t, S, V)$, the value of the call option with expiry $T$ at time $t$ with $S_t = S$ and $V_t = V$ satisfies
+This is our infinitesimal generator $\mathcal L$ acting on smooth functions $f$. Suppose we have a European option with payoff $g : \mathbb R^+ \to \mathbb R^+$, then our price function $v(t, S, V)$, the value of the call option with expiry $T$ at time $t$ with $S_t = S$ and $V_t = V$ satisfies
 \begin{equation}
-\mathcal G[u] := ru - \frac{\partial u}{\partial t} - \mathcal Lu = 0
+\mathcal G[v] := rv - \frac{\partial v}{\partial t} - \mathcal L[v] = 0
 \end{equation}
-with terminal condition $u(T, S, V) = g(S)$. This matches the PDE we had stated in the closed-form solution in (\ref{eq:heston_feynman_kac_pde}).
+with terminal condition $v(T, S, V) = g(S)$. This matches the PDE we had stated in the closed-form solution in (\ref{eq:heston_feynman_kac_pde}).
 
 As a check, we can set $\kappa = 0$ and $\sigma = 0$ so that $\mathrm dV = 0$ and volatility becomes a constant, and our model collapses to what we have been working with before. Our generator becomes
 \begin{equation}
@@ -290,7 +290,7 @@ which matches our expression (\ref{eq:bs_operator}) from the Black-Scholes secti
 
 We have derived the variational equation for the European option for simplicity, but it can be easily extended for the American case. With the same argument as (\ref{eq:variational_inequality_bs_1d}), the value of the American option must satisfy the PDE
 \begin{equation}
-    \min\big(\mathcal G[u], u(t, S, V) - g(S) \big) = 0
+    \min\big(\mathcal G[v], v(t, S, V) - g(S) \big) = 0
 \label{eq:heston_variational_inequality}
 \end{equation}
 
@@ -308,7 +308,7 @@ We can fit the variational equation (\ref{eq:heston_variational_inequality}) int
     \begin{equation}
         v(t, 0, V) = K
     \end{equation}
-    \item $S\to \infty$: the value of a very far out of the money option is 0, as it is very unlikely for it to expire in the money:
+    \item $S\to \infty$: the value of a very far out-of-the-money option is 0, as it is very unlikely for it to expire in-the-money:
     \begin{equation}
         v(t, \infty, V) = 0
     \end{equation}
@@ -327,6 +327,7 @@ In practice, as we clearly cannot represent infinity, we will settle for large c
 \begin{equation}
     \Omega = (0, T) \times (0, S_\text{max}) \times (0, V_\text{max})
 \end{equation}
+noting the difference between $S_\text{max}$ and $S_\text{inf}$, where the former is the maximum asset price in our sampling domain, and the latter is the value we use for the boundary condition. This also applies to $V_\text{max}$ and $V_\text{inf}$.
 
 The boundary conditions (2)-(5) together will form the boundary loss (\ref{eq:pinn_boundary}) for the PINN. By choosing relevant weights for each of these loss components (we could additionally set different values for different individual boundary components), we can ensure that the neural network learns the correct behaviour at the boundaries, which is crucial for the accuracy of the solution.
 
@@ -342,7 +343,7 @@ Let us have $n$ assets with price processes $S = (S^1, \dots, S^n)^\top$ which a
 \end{align}
 where we have the vector of iid Brownian motions $W^1 = (W^{1, 1}, \dots, W^{1, n})^\top$, volatility vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the lower-triangular Cholesky decomposition of the correlation matrix $L$ such that $\Sigma = LL^\top$ where its diagonal has non-negative entries. This is guaranteed to exist as $\Sigma$ is positive semi-definite (more precisely, if $\Sigma \succ 0$ then $L$ exists and is unique, and if $\Sigma \succeq 0$ then $L$ exists but may not be unique).
 
-For simplicity, in this model we will assume equicorrelation between the assets: that is $\Sigma_{ij} = \varrho$ for $i \ne j$ and $\Sigma_{ii} = 1$. We will require $\varrho \in [-1, 1]$, and be such that $\Sigma \succeq 0$ to be a valid correlation matrix. We will also assume that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$, the cross-correlation vector between assets and the variance process. Note that this means the asset $S^i$ satisfies
+For simplicity, in this model we will assume equicorrelation between the assets: that is $\Sigma_{ij} = \varrho$ for $i \ne j$ and $\Sigma_{ii} = 1$. We will require $\varrho \in [-1, 1]$ and $\Sigma \succeq 0$ so that it is a valid correlation matrix. We will also assume that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$, the cross-correlation vector between assets and the variance process. Note that this means the asset $S^i$ satisfies
 
 \begin{equation}
     \dd S^i = S^i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n L_{ij}\,\dd W^{1, j}\right)
@@ -353,7 +354,7 @@ To guarantee positiveness of the variance process, we will enforce the Feller co
     2\kappa\theta \ge \bar\sigma^2
 \end{equation}
 
-We make these assumptions to allow a one-dimensional reduction for the Heston model, which would provide us a comparable benchmark for our results with the tree method. This would in turn give us confidence for our approximated solutions, should we wish to relax assumptions or to change the payoff.
+We make these assumptions to allow a one-dimensional reduction for the Heston model, which would provide us with a comparable benchmark for our results with the tree method. This would in turn give us confidence for our approximated solutions, should we wish to relax assumptions or to change the payoff.
 
 \subsection{One-dimensional reduction}
 
@@ -512,7 +513,7 @@ This will be very similar to the one-dimensional case, but we will make a few mo
     \begin{equation}
         v(t, \tilde S, V) = K
     \end{equation}
-    \item $S \to \infty$: if one of the assets has a very high price, then the product of assets would also be very high meaning the option would expire worthless out of the money. To implement this, let $\bar S$ be $S$ with one of the assets modified manually to $S_\text{inf}$, a large constant. Then the boundary condition is
+    \item $S \to \infty$: if one of the assets has a very high price, then the product of assets would also be very high meaning the option would expire worthless out-of-the-money. To implement this, let $\bar S$ be $S$ with one of the assets modified manually to $S_\text{inf}$, a large constant. Then the boundary condition is
     \begin{equation}
         v(t, \bar S, V) = 0
     \end{equation}
@@ -529,7 +530,7 @@ This will be very similar to the one-dimensional case, but we will make a few mo
     \begin{equation}
         \frac{\partial v}{\partial V}(t, S, V_\text{max}) = 0
     \end{equation}
-    using the fact that the value of the option flattens as volatility increases, since our practical implementation of $V_\text{max}$ is not large enough to be in the asymptotic region, and using $V_\text{inf}$ creates a great gap between the practical domain and the asymptotic region, decreasing the accuracy of the solution in the practical domain.
+    using the fact that the value of the option flattens as volatility increases, since our practical implementation of $V_\text{max}$ is not large enough to be in the asymptotic region, and using $V_\text{inf}$ creates a large gap between the practical domain and the asymptotic region, decreasing the accuracy of the solution in the practical domain.
 \end{enumerate}
 
 
@@ -538,7 +539,7 @@ This will be very similar to the one-dimensional case, but we will make a few mo
 \subsection{Interpolating tree method}
 \label{sec:heston_tree_results}
 
-As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which allows a faithful approximation of the closed form solution while keeping runtime low. Figure \ref{fig:heston_tree} shows the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $V_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
+As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which allows a faithful approximation of the closed-form solution while keeping runtime low. Figure \ref{fig:heston_tree} shows the results after using the parameters $K=1, T=1, r=0.05, \kappa=2, \theta =0.04, \sigma=0.3, \rho=-0.7$. We produce these plots by varying across different values of $S_0$ (for delta), $V_0$ (for vega) and time elapsed (for term structure), and all else kept constant.
 
 \begin{figure}[htb]
     \centering
@@ -547,7 +548,7 @@ As mentioned before, we choose the resolution $n=100, m_v=300, m_z=600$ which al
     \label{fig:heston_tree}
 \end{figure}
 
-We can see that the Heston tree does indeed approximate the closed form solution well, with a small error. This gives us confidence in our implementation, and with an easy modification we can compute the American option prices which we will use as a benchmark.
+We can see that the Heston tree does indeed approximate the closed-form solution well, with a small error. This gives us confidence in our implementation, and with an easy modification we can compute the American option prices which we will use as a benchmark.
 
 To compute the American option price with the tree model, all we need to do is to introduce the stopping condition at every node: we evaluate the intrinsic value of the option at each node and set the option value to be the maximum of the intrinsic value and the discounted continuation value.
 
@@ -584,7 +585,7 @@ We can see that the PINN does indeed capture well the general shape and behaviou
 
 \subsection{Multi-asset PINN solution}
 
-The multi-asset case is more difficult to train, as we have a higher dimensional input space and require a greater batch size. We choose $10000$ to be the batch size, with the same learning rate and step size $1500$ and gamma $0.9$ for the scheduler, with an L-BFGS fine-tuning step. The training takes several hours to complete and hence manual tuning and iteration of the model is slow, and I will only show the results of one instance.
+The multi-asset case is more difficult to train, as we have a higher dimensional input space and require a greater batch size. We choose $10000$ to be the batch size, with the same learning rate and step size $1500$ and gamma $0.9$ for the scheduler, with an L-BFGS fine-tuning step. The training takes several hours to complete and hence manual tuning and iteration of the model are slow, and we will only show the results of one instance.
 
 As discussed before, we will set our parameters satisfying the conditions required for a one-dimensional reduction (cross-asset correlations equal to zero). The left figure of Figure \ref{fig:heston_nd_comparison_heatmap} shows the heatmap of the option prices across the $S^1$-$S^2$ plane with the time fixed at $t=0$ and initial variance fixed at $V_0=0.04$.
 
@@ -595,7 +596,7 @@ As discussed before, we will set our parameters satisfying the conditions requir
     \label{fig:heston_nd_comparison_heatmap}
 \end{figure}
 
-We can see that the fit is good in the money and out of the money but struggles much more at the money (when $S^1 \times S^2 = K$, indicated with the black dotted line), which is expected as the option price is more sensitive, and we are now in a four-dimensional input space and hence accuracy is more difficult to achieve. We will zoom in on the at the money region by fixing $t=0$ and $S^1=S^2=\sqrt{K}$ and plotting the option price across $V$, which is shown in the middle figure of Figure \ref{fig:heston_nd_comparison_heatmap}.
+We can see that the fit is good in-the-money and out-of-the-money but struggles much more at the money (when $S^1 \times S^2 = K$, indicated with the black dotted line), which is expected as the option price is more sensitive, and we are now in a four-dimensional input space and hence accuracy is more difficult to achieve. We will zoom in on the at-the-money region by fixing $t=0$ and $S^1=S^2=\sqrt{K}$ and plotting the option price across $V$, which is shown in the middle figure of Figure \ref{fig:heston_nd_comparison_heatmap}.
 
 We can see that the weakness of the PINN is along the strike price with $S^1=S^2=\sqrt{K}$, and the accuracy is better for lower volatilities. Overall, the results are okay, given that we are sacrificing some accuracy in order to be able to price along the whole input domain, but we will expect the PINN to struggle more with estimating free boundaries correctly since there is a bias in the prices already.
 
@@ -616,7 +617,7 @@ We will first present the free boundary for the one-dimensional case. As this is
     \label{fig:heston_1d_continuation_probs}
 \end{figure}
 
-We can see that the continuation region is reasonably well approximated with both methods, and we additionally observe some noise near the boundary which is due to the Monte Carlo estimation of the continuation value. Unfortunately, the network struggles to capture the curvature characteristic of the free boundary, which is unsurprising as it doesn't price the option with perfect accuracy in all areas. That said, the results are promising against the benchmark, even though we have a patch of the continuation probabilities that are closer to one further in the money (at around $(S, V) = (0.4, 0.3)$), which is due to the bias in the option price in the corresponding region when we had our price comparison heatmaps in Figure \ref{fig:heston_1d_comparison_heatmap}.
+We can see that the continuation region is reasonably well approximated with both methods, and we additionally observe some noise near the boundary which is due to the Monte Carlo estimation of the continuation value. Unfortunately, the network struggles to capture the curvature characteristic of the free boundary, which is unsurprising as it doesn't price the option with perfect accuracy in all areas. That said, the results are promising against the benchmark, even though we have a patch of the continuation probabilities that are closer to one further in-the-money (at around $(S, V) = (0.4, 0.3)$), which is due to the bias in the option price in the corresponding region when we had our price comparison heatmaps in Figure \ref{fig:heston_1d_comparison_heatmap}.
 
 \subsubsection{Multi-asset case}
 
