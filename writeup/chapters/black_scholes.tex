@@ -1,7 +1,6 @@
 \chapter{Black-Scholes Model}
 
-The Black-Scholes model \cite{black1973pricing} is the fundamental model for option pricing, which assumes that the underlying asset price follows a geometric Brownian motion. As with the market introduced in Section \ref{sec:risk-neutral-pricing}, the market consists of two underlying assets:
-
+The Black-Scholes model \cite{black1973pricing} is the fundamental model for option pricing, making the assumption that the underlying asset price follows a geometric Brownian motion. As with the market introduced in Section \ref{sec:risk-neutral-pricing}, the market consists of two underlying assets:
 \begin{itemize}
     \item The risk-free asset, described by a deterministic function
     \begin{equation}
@@ -20,7 +19,7 @@ The Black-Scholes model \cite{black1973pricing} is the fundamental model for opt
     \end{equation}
 \end{itemize}
 
-For convenience, we will refer to the risk-free asset as the bond, and the risky asset as simply the asset for the remainder of this chapter.
+For convenience, we will refer to the risk-free asset as the \textit{bond}, and the risky asset as the \textit{asset} for the remainder of this chapter.
 
 Under risk-neutral pricing, we can find an equivalent probability measure $\mathbb Q$ under which the discounted asset price is a martingale, and hence all assets earn the risk-free rate in expectation after discounting. Under the risk-neutral measure, the SDE for the asset becomes
 \begin{equation}
@@ -36,7 +35,7 @@ Our first benchmark will be the closed-form solution for the European option, wh
 \label{eq:rnpf_black_scholes}
 \end{equation}
 
-We use the solution of geometric brownian motion (\ref{eq:gbm_closed_form}) to note that
+We use the solution of the geometric Brownian motion (\ref{eq:gbm_closed_form}) to note that
 \begin{equation}
     S_T = S_0 \exp \left( (r-\tfrac 12 \sigma^2)T + \sigma W_T^{\mathbb Q}\right)
 \end{equation}
@@ -47,7 +46,7 @@ under the risk-neutral measure $\mathbb Q$, having replaced the drift $\mu$ with
 
 This can be plugged into the risk-neutral pricing formula (\ref{eq:rnpf_black_scholes}): the exercise event $\{S_T > K\}$ is equivalent to $\{Z > -d_2\}$ where
 \begin{equation}
-    d_2 = \frac{\log(S_0/K) + (r - \tfrac 12 \sigma^2)T}{\sigma \sqrt T}, \qquad d_1 = d_2 + \sigma \sqrt T
+    d_2 = \frac{\log(S_0/K) + (r - \tfrac 12 \sigma^2)T}{\sigma \sqrt T}
 \end{equation}
 
 The expectation (\ref{eq:rnpf_black_scholes}) can be split, where we denote $\boldsymbol 1_{A}$ the indicator variable for the event $A$:
@@ -57,7 +56,7 @@ The expectation (\ref{eq:rnpf_black_scholes}) can be split, where we denote $\bo
     &= e^{-rT} \mathbb E^\mathbb Q[S_T \boldsymbol{1}_{\{S_T > K\}}] - Ke^{-rT} \mathbb Q(S_T > K)
 \end{align}
 
-The second probability is immediate as we see $\mathbb Q(S_T > K) = \mathbb Q(Z > d_2) = \Phi(d_2)$ by symmetry, where $\Phi$ is the CDF of the standard normal. We can complete the square in the Gaussian integrand for the first expectation to get the final formula \cite{black1973pricing}
+The second probability is immediate as we see $\mathbb Q(S_T > K) = \mathbb Q(Z > d_2) = \Phi(d_2)$ by symmetry, where $\Phi$ is the CDF of the standard normal. We can complete the square in the Gaussian integrand for the first expectation to get the final formula \cite{black1973pricing}, for $d_1 = d_2 + \sigma \sqrt T$:
 \begin{equation}
     v(0, S_0) = S_0 \Phi(d_1) - Ke^{-rT}\Phi(d_2)
 \end{equation}
@@ -66,7 +65,7 @@ The second probability is immediate as we see $\mathbb Q(S_T > K) = \mathbb Q(Z 
 
 We can use the binomial discrete-time model to price both European and American options with the tree method. This model uses the simplification that the asset price can only move to one of two possible new prices in a time step. To avoid explosion in the number of nodes, we will only consider recombinant trees so that the algorithm performs with quadratic time complexity (look back at Figure \ref{fig:recombinant_trees} for an illustration of recombinant trees). We will verify the approximated solution's validity against the closed-form formula for European options, and use its American variant as a benchmark for later methods.
 
-To formalise the tree construction, let’s fix a time horizon $T > 0$. For some depth $n \ge 1$, divide the interval $[0, T]$ into $n$ even steps each of length $\Delta t = T/n$. Our asset $S_t$, where $t$ is now a discrete time index, will follow a multiplicative binomial evolution:
+To formalise the tree construction, let’s fix a time horizon $T > 0$. For some depth $n \ge 1$, divide the interval $[0, T]$ into $n$ even steps each of length $\Delta t = T/n$. Our asset $S_i$, where $i$ is a discrete time index representing the time $i \Delta t$, will follow a multiplicative binomial evolution:
 \begin{equation}
     S_{i+1} = \begin{cases}
     S_i u & \text{with probability }p \\S_i d & \text{with probability }1-p
@@ -84,7 +83,7 @@ d < e^{r\Delta t} < u
 \end{equation}
 for sufficiently small $\Delta t$, else we can make a riskless profit by shorting the asset and buying the bond, or vice versa.
 
-To employ risk-neutral pricing, we additionally require the discounted asset price to have zero drift (admitting a martingale measure). More precisely, let the discounted price be, with the bond as numeraire:
+To employ risk-neutral pricing, we additionally require the discounted asset price to have zero drift (admitting a martingale measure). More precisely, with the bond as numeraire, we have the discounted price $\tilde S_i$ at time step $i$ given by
 \begin{equation}
 \tilde S_i = \frac{S_i}{B_i} = e^{-ri\Delta t} S_i
 \end{equation}
@@ -92,9 +91,7 @@ We require some probability measure $\mathbb Q$, equivalent to the physical meas
 \begin{equation}
 \mathbb E^\mathbb Q [\tilde S_{i+1} \mid \mathcal F_i] = \tilde S_i
 \end{equation}
-where $\mathcal F_i$ is the filtration at time step $i$.
-
-To calculate the risk-neutral probability, we can apply this to our model:
+where $\mathcal F_i$ is the filtration at time step $i$. To calculate the risk-neutral probability, we can apply this to our model:
 \begin{equation}
 e^{-r(i+1)\Delta t}\big[pS_i u + (1-p)S_i d \big] = e^{-ri\Delta t}S_i
 \end{equation}
@@ -122,7 +119,7 @@ u = e^{\sigma \sqrt{\Delta t}}\qquad d = e^{-\sigma \sqrt{\Delta t}}
 \end{equation}
 satisfying the arbitrage free condition, and normalising the local variance of returns to the volatility parameter $\sigma^2$. They also conveniently multiply to $1$.
 
-To implement this, we need to first compute the price tree. This would be, for the price $S_{i, j}$ at time step $i$ after $j$ up-moves (so clearly $i \ge j$)
+To implement this, we need to first compute the price tree. This would be, for the price $S_{i, j}$ at time step $i$ after $j$ up-moves (so clearly $j \le i$)
 \begin{equation}
 S_{i, j} = S_0 u^j d^{i-j}
 \end{equation}
@@ -133,13 +130,13 @@ v_{n, j} = g(S_{n, j}) \qquad 0 \le j \le n
 \end{equation}
 and recursively set
 \begin{equation}
-v_{i, j} = e^{-r\Delta t} \big(p v_{i+1, j+1} + (1-p)v_{i+1, j}\big)
+v_{i, j} = e^{-r\Delta t} \big(p \cdot v_{i+1, j+1} + (1-p) \cdot v_{i+1, j}\big)
 \end{equation}
-for $0 \le j \le i$. This would be it for European options, but since early exercise is allowed, we will compare this value with the payoff of the price at step $i$ with $j$ up-moves, which is just $f(S_{i, j})$. Thus the value is given by
+for $0 \le j \le i$. This would be it for European options, but since early exercise is allowed, we will compare this value with the payoff of the price at step $i$ with $j$ up-moves, which is just $g(S_{i, j})$. Thus the value is given by
 \begin{equation}
 v_{i, j} = \max\bigg(e^{-r\Delta t} \big(p v_{i+1, j+1} + (1-p)v_{i+1, j}\big), \; g(S_{i, j})\bigg)
 \end{equation}
-The root value $v_{0, 0}$ would be the arbitrage-free option price.
+The value at the root node $v_{0, 0}$ would be the arbitrage-free option price.
 
 \section{Physics-Informed Neural Networks}
 
@@ -300,7 +297,7 @@ r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qqua
 \end{equation}
 where $\Sigma$ is the correlation matrix, we can plot the histogram of final prices in Figure \ref{fig:gbm_histogram}.
 
-\begin{figure}[h]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=0.8\textwidth]{../plots/black_scholes/gbm_histogram.png}
     \caption[Asset product price histogram]{Histogram of final prices for product of assets and equivalent asset}
@@ -554,7 +551,7 @@ Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price ag
 
 We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 30 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. 
 
-\begin{table}[h]
+\begin{table}[htb]
     \centering
     \begin{tabular}{|c|c|c|}
         \hline
@@ -591,7 +588,7 @@ We can zoom in on the behaviour along the line $S^1\times S^2 = K$, and plot the
 
 Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative error at the most sensitive point at the triple $(0, \sqrt{K}, \sqrt{K})$ is around $7\%$ which is considerably higher than the one-dimensional case, which is expected as we are now sampling across a much larger domain, and we are restrained by model capacity and training time due to personal hardware constraints, which is a common issue for multi-dimensional PINNs.
 
-\begin{table}[h]
+\begin{table}[htb]
     \centering
     \begin{tabular}{|c|c|c|}
         \hline
