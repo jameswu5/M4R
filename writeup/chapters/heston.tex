@@ -80,7 +80,7 @@ which we can substitute back into our original Ansatz for the call option (\ref{
 
 Since the closed-form solution is limited to European options, we would like to find ways to approximate solutions to the pricing problem so that we can eventually extend the case to American options, which have no closed-form solution. The first method we will explore is the tree method, where it is easy to modify to the American case by adding an additional comparison to the intrinsic value at each node. We will use the closed-form formula as a benchmark for the tree method for European options, to give us confidence in the solution the tree model provides for American options as it is a simple modification in the algorithm, which we can use as a benchmark for the neural networks we will explore later.
 
-The idea will be similar to the binomial tree we explored earlier in the paper for the Black-Scholes model, but we now have two correlated stochastic processes in the Heston model: the asset price process and the variance process. As this tree is not recombinant, generating paths for these processes and computing the option prices by backwards induction naively would lead to an exponential time complexity, which is not computationally feasible. Therefore, we will use a grid interpolation approach as in \cite{vellekoop2009tree} so that the number of nodes grows quadratically in the number of time steps instead.
+The idea will be similar to the binomial tree we explored earlier in the paper for the Black-Scholes model, but we now have two correlated stochastic processes in the Heston model: the asset price process and the variance process. As this tree is not recombinant, generating paths for these processes and computing the option prices by backward induction naively would lead to an exponential time complexity, which is not computationally feasible. Therefore, we will use a grid interpolation approach as in \cite{vellekoop2009tree} so that the number of nodes grows quadratically in the number of time steps instead.
 
 For the algorithm, we will work under the variance process $V$ and log stock price process $Z$ (which is a simple transformation from $S$ using Itô's formula):
 \begin{align}
@@ -96,7 +96,7 @@ where $\mathrm d\langle W^1, W^2\rangle_t = \rho \,\mathrm dt$ under the risk-ne
 To construct the tree, we need to discretise the process. If we have $n$ steps, then $\Delta t = \frac Tn$. Using the standard Euler scheme, we can have
 \begin{align}
     V_{k+1} &= V_k + \kappa (\theta - V_k^+)\Delta t + Y^1_{k+1} \sigma \sqrt{V_k^+ \Delta t} \\
-    Z_{k+1} &= Z_k + (r - \tfrac 12 V_k)\Delta t + Y^2_{k+1} \sqrt{V_k^+ \Delta t}
+    Z_{k+1} &= Z_k + (r - \tfrac 12 V_k^+)\Delta t + Y^2_{k+1} \sqrt{V_k^+ \Delta t}
 \end{align}
 where the increment variables $(Y_k^1, Y_k^2)$ are iid pairs across time steps $k$ with the joint distribution given by
 \begin{equation}
@@ -129,7 +129,7 @@ and the gridpoints:
 We will now define the discretised process $(\tilde V, \tilde Z)$ on the grid space $\hat {\mathcal S}_k$. This will involve the Euler scheme functions
 \begin{align}
     \nu(y, v, z) &= v + \kappa (\theta - v^+) \Delta t + y \sigma \sqrt{v^+ \Delta t} \\
-    \zeta(y, v, z) &= z + (r - \tfrac 12 v)\Delta t + y \sqrt{v^+\Delta t}
+    \zeta(y, v, z) &= z + (r - \tfrac 12 v^+)\Delta t + y \sqrt{v^+\Delta t}
 \end{align}
 where we notice $\nu$ doesn't depend on $z$, but we will put $z$ in as an argument nonetheless for a uniform function signature.
 
@@ -177,7 +177,7 @@ By using the fact our grid is evenly spaced at all time steps $k$, this simplifi
     \tilde v = \frac{v - \phi_{0}^{\mathcal S_v}(v)}{\Delta v_k}, \qquad \tilde z = \frac{z - \phi_{0}^{\mathcal S_z}(z)}{\Delta z_k}
 \end{equation}
 
-\subsection{Backwards induction}
+\subsection{Backward induction}
 
 We can now work backwards on the tree, having constructed the grids. Our base case is the final grid, where the price is just the payoff as we are at maturity. For a general time $t_k$ at step $k$ and node $(v, z) \in \hat{\mathcal S}_{k}$, we will generate the four possible steps determined by $i_1, i_2$ each taking values in $\{-1, 1\}$, and evolve our node with
 \begin{equation}
@@ -257,7 +257,7 @@ S_t \sqrt{V_t} & 0 \\
 \mathrm dB_t^{2}
 \end{pmatrix}
 \end{equation}
-which means that our covariance matrix is now
+which means that our volatility matrix is now
 \begin{equation}
 \boldsymbol \sigma = \sigma(S, V) = \begin{pmatrix}
 S\sqrt{V} & 0 \\
@@ -272,7 +272,7 @@ S^2 V & \rho \sigma SV \\ \rho \sigma SV & \sigma^2 V \end{pmatrix}
 
 Note here we have many forms of $\sigma$ which may be confusing: $\sigma$ without any arguments is the volatility of the variance process, $\sigma(S, V)$ is the volatility matrix of the SDE, and $\boldsymbol \sigma$ is the same as $\sigma(S, V)$ but with a bold symbol to distinguish it from the scalar $\sigma$.
 
-We now have everything we need for the formula. For any function $f = f(S, V) \in \mathcal C^2(\mathbb R^d)$, we have
+We now have everything we need for the formula. For any function $f = f(S, V) \in \mathcal C^2(\mathbb R^2_+)$, we have
 \begin{equation}
 \mathcal L[f] = rS\frac{\partial f}{\partial S} + \kappa(\theta - V)\frac{\partial f}{\partial V} + \frac 12\left(S^2V \frac{\partial ^2f}{\partial S^2} + 2\rho\sigma SV \frac{\partial ^2f}{\partial S\partial V} + \sigma^2V\frac{\partial ^2f}{\partial V^2} \right)
 \end{equation}
@@ -343,7 +343,13 @@ Let us have $n$ assets with price processes $S = (S^1, \dots, S^n)^\top$ which a
 \end{align}
 where we have the vector of iid Brownian motions $W^1 = (W^{1, 1}, \dots, W^{1, n})^\top$, volatility vector $\sigma = (\sigma_1, \dots, \sigma_n)^\top$ and the lower-triangular Cholesky decomposition of the correlation matrix $L$ such that $\Sigma = LL^\top$ where its diagonal has non-negative entries. This is guaranteed to exist as $\Sigma$ is positive semi-definite (more precisely, if $\Sigma \succ 0$ then $L$ exists and is unique, and if $\Sigma \succeq 0$ then $L$ exists but may not be unique).
 
-For simplicity, in this model we will assume equicorrelation between the assets: that is $\Sigma_{ij} = \varrho$ for $i \ne j$ and $\Sigma_{ii} = 1$. We will require $\varrho \in [-1, 1]$ and $\Sigma \succeq 0$ so that it is a valid correlation matrix. We will also assume that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$, the cross-correlation vector between assets and the variance process. Note that this means the asset $S^i$ satisfies
+For simplicity, in this model we will assume equicorrelation between the assets: that is $\Sigma_{ij} = \varrho$ for $i \ne j$ and $\Sigma_{ii} = 1$. Alternatively, we can write
+\begin{equation}
+    \Sigma = (1 - \varrho) I_n + \rho \mathbf{1}\mathbf{1}^\top
+\end{equation}
+where $I_n$ is the $n$-dimensional identity matrix and $\mathbf{1}$ is the $n$-dimensional vector of ones. We will quickly derive a bound for $\varrho$ to ensure $\Sigma \succeq 0$, so that it is a valid correlation matrix. As $\Sigma$ has an eigenvector $\mathbf{1}$ with coresponding eigenvalue $\lambda_1 = 1 + (n-1)\varrho$ and $n-1$ eigenvectors orthogonal to $\mathbf{1}$ with corresponding eigenvalue $\lambda_2 = 1 - \varrho$, we have $\Sigma \succeq 0$ if and only if $\lambda_1, \lambda_2 \ge 0$, which gives us the bound $\varrho \in [-\frac 1{n-1}, 1]$.
+
+We will also assume that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$, the cross-correlation vector between assets and the variance process. Note that this means the asset $S^i$ satisfies
 
 \begin{equation}
     \dd S^i = S^i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n L_{ij}\,\dd W^{1, j}\right)
