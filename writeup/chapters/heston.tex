@@ -587,7 +587,22 @@ We can see that the neural network indeed reproduces the solution approximated b
     \label{fig:heston_1d_comparison_line}
 \end{figure}
 
-We can see that the PINN does indeed capture well the general shape and behaviour of the option price, especially for varying across $S$ and $V$ but it struggles a bit more with the term-structure (varying $t$). That said, it is still able to capture the theta decay with its monotonicity, which is a good sign. Overall, the results are very promising for the one-dimensional case, with the PINN capable of capturing the option price across the whole input domain with good accuracy.
+We can see that the PINN does indeed capture well the general shape and behaviour of the option price, especially for varying across $S$ and $V$ but it struggles a bit more with the term-structure (varying $t$). That said, it is still able to capture the theta decay with its monotonicity, which is a good sign. We finally evaluate the accuracy of the most sensitive point, which is the at-the-money price at time $t=0$ with low volatility, which is shown in Table \ref{tab:heston_pinn_atm_price}.
+
+\begin{table}[htb]
+    \centering
+    \begin{tabular}{|c|c|c|}
+        \hline
+        Tree price & PINN price & Relative error \\
+        \hline
+        0.0766 & 0.0790 $\pm$ 0.0021 & 3.17\% \\
+        \hline
+    \end{tabular}
+    \caption{Heston PINN price at $(t=0, S=1.0, V=0.1)$ against tree benchmark}
+    \label{tab:heston_pinn_atm_price}
+\end{table}
+
+We can see that the relative error is around $3\%$ which is good and comparable to the results we obtained for the Black-Scholes case, especially considering that we are now in a three-dimensional input space and hence the problem is more difficult. Overall, the results are very promising for the one-dimensional case, with the PINN capable of capturing the option price across the whole input domain with good accuracy.
 
 \subsection{Multi-asset PINN solution}
 
@@ -614,14 +629,14 @@ Even though the accuracy of the option price for the multi-asset case is not per
 
 \subsubsection{One-dimensional case}
 
-We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as a cross section, where one variable will be fixed at its default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. This would be cleaner and more interpretable than a colour-coded 3D plot. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to $1$ for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}.
-
-\begin{figure}[htb]
+\begin{figure}[b]
     \centering
     \includegraphics[width=\textwidth]{../plots/heston/heston_1d_continuation_probs.png}
     \caption[Heston PINN continuation probabilities (1D)]{Continuation probabilities for the American put option on the $S$-$V$ plane}
     \label{fig:heston_1d_continuation_probs}
 \end{figure}
+
+We will first present the free boundary for the one-dimensional case. As this is a boundary on three dimensions, we will present it as a cross section, where one variable will be fixed at its default value ($t=0, S=1.0, V=0.04$) and the other two will be plotted against each other. This would be cleaner and more interpretable than a colour-coded 3D plot. We will omit the $t$-$S$ plane as it will look very similar to the free boundary for the Black-Scholes case \ref{fig:bs_continuation_probs}, and we will also omit the $t$-$V$ plane as it is not very informative, with continuation probabilities close to $1$ for the whole region near the money at initial time regardless of the initial variance. This leaves us the free boundary on the $S$-$V$ plane, shown in Figure \ref{fig:heston_1d_continuation_probs}.
 
 We can see that the continuation region is reasonably well approximated with both methods, and we additionally observe some noise near the boundary which is due to the Monte Carlo estimation of the continuation value. Unfortunately, the network struggles to capture the curvature characteristic of the free boundary, which is unsurprising as it doesn't price the option with perfect accuracy in all areas. That said, the results are promising against the benchmark, even though we have a patch of the continuation probabilities that are closer to one further in-the-money (at around $(S, V) = (0.4, 0.3)$), which is due to the bias in the option price in the corresponding region when we had our price comparison heatmaps in Figure \ref{fig:heston_1d_comparison_heatmap}.
 
