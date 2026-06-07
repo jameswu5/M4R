@@ -276,17 +276,17 @@ An issue with tree methods is that the number of states $M_n$ can grow exponenti
 \subsection{Motivation}
 Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent from the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality. Traditional methods such as finite difference methods require discretisation of the domain and the number of grid points (and hence algorithm complexity) scales exponentially $\mathcal O(N^d)$ with the dimension $d$ of the problem.
 
-We can attempt a neural network solution to the PDEs, as neural networks are known to be universal approximators. That is, suppose we have the class of functions $\mathscr F$ over a compact set $S$ that can be represented by a neural network with a given architecture, with a continuous target function $f^\star$ that we would like to approximate. Then for any target accuracy $\epsilon > 0$, there exists a function $f \in \mathscr F$ such that
-\begin{equation}
-    \sup_{x \in S} |f(x) - f^\star(x)| \le \epsilon
-\end{equation}
-If we have a squashing activation function $\Psi(\cdot)$ that is non-decreasing and satisfies the limits
+We can attempt a neural network solution to the PDEs, as neural networks are known to be universal approximators. To be more precise, let $\Psi(\cdot)$ be a squashing activation function, which is a non-decreasing function satisfying the limits
 \begin{equation}
     \Psi(-\infty) = 0, \quad \Psi(\infty) = 1
 \end{equation}
-then the class of functions $\mathscr F$ that can be represented by a neural network with one hidden layer and activation function $\Psi$ is dense in the space of continuous functions on $S$ and thus is a universal approximator \cite{hornik1989multilayer}.
 
-Since the option price function is continuous in the time-asset price domain, we can use a neural network to find an approximation. This is favourable because the time complexity scales with the number of parameters, which is not exponential. To do this, we will use the framework of physics-informed neural networks (PINNs) to solve the PDEs, which have been shown to be effective for solving high-dimensional PDEs \cite{raissi2019physics}, by avoiding mesh construction and leveraging the interpolation capability of neural networks \cite{hu2024tackling}. The loss function of the neural network is designed to penalise deviations from the PDE as well as deviations from the boundary conditions. By training the neural network to minimise this loss function, we can obtain an approximation to the solution of the PDE. This method has been applied to option pricing problems in the literature, such as in \cite{dhiman2023physics} for the Black-Scholes model, but we will look to apply it to more complex models such as the Heston model as well as to options on multiple assets. 
+Define the class of functions $\mathscr F$ over a compact set $\mathcal X$ that can be represented by a neural network with one hidden layer, activation function $\Psi$ and any finite number of hidden neurons. Then $\mathscr F$ is dense in the space of continuous functions on $\mathcal X$ \cite{hornik1989multilayer}. In other words, for any continuous target function $f^\star$ and any target accuracy $\epsilon > 0$, there exists a function $f \in \mathscr F$, realised by a network with sufficiently many hiden neurons, such that
+\begin{equation}
+    \sup_{x \in \mathcal X} |f(x) - f^\star(x)| \le \epsilon
+\end{equation}
+
+Since the option price function is continuous in the time-asset price domain, we can use a neural network to find an approximation. This is favourable because the time complexity of the training process scales with the number of parameters, which does not scale exponentially. To do this, we will use the framework of \textit{physics-informed neural networks} (PINNs) to solve the PDEs, which have been shown to be effective for solving high-dimensional PDEs \cite{raissi2019physics}, by avoiding mesh construction and leveraging the interpolation capability of neural networks \cite{hu2024tackling}. The loss function of the neural network is designed to penalise deviations from the PDE as well as deviations from the boundary conditions. By training the neural network to minimise this loss function, we can obtain an approximation to the solution of the PDE. This method has been applied to option pricing problems in the literature, such as in \cite{dhiman2023physics} for the Black-Scholes model, but we will look to apply it to more complex models such as the Heston model as well as to options on multiple assets. 
 
 \subsection{Methodology}
 We first provide a general setup for PINNs, before modifying it to tailor our specific problem of option pricing. Formally, suppose we have an unknown latent solution $u(t, x)$ which is governed by a PDE of the form
@@ -314,19 +314,19 @@ where the PDE residual $\mathcal R_\theta$ is defined as
     \mathcal R_\theta(t, x) = \frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x)
 \label{eq:pde_residual}
 \end{equation}
-We additionally use the sampled points $\{x_{ic}^i\}_{i=1}^{N_{ic}}$ from the initial condition domain, $\{(t_{bc}^i, x_{bc}^i)\}_{i=1}^{N_{bc}}$ from the boundary condition domain and $\{(t_r^i, x_r^i)\}_{i=1}^{N_r}$ from the PDE domain, sampled uniformly in their respective domains at each iteration of the gradient descent algorithm.
+We additionally use the sampled points $\{x_{ic}^i\}_{i=1}^{N_{ic}}$ from the initial condition domain, $\{(t_{bc}^i, x_{bc}^i)\}_{i=1}^{N_{bc}}$ from the boundary condition domain and $\{(t_r^i, x_r^i)\}_{i=1}^{N_r}$ from the PDE domain, sampled from their respective domains (whether it be uniformly or according to a specific distribution) at each iteration of the gradient descent algorithm.
 
-There are different methods to choose the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$, such as using fixed weights or using adaptive weights that change during training, which we will discuss in Section \ref{sec:adaptive_loss_weighting}.
+There are different methods to choose the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$. We could simply fix the weights to be constant throughout training, or use adaptive weights that change during training, which we will discuss in Section \ref{sec:adaptive_loss_weighting}.
 
-For our specific problem of option pricing, we can modify the above setup to fit our variational inequality formulation. The PDE to solve is dependent on the model for the asset dynamics, and the boundary conditions are given by the payoff function of the option. In general, we will have to solve a problem of the form
+For our specific problem of option pricing, we can modify the above setup to accommodate our variational inequality formulation. The PDE to solve is dependent on the model for the asset dynamics, and the boundary conditions are given by the payoff function of the option. In general, we will have to solve a problem of the form
 \begin{align}
-    \min\left\{ -\frac{\partial u}{\partial t} + \mathcal L[u], u - g \right\} &= 0, \qquad t \in [0, T], x \in \Omega \label{eq:pinn_pde}\\
+    \min\left\{ -\frac{\partial u}{\partial t} + \mathcal L[u], \: u - g \right\} &= 0, \qquad t \in [0, T], x \in \Omega \label{eq:pinn_pde}\\
     u(T, x) &= g(x), \qquad x \in \Omega \label{eq:pinn_terminal}\\
     \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega, k=1, \dots, K \label{eq:pinn_boundary}
 \end{align}
 where $k$ indexes the $K$ different boundary conditions. This is very similar to the general setup for PINNs, except that we have a variational inequality instead of a PDE, and we have a terminal condition instead of an initial condition. However, we can still use the framework by noting we can make the substitution $t \mapsto T-t$ to un-negate the negative partial derivative in the PDE term and to convert the terminal condition to an initial condition. The variational inequality can be handled by modifying the PDE residual loss (\ref{eq:pde_residual}) to
 \begin{equation}
-    \mathcal R_\theta(t, x) = \min\left\{ \frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x), f_\theta(t, x) - g(x) \right\}
+    \mathcal R_\theta(t, x) = \min\left\{\frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x), \: f_\theta(t, x) - g(x) \right\}
 \end{equation}
 
 With everything in place, we can train the neural network with gradient descent:
@@ -360,14 +360,14 @@ We will additionally impose a schedule to decay the learning rate over time, whi
 
 \subsubsection{Early Stopping}
 
-Early stopping is a regularisation technique mainly used to prevent overfitting in neural network training. However, we are training on a new random training set each epoch, so we do not need to worry about overfitting, and early stopping is implemented as an optimisation procedure.
+Early stopping is a regularisation technique mainly used to prevent overfitting in neural network training. However, we are training on a new random training set each epoch, so we do not need to worry about overfitting, and early stopping is implemented to avoid unnecessary training for efficiency.
 
 The idea of early stopping is to stop the training process once we do not observe a significant improvement in the loss function after a certain number of iterations, which we call the patience. This can be tuned by observing the training curve and finding a good balance between training time and performance. Once the patience is exceeded without observing a significant improvement, the training is stopped and the model reverted to the best performing model observed during training. The loss used to evaluate the improvement is a validation set that is held through the training process, a set of points in the time-state space that is not used for training but only for evaluation.
 
-Throughout this project, we will set the improvement threshold to be $10^{-6}$ and the patience to be $500$ iterations, which we found to be a good balance for the models we trained.
+Throughout this project, we will set the improvement threshold to be $10^{-6}$ or $10^{-7}$ and the patience to be between $500$ and $1500$ iterations depending on the complexity of the model.
 
 \subsubsection{Fine-tuning}
 
 The Adam optimiser is a first-order method that uses the first moment of the gradients to adapt the learning rate, so we do not leverage the information given by the second moment of the gradients. It is particularly good for navigating the loss landscape at the beginning of training, but it in the later stages, it can exhibit poor convergence behaviour. This is because its stochastic noise and momentum can prevent it from tight convergence, requiring a very small learning rate to prevent oscillation. \cite{reddi2019convergence} explains in detail the shortcomings of Adam, where they construct explicit counterexamples of simple convex functions where Adam fails to converge to the optimal solution.
 
-For PINNs, this is a problem, as we require a very small residual loss to satisfy the PDE accurately. We will therefore use a second-order method to fine-tune the model: Adam would serve as the global exploration to get us close to a minimum, and then we can switch to a second-order method to converge tightly. This makes us turn to quasi-Newton methods such as the BFGS algorithm \cite{nocedal2006numerical}, which maintains a dense Hessian matrix which is updated at each iteration, and a step size is computed with a line search method, which is more optimal than setting a learning rate. However, this can be computationally expensive for large models, and the literature suggests we use L-BFGS \cite{markidis2021old} after the Adam training. This is a limited-memory version of BFGS that only stores a few vectors to approximate the Hessian, which is much more efficient for large models, at the cost of a shorter memory of the curvature information \cite{liu1989limited}.
+For PINNs, this is a problem, as we require a very small residual loss to satisfy the PDE accurately. We will therefore use a second-order method to fine-tune the model: Adam would serve as the global exploration to get us close to a minimum, and then we can switch to a second-order method to converge tightly. This makes us turn to quasi-Newton methods such as the BFGS algorithm \cite{nocedal2006numerical}, which maintains a dense Hessian matrix which is updated at each iteration, and a step size is computed with a line search method, which is more optimal than setting a learning rate. However, this can be computationally expensive for large models, and the literature suggests we fine-tune with L-BFGS \cite{markidis2021old} after having already completed gradient descent with the Adam optimiser. L-BFGS is a limited-memory version of BFGS that only stores a few vectors to approximate the Hessian, which is much more efficient for large models, at the trade-off of a shorter memory of the curvature information across iterations \cite{liu1989limited}.
