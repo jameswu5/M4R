@@ -87,7 +87,7 @@ To employ risk-neutral pricing, we additionally require the discounted asset pri
 \begin{equation}
 \tilde S_i = \frac{S_i}{B_i} = e^{-ri\Delta t} S_i
 \end{equation}
-We require some probability measure $\mathbb Q$, equivalent to the physical measure $\mathbb P$ (have the same non-zero support) such that
+We require some probability measure $\mathbb Q$, equivalent to the physical measure $\mathbb P$ (having the same non-zero support) such that
 \begin{equation}
 \mathbb E^\mathbb Q [\tilde S_{i+1} \mid \mathcal F_i] = \tilde S_i
 \end{equation}
@@ -140,7 +140,7 @@ The value at the root node $v_{0, 0}$ would be the arbitrage-free option price.
 
 \section{Physics-Informed Neural Networks}
 
-In order to use the framework of PINNs as detailed in Section \ref{sec:pinns}, we need to first derive the PDE satisfied by the option price, as well as the boundary conditions. We will first work with the one-dimensional case, then discuss the extension to the multi-dimensional case and how we could build a benchmark to which we evaluate our results against.
+In order to use the framework of PINNs as detailed in Section \ref{sec:pinns}, we need to first derive the PDE satisfied by the option price, as well as the boundary conditions. We will first work with the one-dimensional case, then discuss the extension to the multi-dimensional case and how we could build a benchmark against which we evaluate our results.
 
 \subsection{PINN formulation for one-dimensional case}
 
@@ -154,7 +154,7 @@ In order to set up our PINN, we need to first derive the PDE satisfied by the op
 where $\tau$ is any stopping time in $[t, T]$ and for convenience we will simply denote $\mathbb E_t$ as the conditional expectation at time $t$, given $S_t = S$ in this section. For an American option, we always have two options:
 
 \begin{itemize}
-    \item Immediately exercise the option and get payoff $g(S)$. Since this is not necessarily optimal, the payoff must bound the value option from below:
+    \item Immediately exercise the option and get payoff $g(S)$. Since this is not necessarily optimal, the payoff must bound the option value from below:
     \begin{equation}
         v(t, S) \ge g(S)
     \end{equation}
@@ -163,7 +163,7 @@ where $\tau$ is any stopping time in $[t, T]$ and for convenience we will simply
         e^{rh}v(t, S) \ge \mathbb E_t \big[v(t+h, S_{t + h})\big]
     \label{eq:continuation_value_inequality}
     \end{equation}
-    and the inequality turns into an equality at the limit $\delta \to 0$.
+    and the inequality turns into an equality at the limit $h \to 0$.
     
 \end{itemize}
 
@@ -172,9 +172,9 @@ We will additionally assume that $v \in \mathcal C^{1,2}$ (the value function is
     \mathrm dS_t = rS_t \mathrm dt + \sigma S_t \mathrm dW_t
 \end{equation}
 
-Then by Ito’s lemma and taking expectations of both sides we have
+Then by Itô’s lemma and taking expectations of both sides we have
 \begin{equation}
-    \mathbb E_t \big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E_t \bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+    \mathbb E_t \big[v(t + h, S_{t+h})\big] = v(t, S) + \mathbb E_t \bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \label{eq:ito_expansion}
 \end{equation}
 
@@ -243,9 +243,9 @@ As the geometric Brownian motion is multiplicative, for our benchmark, we will c
     g(S^1, \dots, S^n) = \left(K - \prod_{i=1}^n S^i\right)^+
 \end{equation}
 
-To represent the dynamics of the product of the assets, we can apply Ito’s formula to the log of the price process. The log representation of the Itô process (refer to Definition \ref{def:ito_process}) is
+To represent the dynamics of the product of the assets, we can apply Itô’s formula to the log of the price process. The log representation of the Itô process (refer to Definition \ref{def:ito_process}) is
 \begin{equation}
-\ln S_t^i = \ln S_0^t + \int_0^t \left (r - \frac 12 \sigma^2_i\right) \,\mathrm ds + \int_0^t \sigma _i \,\mathrm dW_s^i
+\ln S_t^i = \ln S_0^i + \int_0^t \left (r - \frac 12 \sigma^2_i\right) \,\mathrm ds + \int_0^t \sigma _i \,\mathrm dW_s^i
 \end{equation}
 
 Define the new asset $X$ to be
@@ -257,17 +257,17 @@ and hence we have
 
 By taking the differential we have
 \begin{equation}
-\mathrm d\ln X_t = \left(nr - \frac 12 \sum_{i=1}^n \sigma_i^2 \right)\,\mathrm dt + \sum_{i=1}^n \sigma_i \,\mathrm dW_s^i
+\mathrm d\ln X_t = \left(nr - \frac 12 \sum_{i=1}^n \sigma_i^2 \right)\,\mathrm dt + \sum_{i=1}^n \sigma_i \,\mathrm dW_t^i
 \label{eq:d_ln_X_t}
 \end{equation}
 
 The quadratic variation of the martingale term is
 \begin{equation}
-\dd \left\langle\sum_{i=1}^n \sigma_i W^i, \sum_{j=1}^n \sigma_j W^j\right\rangle_t = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j \rho_{ij} t =: \sigma^2_X \dd t
+\dd \left\langle\sum_{i=1}^n \sigma_i W^i, \sum_{j=1}^n \sigma_j W^j\right\rangle_t = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j \rho_{ij} \dd t =: \sigma^2_X \dd t
 \end{equation}
 i.e. $\sigma_X^2 = \sum_{i=1}^n\sum_{j=1}^n \sigma_i\sigma_j\rho_{ij}$. So we can express the second term of (\ref{eq:d_ln_X_t}) in terms of a new Brownian motion $\widetilde W$:
 \begin{equation}
-\sum_{i=1}^n \sigma_i \,\mathrm dW_s^i =  \sigma_X \mathrm d\widetilde W_t
+\sum_{i=1}^n \sigma_i \,\mathrm dW_t^i =  \sigma_X \mathrm d\widetilde W_t
 \end{equation}
 
 Going back, we have
@@ -275,7 +275,7 @@ Going back, we have
 \mathrm d \ln X_t = \left( nr - \frac 12 \sum_{i=1}^n \sigma_i^2\right)\,\mathrm dt + \sigma_X \mathrm d \widetilde W_t
 \end{equation}
 
-Exponentiating using Ito’s formula gets us
+Exponentiating using Itô’s formula gets us
 \begin{equation}
 \mathrm dX_t = X_t\left[\left(nr -\frac12\sum_{i=1}^n\sigma_i^2\right)\mathrm dt + \sigma_X\mathrm d\widetilde W_t\right]
 + \frac12 X_t\sigma_X^2 \mathrm dt
@@ -289,7 +289,7 @@ which is a geometric Brownian motion with volatility $\sigma_X$ and drift $r_X$ 
     r_X &= nr - \frac 12 \sum_{i=1}^n \sigma_i^2 + \frac 12 \sigma_X^2 \\
     &= nr + \sum_{i < j} \sigma_i\sigma_j\rho_{ij}
 \end{align}
-by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values (chosen arbitrariliy)
+by matching coefficients. We can verify the equivalence by simulating many price paths for the assets and comparing their product against the simulations of price paths for the equivalent asset. Using the initial values (chosen arbitrarily)
 \begin{equation}
 r = 0.05 \qquad S_0 = (10, 5, 3)^\top \qquad \sigma = (0.2, 0.3, 0.1)^\top \qquad \Sigma = \begin{pmatrix}
     1 & 0.6 & -0.2 \\ 0.6 & 1 & 0.4 \\-0.2 & 0.4 & 1
@@ -347,7 +347,7 @@ To finish the PINN formulation, we need to derive the boundary conditions. The t
 For the spatial boundary conditions, we will again truncate the domain to
 \begin{equation}
     \Omega = \left \{
-        S=(S^i, \dots, S^n) \in \mathbb R^n: S^i \in (S_\text{min}^i, S_\text{max}^i) \text{ for } i = 1, \dots, n
+        S=(S^1, \dots, S^n) \in \mathbb R^n: S^i \in (S_\text{min}^i, S_\text{max}^i) \text{ for } i = 1, \dots, n
     \right \}
 \end{equation}
 for some sufficiently small and large respective minimum and maximum values for each asset. The lower boundary will be sampled from the set
@@ -419,7 +419,7 @@ In the special case $p=2$, the fractional Sobolev space becomes a Hilbert space,
 
 \subsection{Model}
 
-Suppose we would like to price an option on $n$ assets $S = (S^1, \dots, S^n)$. As asset prices are theoretically unbounded, we truncate it in our model much like the vanilla PINN. Thus the domain of the target function can be chosen to be the open set
+Suppose we would like to price an option on $n$ assets $S = (S^1, \dots, S^n)$. As asset prices are theoretically unbounded, we truncate the domain in our model much like the vanilla PINN. Thus the domain of the target function can be chosen to be the open set
 \begin{equation}
     \Omega = (S_\text{min}^1, S_\text{max}^1) \times \cdots \times (S_\text{min}^n, S_\text{max}^n)
 \end{equation}
@@ -449,7 +449,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     \end{equation}
     where we have the norm defined as
     \begin{equation}
-        \|d\|^2_{H^1(\Omega), \mu_2} = \|d\|^2_{L^2(\Omega)} + \|\nabla d\|^2_{L^2(\Omega)}
+        \|d\|^2_{H^1(\Omega)} = \|d\|^2_{L^2(\Omega)} + \|\nabla d\|^2_{L^2(\Omega)}
     \end{equation}
     and the derivative
     \begin{equation}\nabla d = \big(\partial_{x_1}d, \dots, \partial_{x_n}d\big)\end{equation}
@@ -472,7 +472,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
-    where our space $H^{\frac 14, \frac 12} (\Sigma)$ is again selected from, and $\nu$ is the unit normal vector pointing outwards from the domain $\Omega$ \cite{zhao2025neural}. That is to say from an implementation perspective, the normal derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ with $x_{i^\star}$ the coordinate normal to the face of the boundary we are on, justifying the choice of the representation of $\Gamma$ as a union of faces. Rigorously, we require the sign, but in practice this is not necessary, as we will take the square in the end. The fractional norm is thus written
+    where our space $H^{\frac 14, \frac 12} (\Sigma)$ is again selected from \cite{zhao2025neural}, with $\nu$ the unit normal vector pointing outwards from the domain $\Omega$. That is to say from an implementation perspective, the normal derivative is $\nabla(f-g)\cdot \nu = \partial_{x_{i^\star}}(f-g)$ with $x_{i^\star}$ the coordinate normal to the face of the boundary we are on, justifying the choice of the representation of $\Gamma$ as a union of faces. Rigorously, we require the sign, but in practice this is not necessary, as we will take the square in the end. The fractional norm is thus written
     \begin{equation}
         \begin{aligned}
             \|d\|^2_{H^{\frac 14, \frac 12}(\Sigma)} = \|d\|^2_{L^2(\Sigma)} &+ \int_0^T\int_0^T \frac{\|d(t_1, \cdot) - d(t_2, \cdot)\|^2_{L^2(\Gamma)}}{|t_1-t_2|^{1.5}}\,\mathrm dt_1\mathrm dt_2 \\ &+ \int_{0}^T\int_\Gamma\int_\Gamma \frac{|d(t, x) - d(t, y)|^2}{\|x-y\|^n}\,\mathrm d\sigma(x)\mathrm d\sigma (y)\mathrm dt
@@ -567,13 +567,13 @@ Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price ag
     \label{fig:bs_1d_train_atm_price}
 \end{figure}
 
-We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 30 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. 
+We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 25 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. 
 
 We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across different training epochs, as shown in Figure \ref{fig:bs_1d_train_atm_price}. We can see that the price spikes above the tree price and then settles around the marked benchmark tree price, seemingly converged at a value slightly greater than the tree price. This confirms that there is some bias in the PINN approximation that prevents it from getting closer to the tree price, which we are taking to be the ground truth.
 
 \subsection{Multi-dimensional PINN}
 
-We move onto training a PINN on multiple assets. For simplicity and visualisation purposes, we will train a two-dimensional PINN on the American put with the product of two assets as the payoff. We choose arbitrarily the parameters $K=1, r=0.1, T=1$ with asset volatilities $\sigma = (0.2, 0.3)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will have a truncated interior domain (so $\Omega = (0, 3)^2$) and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence the absolute error is not as significant when we take relative error into consideration.
+We move on to training a PINN on multiple assets. For simplicity and visualisation purposes, we will train a two-dimensional PINN on the American put with the product of two assets as the payoff. We choose arbitrarily the parameters $K=1, r=0.1, T=1$ with asset volatilities $\sigma = (0.2, 0.3)^\top$ and correlation between assets $\rho = 0.5$. Both of these assets will have a truncated interior domain (so $\Omega = (0, 3)^2$) and we will sample uniformly from the whole domain for training. The model architecture will be similar to the one-dimensional case, with a bigger feedforward neural network of 4 hidden layers each of width 64, learning rate 0.001 and batch size 10000. This will be trained for a maximum of 40000 epochs with early stopping patience of 500 epochs across 10 different seeds. Figure \ref{fig:bs_pinn_nd_price_comparison} shows the heatmap of the PINN price against the tree price, where we take the $S^1$-$S^2$ cross section and fix time at $t=0$. We can see that the PINN price is close to the tree price across the domain, with some stronger bias at the in-the-money regions where the price is higher and hence the absolute error is not as significant when we take relative error into consideration.
 
 \begin{figure}[htb]
     \centering
@@ -582,7 +582,7 @@ We move onto training a PINN on multiple assets. For simplicity and visualisatio
     \label{fig:bs_pinn_nd_price_comparison}
 \end{figure}
 
-We can zoom in on the behaviour along the line $S^1\times S^2 = K$, and plot the price along this line across time, shown in the left figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and is instead a model simplication we made. 
+We can zoom in on the behaviour along the line $S^1\times S^2 = K$, and plot the price along this line across time, shown in the left figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN fit is satisfactory, with inconsistencies at the tails due to our boundary conditions, which are set at $S = 0$ and $S = 3$ for both assets, which are not the true boundaries of the problem and are instead a model simplification we made. 
 
 \begin{table}[b]
     \centering
@@ -599,7 +599,7 @@ We can zoom in on the behaviour along the line $S^1\times S^2 = K$, and plot the
 
 Overall, by Table \ref{tab:bs_pinn_nd_atm_price}, we can see that the relative error at the most sensitive point at the triple $(0, \sqrt{K}, \sqrt{K})$ is around $7\%$ which is considerably higher than the one-dimensional case, which is expected as we are now sampling across a much larger domain, and we are restrained by model capacity and training time due to personal hardware constraints, which is a common issue for multi-dimensional PINNs.
 
-We can also take the cross section at $S^1 = S^2$ to evaluate the term structure of the option price, as shown in the right figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN has managed to capture the theta decay of the option price, but the consistent bias of the price is evident here and the model struggles to capture the more rapid theta decay as we approach maturity. This may be due to the fact gamma approaches a dirac delta function at the money as we approach maturity, whose sharp feature is difficult for the model to capture when our samples are sparser in the expanded domain.
+We can also take the cross section at $S^1 = S^2$ to evaluate the term structure of the option price, as shown in the right figure of Figure \ref{fig:bs_pinn_nd_price_comparison_line}. We can see that the PINN has managed to capture the theta decay of the option price, but the consistent bias of the price is evident here and the model struggles to capture the more rapid theta decay as we approach maturity. This may be due to the fact gamma approaches a Dirac delta function at the money as we approach maturity, whose sharp feature is difficult for the model to capture when our samples are sparser in the expanded domain.
 
 \begin{figure}[htb]
     \centering
@@ -619,7 +619,7 @@ We can also take the cross section at $S^1 = S^2$ to evaluate the term structure
     \label{fig:bs_sobolev_pinn_price_comparison}
 \end{figure}
 
-We will now train a PINN with the Sobolev loss function, with the same model architecture and training setup as the vanilla PINN, and compare the results against the tree benchmark. We can see from Figure \ref{fig:bs_sobolev_pinn_price_comparison} that the Sobolev PINN price also gets close to the tree price across the domain, but the inaccuracy here is more significant than the vanilla PINN, especially at the $(t=0, S=K)$ point, which is arguably the point we are most interested in. However, considering that with the exception of the terminal condition, the boundary conditions of the loss function isn't manufactured from the payoff function directly, we can see that this method could be effective for more general problems where boundary conditions are not as straightforward to implement, and the price is still in the right ballpark.
+We will now train a PINN with the Sobolev loss function, with the same model architecture and training setup as the vanilla PINN, and compare the results against the tree benchmark. We can see from Figure \ref{fig:bs_sobolev_pinn_price_comparison} that the Sobolev PINN price also gets close to the tree price across the domain, but the inaccuracy here is more significant than the vanilla PINN, especially at the $(t=0, S=K)$ point, which is arguably the point we are most interested in. However, considering that with the exception of the terminal condition, the boundary conditions of the loss function aren't manufactured from the payoff function directly, we can see that this method could be effective for more general problems where boundary conditions are not as straightforward to implement, and the price is still in the right ballpark.
 
 We can see especially in Figure \ref{fig:bs_sobolev_pinn_price_comparison_line} that the Sobolev PINN manages to capture the term structure of the option price with the theta collapse as we approach maturity, and the error is more significant due to a hump in the price against asset price around the strike price. This suggests that the model is capable of a good fit across the domain, but may be undertrained or have too small a capacity.
 
@@ -634,7 +634,7 @@ Overall this method is promising, but it may require more careful training and t
 
 \subsubsection{Multi-dimensional case}
 
-We will now present our results for the multi-dimensional case trained by the Sobolev network, where we have added a L-BFGS optimiser after having trained with Adam for a good number of epochs for a marginal improvement in results, where the validation loss decreases from $3.6\times 10^{-3}$ after Adam to $1.2 \times 10^{-4}$ after the fine-tuning phase, a 30x improvement.
+We will now present our results for the multi-dimensional case trained by the Sobolev network, where we have added an L-BFGS optimiser after having trained with Adam for a good number of epochs for a marginal improvement in results, where the validation loss decreases from $3.6\times 10^{-3}$ after Adam to $1.2 \times 10^{-4}$ after the fine-tuning phase, a 30x improvement.
 
 \begin{figure}[b]
     \centering
@@ -645,7 +645,7 @@ We will now present our results for the multi-dimensional case trained by the So
 
 Figure \ref{fig:bs_sobolev_nd_price_comparison} shows the heatmap of the Sobolev PINN price against the tree price across the $S^1$-$S^2$ cross section at $t=0$. We can see that the Sobolev PINN price has captured the correct shape of the price across the domain, with greater inaccuracy than the vanilla PINN.
 
-We can see that the bias is the strongest on the at-the-money line, which we can examine more closely in the left figure of Figure \ref{fig:bs_sobolev_nd_price_comparison_line}. We see a similar behaviour as the vanilla case exhibited here, where the PINN overprices for more moderate values of $S^1$ and underprices for more extreme values of $S^1$. This brings the case of training a enlarged domain into question, where we only evaluate our model on a smaller interior of the domain.
+We can see that the bias is the strongest on the at-the-money line, which we can examine more closely in the left figure of Figure \ref{fig:bs_sobolev_nd_price_comparison_line}. We see a similar behaviour as the vanilla case exhibited here, where the PINN overprices for more moderate values of $S^1$ and underprices for more extreme values of $S^1$. This brings the case of training an enlarged domain into question, where we only evaluate our model on a smaller interior of the domain.
 
 \begin{figure}[htb]
     \centering
@@ -656,7 +656,7 @@ We can see that the bias is the strongest on the at-the-money line, which we can
 
 The right figure of Figure \ref{fig:bs_sobolev_nd_price_comparison_line} shows the term structure of the option price, with the asset prices fixed at $S^1 = S^2 = \sqrt{K}$. We can see that the Sobolev PINN captures the theta decay of the option price better than the vanilla PINN, but there is a systematic overpricing bias across the whole time dimension. We have attempted to combat this by noticing that the errors accumulate backwards from expiry $t=T$ to the initial time $t=0$, so we have attempted to train the model with causal weighting instead of a uniform average. This is where we put more weight on the later time steps until the residual loss is sufficiently small, and then relax this weighting gradually to a uniform average. This has improved the accuracy from over $100\%$ relative error to around $20\%$ relative error for the option price at $t=0$. A relative error of this size is not ideal, but there is still a significant improvement nonetheless with the addition of this technique.
 
-Even though this approach yielded lower accuracy than that of the vanilla PINN, we could still see its strengths over the vanilla PINN (such as it being capable of capturing the collapse of the option price to zero as we approach maturity). With more careful training and tuning, the accuracy could definitely be improved, which is an avenue for future work. We will prefer the vanilla PINN for the free boundary calculation due to its better accuracy, but it was  interesting nonetheless to see how we could construct the loss function from another angle altogether, from a regularity perspective, without relying on manual boundary conditions.
+Even though this approach yielded lower accuracy than that of the vanilla PINN, we could still see its strengths over the vanilla PINN (such as it being capable of capturing the collapse of the option price to zero as we approach maturity). With more careful training and tuning, the accuracy could definitely be improved, which is an avenue for future work. We will prefer the vanilla PINN for the free boundary calculation due to its better accuracy, but it was interesting nonetheless to see how we could construct the loss function from another angle altogether, from a regularity perspective, without relying on manual boundary conditions.
 
 \subsection{Free boundary}
 
@@ -664,9 +664,9 @@ Even though this approach yielded lower accuracy than that of the vanilla PINN, 
 
 For the one-dimensional free boundary, we will first evaluate the free boundary from the tree benchmark. Here, the continuation values are extracted through a small modification to the tree algorithm, where we compute the price of the Bermudan option with the same parameters with possibility of exercise at every time step except for at $t=0$, effectively serving as a continuation value of the American option at $t=0$. This continuation value is compared with the intrinsic value (the payoff) like we introduced in equation (\ref{eq:free_boundary}) in the mathematical background. The left figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs, and here we use hard classification as binomial tree pricing is deterministic.
 
-We can see that the free boundary is correctly captured at glance, where we exercise the option when the asset price is sufficiently low, whose threshold increases as we get closer to maturity, consistent with the intuition that the option is losing time value.
+We can see that the free boundary is correctly captured at a glance, where we exercise the option when the asset price is sufficiently low, whose threshold increases as we get closer to maturity, consistent with the intuition that the option is losing time value.
 
-We now evaluate the free boundary from the PINN. The central figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs using the sigmoid distribution as described in equation (\ref{eq:continuation_probability_sigmoid}). We can see that the shape of the free boundary is similar to the tree benchmark, and with soft classification the lowest probability is around $0.4$, which is not unintuitive as in the exercise region, the continuation value is theoretically equal to the payoff, and hence we should be indifferent between exercising and continuing.
+We now evaluate the free boundary from the PINN. The central figure in Figure \ref{fig:bs_continuation_probs} shows the continuation probabilities across different $(t, S)$ pairs using the sigmoid function as described in equation (\ref{eq:continuation_probability_sigmoid}). We can see that the shape of the free boundary is similar to the tree benchmark, and with soft classification the lowest probability is around $0.4$, which is not unintuitive as in the exercise region, the continuation value is theoretically equal to the payoff, and hence we should be indifferent between exercising and continuing.
 
 \begin{figure}[htb]
     \centering
@@ -710,7 +710,7 @@ We can see that both methods of estimating the continuation probabilities yield 
 
 
 \section{Minimum of two assets}
-To demonstrate the flexibility of our PINN framework, we will now shift our focus onto different payoffs on multiple assets as an extension. \cite{detemple2005american} explores a variety of different payoffs for American options on multiple assets, but that with a particularly interesting free boundary is the one of the call on the maximum of two assets. We will deal with the analogous case for the put on the minimum of two assets.
+To demonstrate the flexibility of our PINN framework, we will now shift our focus onto different payoffs on multiple assets as an extension. \cite{detemple2005american} explores a variety of different payoffs for American options on multiple assets, but the payoff with a particularly interesting free boundary is the call on the maximum of two assets. We will deal with the analogous case for the put on the minimum of two assets.
 
 To price this, we can simply change the payoff function in our loss function, and update the boundary conditions accordingly to the new payoff function, but the variational inequality and the rest of the framework remain unchanged. For the American put on the minimum of two assets, the payoff function is given by $g\left(S^1, S^2\right) = \left(K - \min(S^1, S^2)\right)^+$, and thus we must have the terminal boundary condition
 \begin{equation}
@@ -735,7 +735,7 @@ In Figure \ref{fig:bs_min_heatmap}, we can see that our PINN yields results that
     \label{fig:bs_min_heatmap}
 \end{figure}
 
-We can also see that the term structure is somewhat captured by the contour lines of the right figure of Figure \ref{fig:bs_min_heatmap}, where the price decays as we approach maturity. We train the model with a high volatility of $(\sigma_1, \sigma_2) = (0.4, 0.5)$ to make the theta decay more significant. This also gives us a clearer evolution of the free boundary, which we see in Figure \ref{fig:bs_min_continuation_probs}, where we can see that not only the continuation region is a mirror image of the theoretical result described in \cite{detemple2005american} as we would expect, but the PINN also captures the shrinking nature of the continuation region as we approach maturity, consistent with the intuition that the option loses time value and the region would close entirely, leaving only the box $\{(S^1, S^2) : S^1 \ge K, S^2 \ge K\}$ as the continuation region at maturity.
+We can also see that the term structure is somewhat captured by the contour lines of the right figure of Figure \ref{fig:bs_min_heatmap}, where the price decays as we approach maturity. We train the model with a high volatility of $(\sigma_1, \sigma_2) = (0.4, 0.5)$ to make the theta decay more significant. This also gives us a clearer evolution of the free boundary, which we see in Figure \ref{fig:bs_min_continuation_probs}, where we can see that not only is the continuation region a mirror image of the theoretical result described in \cite{detemple2005american} as we would expect, but the PINN also captures the shrinking nature of the continuation region as we approach maturity, consistent with the intuition that the option loses time value and the region would close entirely, leaving only the box $\{(S^1, S^2) : S^1 \ge K, S^2 \ge K\}$ as the continuation region at maturity.
 
 \begin{figure}[htb]
     \centering
@@ -744,4 +744,4 @@ We can also see that the term structure is somewhat captured by the contour line
     \label{fig:bs_min_continuation_probs}
 \end{figure}
 
-Overall, this demonstrates the capacity of our PINN approach to pricing options and we can see that the framework is flexible enough to be applied to different payoffs with minimal adjustments, yielding convincing results that are consistent with theoretical results. For the next step, we will move onto a different model, the Heston model, which injects randomness into the volatility, which is a more realistic assumption.
+Overall, this demonstrates the capacity of our PINN approach to pricing options and we can see that the framework is flexible enough to be applied to different payoffs with minimal adjustments, yielding convincing results that are consistent with theoretical results. For the next step, we will move on to a different model, the Heston model, which injects randomness into the volatility, which is a more realistic assumption.
