@@ -6,7 +6,7 @@ We will first assemble the necessary mathematical background to understand the o
 
 \subsection{Probabilistic Setup}
 
-The option pricing problem is inherently probabilistic, as we are uncertain about the future evolution of the underlying asset price. Therefore, we need a rigorous mathematical framework to model this uncertainty. The formalisation of the underlying randomness in our model for the market will be done through \textit{probability spaces}, and the arrival of information in the market through time through \textit{filtrations}.
+The option pricing problem is inherently probabilistic, as we are uncertain about the future evolution of the underlying asset price. Therefore, we need a rigorous mathematical framework to model this uncertainty. The formalisation of the underlying randomness in our model for the market will be done through \textit{probability spaces}, and the arrival of information in the market over time through \textit{filtrations}.
 
 \begin{definition}[Probability space]
     A \textit{probability space} is a triple $(\Omega, \mathcal F, \mathbb P)$ where $\Omega$ is the sample space, $\mathcal F$ is a $\sigma$-algebra on $\Omega$, and $\mathbb P: \mathcal F \to [0, 1]$ is a probability measure such that $\mathbb P(\Omega) = 1$.
@@ -72,7 +72,7 @@ We will now define the Itô process \cite{pham2009continuous}, which is a genera
 Finally, we present Itô's lemma \cite{pham2009continuous}, which allows us to compute the differential of a function of an Itô process, which we will use extensively in deriving the PDEs in the option pricing problem.
 
 \begin{theorem}[Itô's lemma]
-    Let $X = (X^1, \dots, X^d)$ be an Itô process, with $\mathbb T \subseteq \mathbb R_{\ge 0}$ the time domain. Let $f: \mathbb T \times \mathbb R^d \to \mathbb R \in \mathcal C^{1, 2}$ be a function that is once continuously differentiable in time and twice continuously differentiable in space. Then the process $f(t, X_t)$ is also an Itô process and satisfies
+    Let $X = (X^1, \dots, X^d)$ be an Itô process, with $\mathbb T \subseteq \mathbb R_{\ge 0}$ the time domain. Let $f \in \mathcal C^{1, 2}(\mathbb T \times \mathbb R^d)$ be a function that is once continuously differentiable in time and twice continuously differentiable in space. Then the process $f(t, X_t)$ is also an Itô process and satisfies
     \begin{equation}
         \begin{aligned}
             f(t, X_t) = f(0, X_0) &+ \int_0^t \frac{\partial f}{\partial t} (s, X_s)\,\dd s + \sum_{i=1}^d \int_0^t \frac{\partial f}{\partial x_i}(s, X_s) \,\dd X_s^i \\
@@ -111,7 +111,7 @@ Given that the market is arbitrage-free, we can price any derivative with payoff
     v(t, S) = B_t \cdot \mathbb E^\mathbb Q \left[\frac{g(S_T)}{B_T} \Bigm| \mathcal F_t\right]
 \end{equation}
 
-Throughout this project specifically, we will deal with constant interest rates, so the bond price process reduces to $B_t = e^{rt}$ where $r$ is the constant risk-free rate. Additionally, we will also assume the Markov property (\ref{def:markov_process}). The arbitrage-free price of the European derivative will therefore be given by
+Throughout this project specifically, we will deal with constant interest rates, so the bond price process reduces to $B_t = e^{rt}$ where $r$ is the constant risk-free rate. Additionally, we will assume the Markov property (\ref{def:markov_process}). The arbitrage-free price of the European derivative will therefore be given by
 \begin{equation}
     v(t, S) = \mathbb E^\mathbb Q \left[e^{-r(T-t)} g(S_T) \Bigm| S_t = S\right]
 \label{eq:risk_neutral_pricing_european}
@@ -138,15 +138,15 @@ This optimal $\tau^\star$ is the first time that the option holder chooses to ex
 
 Let's work with the case $t=0$ for simplicity, but the same logic applies for any $t \in [0, T)$. For the American put, the optimal stopping problem (\ref{eq:optimal_stopping_problem}) can be rewritten as
 \begin{equation}
-    v(0, S) = \sup_{\tau \in [0, T]} \mathbb E\big[e^{-r\tau}(K - S_\tau)^+ \mid S_0 = S \big]
+    v(0, S) = \sup_{\tau \in [0, T]} \mathbb E^\mathbb Q \big[e^{-r\tau}(K - S_\tau)^+ \mid S_0 = S \big]
 \end{equation}
 which is achieved by an optimal stopping time $\tau^\star$ taking the form
 \begin{equation}
-    \tau^\star = \inf\{\tau \ge 0 : S_\tau \le b^\star(\tau)\}
+    \tau^\star = \inf\{u \ge 0 : S_u \le b^\star(u)\}
 \end{equation}
-for some optimal exercise boundary $b^\star(\tau)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary. The illustration is based on the binomial tree solution for the American put option, which has the boundary
+for some optimal exercise boundary $b^\star(u)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary. The illustration is based on the binomial tree solution for the American put option, which has the boundary
 \begin{equation}
-    b^\star(\tau) = \sup\{S : c(\tau, S) = g(S)\}
+    b^\star(u) = \sup\{S : c(u, S) = g(S)\}
 \label{eq:free_boundary}
 \end{equation}
 which is found using binary search here, and $c(t, S)$ is the continuation value of the option with payoff $g(S)$.
@@ -160,7 +160,7 @@ which is found using binary search here, and $c(t, S)$ is the continuation value
 
 \subsubsection{Soft classification of the free boundary}
 
-Our definition of the free boundary is analogous to a hard classification problem, where we classify points in the time-stock price space binarily to be either in the continuation region or the exercise region. However, our numerical solutions to the pricing problem are not exact, with various things such as Monte Carlo simulations and numerical differentiation introducing some level of error in our solution. Therefore, it would be more intuitive to perform a soft classification instead, where we assign probabilities to points in the time-stock price space to be in the continuation region or the exercise region, which would give us a more intuitive visualisation of the free boundary and how it evolves over time. We will do this by extending the hard classification problem. Currently, the continuation region $\mathcal A$ is
+Our definition of the free boundary is analogous to a hard classification problem, where we classify points in the time-stock price space binarily to be either in the continuation region or the exercise region. However, our numerical solutions to the pricing problem are not exact, with various sources such as Monte Carlo simulations and numerical differentiation introducing some level of error in our solution. Therefore, it would be more intuitive to perform a soft classification instead, where we assign probabilities to points in the time-stock price space to be in the continuation region or the exercise region, which would give us a more intuitive visualisation of the free boundary and how it evolves over time. We will do this by extending the hard classification problem. Currently, the continuation region $\mathcal A$ is
 \begin{equation}
     \mathcal A = \{(t, S) : c(t, S) > g(S)\} \cup \{(t, S) : g(S) = 0\}
 \end{equation}
@@ -192,11 +192,11 @@ The second method is to assume Gaussianity of the noise in our estimate $\hat c$
 \end{equation}
 where $c$ is the true (latent) continuation value and $\sigma$ is the standard deviation of the solution noise, which is also unknown. We can then solve the pricing problem $n$ times to obtain the different approximated continuation values $\hat c_1, \dots, \hat c_n$. This allows us to use the sample mean $\bar c$ as our unbiased estimate of the continuation value function paired with the sample standard deviation $\hat \sigma$. Then the standardised statistic is distributed according to a $t$-distribution with $n-1$ degrees of freedom, and we can compute the continuation probability as
 \begin{equation}
-    P(t, S) = \mathbb P_{t_{n-1}}\left( \frac{\bar c(t, S) - g(S)}{\hat \sigma(t, S) / \sqrt n} > 0 \right)
+    P(t,S) = F_{t_{n-1}}\!\left(\frac{\bar c(t,S) - g(S)}{\hat\sigma(t,S)/\sqrt n}\right)
 \end{equation}
-which is simple as the CDF of the $t$-distribution is readily available.
+which is simple as the CDF $F_{t_{n-1}}$ of the $t$-distribution with $n-1$ degrees of freedom is readily available.
 
-The caveat with this method is that it requires multiple simulations of the solution, which becomes infeasible for more complex models and higher dimensions, but it gives us a more statistically grounded way to compute the continuation probability.
+The caveat of this method is that it requires multiple simulations of the solution, which becomes infeasible for more complex models and higher dimensions, but it gives us a more statistically grounded way to compute the continuation probability.
 
 All that is left is to find a method to obtain the continuation value function, as it is generally latent and not directly observable, given that we predict the American option price that already takes the maximum of the continuation value and the payoff. However, we can use
 \begin{equation}
@@ -206,7 +206,7 @@ where $h > 0$ is a small time step and $f$ is the American option price function
 
 \subsection{Monte Carlo integration}
 
-Monte Carlo is a powerful way to estimate integrals that may be intractable or do not have a closed-form solution, which will be useful through our project as expectations can be expressed as integrals under the probability measure. The idea is to use the law of large numbers to estimate the integral by sampling from some distribution and evaluating the integrand at the sampled points.
+Monte Carlo is a powerful way to estimate integrals that may be intractable or do not have a closed-form solution, which will be useful throughout our project as expectations can be expressed as integrals under the probability measure. The idea is to use the law of large numbers to estimate the integral by sampling from some distribution and evaluating the integrand at the sampled points.
 
 Suppose we want to compute the integral of some function $\phi$ over a domain $\Omega$:
 \begin{equation}
@@ -254,12 +254,12 @@ This is a discrete-time Markov chain, and to identify the transition probabiliti
 \end{equation}
 where $\Delta t = t_{n+1} - t_n$ and $r$ is the risk-free rate.
 
-With these transition probabilities, we can compute the option value at time $t_n$ given the option value at time $t_{n+1}$ by using backwards induction, which gives us the recursive relation
+With these transition probabilities, we can compute the option value at time $t_n$ given the option value at time $t_{n+1}$ by using backward induction, which gives us the recursive relation
 \begin{equation}
     v(t_n, S_n^i) = \max\left(g(S_n^i),\: e^{-r\Delta t} \sum_{j=1}^{M_{n+1}} p_{ij}^{(n)} v(t_{n+1}, S_{n+1}^j) \right)
 \end{equation}
 
-where we take the maximum of the payoff and the discounted expected future price to account for early exercise for the American option. This maximum operator can easily be lifted for all time steps for European options, or only imposed on certain time steps for Bermudan options, making the tree method very flexible. This backwards induction is applied iteratively starting from the terminal condition at time $t_N = T$ to compute the option value at time $t_0 = 0$.
+where we take the maximum of the payoff and the discounted expected future price to account for early exercise for the American option. This maximum operator can easily be lifted for all time steps for European options, or only imposed on certain time steps for Bermudan options, making the tree method very flexible. This backward induction is applied iteratively starting from the terminal condition at time $t_N = T$ to compute the option value at time $t_0 = 0$.
 
 An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps, leading to a very computationally expensive algorithm. To mitigate this, we use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Figure \ref{fig:recombinant_trees} illustrates the difference between non-recombinant and recombinant trees. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables. This makes it difficult for potential extensions to price more complex derivatives on multiple assets. However, the reliability and interpretability of the tree method make it a good benchmark for simpler models.
 
@@ -324,7 +324,7 @@ For our specific problem of option pricing, we can modify the above setup to acc
     u(T, x) &= g(x), \qquad x \in \Omega \label{eq:pinn_terminal}\\
     \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega, k=1, \dots, K \label{eq:pinn_boundary}
 \end{align}
-where $k$ indexes the $K$ different boundary conditions. This is very similar to the general setup for PINNs, except that we have a variational inequality instead of a PDE, and we have a terminal condition instead of an initial condition. However, we can still use the framework by noting we can make the substitution $t \mapsto T-t$ to remove the sign of the negative partial derivative in the PDE term and to convert the terminal condition to an initial condition. The variational inequality can be handled by modifying the PDE residual loss (\ref{eq:pde_residual}) to
+where $k$ indexes the $K$ different boundary conditions. This is very similar to the general setup for PINNs, except that we have a variational inequality instead of a PDE, and we have a terminal condition instead of an initial condition. However, we can still use the framework by noting we can make the substitution $t \mapsto T-t$ to eliminate the negative sign on the time derivative in the PDE term and to convert the terminal condition to an initial condition. The variational inequality can be handled by modifying the PDE residual loss (\ref{eq:pde_residual}) to
 \begin{equation}
     \mathcal R_\theta(t, x) = \min\left\{\frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x), \: f_\theta(t, x) - g(x) \right\}
 \end{equation}
@@ -339,10 +339,12 @@ where $\eta_n$ is the learning rate at iteration $n$, either kept constant or de
 \label{sec:adaptive_loss_weighting}
 
 While keeping the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$ fixed is simple, it can be difficult to tune correctly and can lead to suboptimal performance. Ideally, we would like to balance the different loss components so that they are of the same order of magnitude, which can be achieved by using adaptive loss weighting methods, as proposed in \cite{wang2023expert}. The idea is to evaluate the contribution of each loss component on the total loss and adjust the weights accordingly to balance their contributions. In practice, we will use a moving average to prevent the weights from changing too rapidly, leading to instability in training. Mathematically, we compute the adaptive weights
-\begin{align*}
-    \hat\lambda_{r} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{r}(\theta)\|} \\\hat\lambda_{bc} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{bc}(\theta)\|} \\
-    \hat\lambda_{ic} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{ic}(\theta)\|} \\
-\end{align*}
+\begin{equation}
+    \begin{aligned}
+        \hat\lambda_{r} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{r}(\theta)\|} \\\hat\lambda_{bc} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{bc}(\theta)\|} \\
+        \hat\lambda_{ic} = \frac{\|\nabla_\theta L_{r}(\theta) \| + \|\nabla_\theta L_{bc}(\theta)\|+ \|\nabla_\theta L_{ic}(\theta)\|}{\|\nabla_\theta L_{ic}(\theta)\|}
+    \end{aligned}
+\end{equation}
 and update the global weights $\lambda = (\lambda_r, \lambda_{bc}, \lambda_{ic})$ with a smoothness $\alpha \in (0, 1)$ as a moving average
 \begin{equation}
     \lambda_\text{new} = \alpha \lambda_\text{old} + (1 - \alpha) \hat \lambda_\text{new}
@@ -362,7 +364,7 @@ We will additionally impose a schedule to decay the learning rate over time, whi
 
 Early stopping is a regularisation technique mainly used to prevent overfitting in neural network training. However, we are training on a new random training set each epoch, so we do not need to worry about overfitting, and early stopping is implemented to avoid unnecessary training for efficiency.
 
-The idea of early stopping is to stop the training process once we do not observe a significant improvement in the loss function after a certain number of iterations, which we call the patience. This can be tuned by observing the training curve and finding a good balance between training time and performance. Once the patience is exceeded without observing a significant improvement, the training is stopped and the model reverted to the best performing model observed during training. The loss used to evaluate the improvement is computed on a validation set that is held through the training process, a set of points in the time-state space that is not used for training but only for evaluation.
+The idea of early stopping is to stop the training process once we do not observe a significant improvement in the loss function after a certain number of iterations, which we call the patience. This can be tuned by observing the training curve and finding a good balance between training time and performance. Once the patience is exceeded without observing a significant improvement, the training is stopped and the model is reverted to the best-performing model observed during training. The loss used to evaluate the improvement is computed on a validation set that is held through the training process, a set of points in the time-state space that is not used for training but only for evaluation.
 
 Throughout this project, we will set the improvement threshold to be $10^{-6}$ or $10^{-7}$ and the patience to be between $500$ and $1500$ iterations depending on the complexity of the model.
 
