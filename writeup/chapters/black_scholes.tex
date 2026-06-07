@@ -140,7 +140,7 @@ The value at the root node $v_{0, 0}$ would be the arbitrage-free option price.
 
 \section{Physics-Informed Neural Networks}
 
-In order to use the framework of PINNs as detailed in Section \ref{sec:pinns}, we need to first derive the PDE satisfied by the option price, as well as the boundary conditions. We will first work with the one-dimensional case, then discuss the extension to the multi-dimensional case and how we could build a benchmark to against which we evaluate our results.
+In order to use the framework of PINNs as detailed in Section \ref{sec:pinns}, we need to first derive the PDE satisfied by the option price, as well as the boundary conditions. We will first work with the one-dimensional case, then discuss the extension to the multi-dimensional case and how we could build a benchmark to which we evaluate our results against.
 
 \subsection{PINN formulation for one-dimensional case}
 
@@ -151,7 +151,7 @@ In order to set up our PINN, we need to first derive the PDE satisfied by the op
 \label{eq:american_option_value_function}
 \end{equation}
 
-where $\tau$ is any stopping time in $[t, T]$ and for convenience we will simply denote $\mathbb E$ is conditional expectation at time $t$, given $S_t = S$, in this section. For an American option, we always have two options:
+where $\tau$ is any stopping time in $[t, T]$ and for convenience we will simply denote $\mathbb E_t$ as the conditional expectation at time $t$, given $S_t = S$ in this section. For an American option, we always have two options:
 
 \begin{itemize}
     \item Immediately exercise the option and get payoff $g(S)$. Since this is not necessarily optimal, the payoff must bound the value option from below:
@@ -160,39 +160,39 @@ where $\tau$ is any stopping time in $[t, T]$ and for convenience we will simply
     \end{equation}
     \item Do nothing and let the option continue to time $t + h$ with $h>0$ a very small number. By using the supremum definition of $v(t, S)$ (\ref{eq:american_option_value_function}) and swapping the expectation and supremum \cite{zheng2025fundamentals} we arrive at
     \begin{equation}
-        e^{rh}v(t, S) \ge \mathbb E \big[v(t+h, S_{t + h})\big]
+        e^{rh}v(t, S) \ge \mathbb E_t \big[v(t+h, S_{t + h})\big]
     \label{eq:continuation_value_inequality}
     \end{equation}
     and the inequality turns into an equality at the limit $\delta \to 0$.
     
 \end{itemize}
 
-We will additionally assume that the value function $v \in \mathcal C^{1,2}$ (continuously differentiable with respect to $t$ and twice continuously differentiable with respect to $S$) so that we can apply Itô's formula. Let's model the asset price $S$ as a geometric Brownian motion satisfying under the risk-neutral measure
+We will additionally assume that $v \in \mathcal C^{1,2}$ (the value function is continuously differentiable with respect to $t$ and twice continuously differentiable with respect to $S$) so that we can apply Itô's formula as in (Theorem \ref{thm:ito_lemma}). Let's model the asset price $S$ as a geometric Brownian motion satisfying under the risk-neutral measure
 \begin{equation}
     \mathrm dS_t = rS_t \mathrm dt + \sigma S_t \mathrm dW_t
 \end{equation}
 
 Then by Ito’s lemma and taking expectations of both sides we have
 \begin{equation}
-    \mathbb E\big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+    \mathbb E_t \big[v(t +\delta, S_{t+h})\big] = v(t, S) + \mathbb E_t \bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+\label{eq:ito_expansion}
 \end{equation}
 
-Now let’s substitute (\ref{eq:continuation_value_inequality}) into the LHS, which gives us
+Now let’s substitute (\ref{eq:continuation_value_inequality}) into the LHS of (\ref{eq:ito_expansion}), which gives us
 \begin{equation}
-    e^{rh}v(t, S) \ge v(t, S) + \mathbb E\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+    e^{rh}v(t, S) \ge v(t, S) + \mathbb E_t\bigg[\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
-We can use the Taylor approximation $e^{rh} = 1 + rh + o(h)$, which permits us to cancel the $v(t, S)$ on both sides. Dividing both sides by $h$ in the same step, we get
+We can use the Taylor approximation $e^{rh} = 1 + rh + o(h)$, which allows us to cancel the $v(t, S)$ term on both sides. Dividing both sides by $h$ in the same step, we get
 \begin{equation}
-    rv(t, S) + \frac{o(h)}{h} \ge \mathbb E\bigg[\frac 1h\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
+    rv(t, S) + \frac{o(h)}{h} \ge \mathbb E_t\bigg[\frac 1h\int_t^{t+h} \left(\frac{\partial v}{\partial t}(u, S_u) + \frac{\partial v}{\partial S}(u, S_u) r S_u + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(u, S_u) \sigma^2 S_u^2\right)\mathrm du\bigg]
 \end{equation}
 
-Sending $h \to 0$ makes the higher order term $o(h)/h$ vanish, and the expectation of the integral to collapse to the integrand. Thus we obtain
+Sending $h \to 0$ makes the higher order term $o(h)/h$ vanish, and the expectation of the integral would collapse to the integrand. Thus we obtain
 \begin{equation}
     rv(t, S) \ge \frac{\partial v}{\partial t}(t, S) + \frac{\partial v}{\partial S}(t, S) r S + \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(t, S) \sigma^2 S^2
 \end{equation}
-
-or for simplicity, we define the linear parabolic operator $\mathcal L$ \cite{zhao2025fractional}:
+or alternatively, we define the linear parabolic operator $\mathcal L$ \cite{zhao2025fractional}:
 \begin{equation}
     \mathcal L[v] = rv(t, S) - \frac{\partial v}{\partial S}(t, S) r S - \frac{1}{2}\frac{\partial ^2v}{\partial S^2}(t, S) \sigma^2 S^2
 \label{eq:bs_operator}
@@ -214,11 +214,11 @@ We are now ready to derive the boundary conditions. Our option has a terminal pa
 \begin{equation}
     v(T, S) = g(S)
 \end{equation}
-which satisfies the form of the terminal condition for PINNs (\ref{eq:pinn_terminal}). For the spatial boundary conditions, we have two boundaries to consider: $S \to 0$ and $S \to \infty$. In practice, we will have to truncate the domain to $\Omega = (S_\text{min}, S_\text{max})$ for some sufficiently small $S_\text{min}$ and sufficiently large $S_\text{max}$. At the lower boundary, we have the boundary condition
+which satisfies the form of the terminal condition for PINNs (\ref{eq:pinn_terminal}). For the spatial boundary conditions, we have two boundaries to consider: $S \to 0$ and $S \to \infty$. In practice, we will have to truncate the domain to $\Omega = (S_\text{min}, S_\text{max})$ for some sufficiently small $S_\text{min}$ and sufficiently large $S_\text{max}$ for training. At the lower boundary, we have the boundary condition
 \begin{equation}
     v(t, S_\text{min}) = g(S_\text{min})
 \end{equation}
-because it is always optimal to exercise the option when the asset is at its lowest price. At the upper boundary, we assume the option is too far out of the money to ever finish in the money, and hence the option price is approximately $0$. Thus we have the boundary condition
+because it is always optimal to exercise the option when the asset is at its lowest modelled price. At the upper boundary, we assume the option is too far out of the money to ever finish in the money, and hence the option price is approximately $0$. Thus we have the boundary condition
 \begin{equation}
     v(t, S_\text{max}) = 0
 \end{equation}
@@ -236,7 +236,7 @@ with quadratic covariation $\mathrm d \langle W^i, W^j\rangle_t = \rho_{ij}\math
 
 \subsection{Reduction of multi-asset to one-asset case}
 
-We will work with a specific payoff function that allows us to reduce the multi-dimensional case to a one-dimensional case, which would, in turn, give us confidence that our PINN implementation is correct, and we can change the payoff function to more complex ones and be reasonably assured that the results are still correct.
+We will work with a specific payoff function that allows us to reduce the multi-dimensional case to a one-dimensional case, which would, in turn, give us confidence that our PINN implementation is reliable, and we can change the payoff function to more complex ones and be reasonably assured that the results are still correct.
 
 As the geometric Brownian motion is multiplicative, for our benchmark, we will consider the put on the product of the assets. More precisely, we consider the put option with payoff
 \begin{equation}
@@ -310,7 +310,7 @@ Therefore, we will be able to price the put option on the product of multiple as
 
 \subsection{PINN formulation for multi-dimensional case}
 
-With the benchmark in place, we now need to derive the variational inequality for the multi-dimensional case where we have $n$ assets. This is a straightforward extension of the one-dimensional case, where the value function $v(t, S^1, \dots, S^n)$ now takes $n+1$ inputs. For notation, we will express the multiple assets as a vector $S = (S^1, \dots, S^n)^\top$, so the value function can be written more concisely as $v(t, S)$. Similarly, the payoff function will be written as $g(S^1, \dots, S^n) = g(S)$.
+With the benchmark in place, we now need to derive the variational equation for the multi-dimensional case where we have $n$ assets. This is a straightforward extension of the one-dimensional case, where the value function $v(t, S^1, \dots, S^n)$ now takes $n+1$ inputs. For notation, we will express the multiple assets as a vector $S = (S^1, \dots, S^n)^\top$, so the value function can be written more concisely as $v(t, S)$. Similarly, the payoff function will be written as $g(S^1, \dots, S^n) = g(S)$.
 
 The value function stays
 \begin{equation}
@@ -374,7 +374,7 @@ analogous to the one-dimensional case. Of course, this framework could be easily
 
 \section{Sobolev Deep Neural Networks}
 
-For the Black-Scholes model, we will additionally explore a different method to price American puts with neural networks, but this time instead of the traditional boundary conditions, we will work with fractional Sobolev norms to construct our loss function. This is because it has been shown that conditional on the loss converging to $0$, the neural network will converge to the true solution \cite{zhao2025fractional}, which is a stronger guarantee than just pointwise convergence. Additionally, the loss function components no longer depend on the payoff and is applicable for all situations, a desirable property for a general method.
+For the Black-Scholes model, we will additionally explore a different method to price American puts with neural networks, but this time instead of the traditional boundary conditions, we will work with fractional Sobolev norms to construct our loss function. This is because it has been shown that conditional on the loss converging to $0$, the neural network will converge to the true solution \cite{zhao2025fractional}, which is a stronger guarantee than just pointwise convergence. Additionally, other than the terminal condition, we will not need to explicitly specify the boundary conditions. This makes the method more flexible and more applicable to a wider range of problems, which is a desirable property for a general method.
 
 The theory of Sobolev spaces is rich and we will not attempt to cover all the details, to avoid diverting attention from the main focus of the project. However, we make particular use of fractional Sobolev spaces, which are a generalisation of the integer order Sobolev spaces. These definitions are taken from \cite{adams2003sobolev, di2012hitchhikers} which are very good resources for the underlying theory.
 
@@ -424,7 +424,7 @@ Suppose we would like to price an option on $n$ assets $S = (S^1, \dots, S^n)$. 
     \Omega = (S_\text{min}^1, S_\text{max}^1) \times \cdots \times (S_\text{min}^n, S_\text{max}^n)
 \end{equation}
 
-In our study we will make the simplification that $S_\text{min}^i = S_\text{min}^j$ and $S_\text{max}^i = S_\text{max}^j$ for all pairs $i, j$, which we will denote with $a$ and $b$ respectively. Our simplified spaces are therefore
+In our study we will make the simplification that $S_\text{min}^i = S_\text{min}^j$ and $S_\text{max}^i = S_\text{max}^j$ for all pairs $i, j$, which we will denote with $a$ and $b$ respectively (but of course this method still works for more general cases). Our simplified spaces are therefore
 \begin{equation}
     \Omega = (a, b)^n \qquad \Omega_T = (0, T) \times \Omega \qquad \Sigma = (0, T) \times \Gamma
 \end{equation}
@@ -454,8 +454,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
     and the derivative
     \begin{equation}\nabla d = \big(\partial_{x_1}d, \dots, \partial_{x_n}d\big)\end{equation}
 
-    \item The Dirichlet trace loss \cite{zang2020weak}: this enforces $f = g$ on the spatial boundary $\Sigma$.
-
+    \item The Dirichlet trace loss \cite{zang2020weak}: this enforces $f = g$ on the spatial boundary $\Sigma$. We have
     \begin{equation}
         J_3 =\|f(t, x) - g( x)\|^2_{H^{\frac 34, \frac 32}(\Sigma)}
     \end{equation}
@@ -469,8 +468,7 @@ Our loss function would be a weighted sum of four loss components $\sum_{i=1}^4 
 
     The time exponent $2.5$ is equal to $2p+1$ where $p$ is the decimal part of the time fractional exponent, and the space exponent is equal to $2\theta + n - 1$ where $\theta$ is the decimal part of the space fractional exponent, and $n$ the dimension. Note that here $\mathrm d \sigma(x)$ and $\mathrm d \sigma(y)$ indicate the surface measures on $\Gamma$, but in practice we can treat these as $\mathrm dx$ and $\mathrm dy$.
 
-    \item The Neumann trace loss \cite{zang2020weak}: this ensures the normal derivative of $f-g$ vanishes on the boundary $\Sigma$.
-
+    \item The Neumann trace loss \cite{zang2020weak}: this ensures the normal derivative of $f-g$ vanishes on the boundary $\Sigma$. We have
     \begin{equation}
         J_4 =\left\|\nabla (f-g) \cdot \nu \right\|^2_{H^{\frac 14, \frac 12}(\Sigma)}
     \end{equation}
@@ -491,9 +489,9 @@ The third and fourth losses are those that enforce $f$ to solve the option prici
 
 First we will evaluate the performance of the benchmark binomial tree method for the one-dimensional case against the closed-form solution, which we would take as the ground truth. To do this, we will compute the tree option price without taking the maximum of the payoff and continuation value at each step so that we can compare the tree price against the Black-Scholes price.
 
-First, we will evaluate the tree's accuracy on the most sensitive point, which is at time $t=0$ and when the initial asset price $S$ is equal to the strike price $K$ (at the money). Figure \ref{fig:tree_convergence} shows the convergence of the tree price to the closed-form Black-Scholes price for European put options as we increase the depth of the tree. We can see that around $1000$ steps yields a sufficiently close price to the closed-form solution, and further increasing the depth does not yield significant improvements, so this is the depth we will use for our tree benchmark.
+First, we will evaluate the tree's accuracy on the most sensitive point, which is at time $t=0$ and when the initial asset price $S$ is equal to the strike price $K$ (at the money). Figure \ref{fig:tree_convergence} shows the convergence of the tree price to the closed-form Black-Scholes price for European put options as we increase the depth of the tree. We can see that around $1000$ steps is what we need to yield a sufficiently close price to the closed-form solution, and increasing the depth further only yields us diminishing improvements, so $1000$ is the depth we will use for our tree benchmark.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/tree_convergence.png}
     \caption[Tree convergence at $t=0, S=K$]{Tree convergence at $t=0, S=K$ over different depths}
@@ -502,16 +500,16 @@ First, we will evaluate the tree's accuracy on the most sensitive point, which i
 
 Evaluating the tree price against the closed-form solution for different initial asset prices $S$ at the initial time $t=0$ in Figure \ref{fig:tree_vs_closed}, we can see that the tree price is very close to the ground truth, with less than $0.05\%$ of relative error until we are far out of the money where the option price is very close to $0$ and unsurprisingly yields greater errors, where machine precision becomes a limiting factor.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/tree_vs_closed.png}
     \caption[Tree vs closed-form: varying $S$]{Comparison of tree and closed-form prices for European put option with varying initial asset price}
     \label{fig:tree_vs_closed}
 \end{figure}
 
-We can see that the tree price also closely tracks the term structure of the option price, as shown in Figure \ref{fig:tree_vs_closed_time}, where the error is again less than $0.05\%$, getting even closer to zero as we get closer to maturity, which is expected as the tree has not done as many backward-induction steps to get to the initial time, where errors can accumulate.
+We can see that the tree price also closely tracks the term structure of the option price, as shown in Figure \ref{fig:tree_vs_closed_time}, where the error is again less than $0.05\%$, getting even closer to zero as we get closer to maturity, which is expected as the tree has not done as many backward induction steps to get to the initial time, where errors can accumulate.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\textwidth]{../plots/black_scholes/tree_vs_closed_time.png}
     \caption[Tree vs closed-form: varying $t$]{Comparison of tree and closed-form prices for European put option with varying time}
@@ -535,23 +533,7 @@ Figure \ref{fig:bs_1d_train_loss} shows the convergence of the loss function for
 
 Figure \ref{fig:bs_pinn_price_comparison} shows the heatmap of the PINN price against the tree price across the domain of time and initial asset price. We can see that the PINN price is very close to the tree price across the domain, where the time value is correctly captured at the most sensitive point of $S=K$ and $t=0$ as seen in Figure \ref{fig:bs_pinn_price_comparison_line}. This figure additionally shows the model capturing the term structure of the option price, where the PINN price closely tracks the tree price across time for $S=K$.
 
-\begin{figure}[htb]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison.png}
-    \caption[PINN vs tree heatmap]{PINN vs tree price comparison heatmap across domain}
-    \label{fig:bs_pinn_price_comparison}
-\end{figure}
-
-\begin{figure}[htb]
-    \centering
-    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison_line.png}
-    \caption[PINN vs tree: varying $S$ and term structure]{Price comparison for varying underlying price, and for term structure at $S=K$}
-    \label{fig:bs_pinn_price_comparison_line}
-\end{figure}
-
-We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 30 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. 
-
-\begin{table}[htb]
+\begin{table}[b]
     \centering
     \begin{tabular}{|c|c|c|}
         \hline
@@ -564,14 +546,30 @@ We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluat
     \label{tab:bs_pinn_atm_price}
 \end{table}
 
-We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across different training epochs, as shown in Figure \ref{fig:bs_1d_train_atm_price}. We can see that the price spikes above the tree price and then settles around the marked benchmark tree price, approaching it from above. This suggests either that the PINN price would eventually converge to the tree price with more training, or that there is some bias in the PINN approximation that prevents it from getting closer to the tree price, which we are taking to be the ground truth.
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison.png}
+    \caption[PINN vs tree heatmap]{PINN vs tree price comparison heatmap across domain}
+    \label{fig:bs_pinn_price_comparison}
+\end{figure}
 
-\begin{figure}[htb]
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=\textwidth]{../plots/black_scholes/bs_pinn_price_comparison_line.png}
+    \caption[PINN vs tree: varying $S$ and term structure]{Price comparison for varying underlying price, and for term structure at $S=K$}
+    \label{fig:bs_pinn_price_comparison_line}
+\end{figure}
+
+\begin{figure}[p]
     \centering
     \includegraphics[width=0.7\textwidth]{../plots/black_scholes/bs_1d_train_atm_price.png}
     \caption[Training epochs for $f(0, K)$]{$f(0, K)$ across training epochs for one run}
     \label{fig:bs_1d_train_atm_price}
 \end{figure}
+
+We can also zoom in on the most sensitive point of $(t, S) = (0, K)$ and evaluate the error. Table \ref{tab:bs_pinn_atm_price} shows the mean PINN price across 30 runs with its 95\% confidence interval, and we can see that the relative error is around $3\%$, which is good considering we were sampling across the whole domain and not just at this point. However, we can see that the benchmark tree price lies around 4 standard deviations away from the PINN mean price, suggesting that there is some bias in the PINN approximation. 
+
+We can investigate this apparent bias by tracking the price $f(t=0, S=K)$ across different training epochs, as shown in Figure \ref{fig:bs_1d_train_atm_price}. We can see that the price spikes above the tree price and then settles around the marked benchmark tree price, seemingly converged at a value slightly greater than the tree price. This suggests that there is indeed some bias in the PINN approximation that prevents it from getting closer to the tree price, which we are taking to be the ground truth.
 
 \subsection{Multi-dimensional PINN}
 
