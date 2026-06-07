@@ -62,7 +62,7 @@ We will now define the Itô process \cite{pham2009continuous}, which is a genera
     \begin{equation}
         X_t = X_0 + \int_0^t \mu_s \,\dd s + \int_0^t \sigma_s \,\dd W_s
     \end{equation}
-    where $\mu \in \mathbb R^n$ and $\sigma \in \mathbb R^{n \times d}$ are adapted processes satisfying some integrability conditions. We can also write this in differential form as
+    where $\mu \in \mathbb R^d$ and $\sigma \in \mathbb R^{d \times d}$ are adapted processes satisfying some integrability conditions. We can also write this in differential form as
     \begin{equation}
         \dd X_t = \mu_t \,\dd t + \sigma_t \,\dd W_t
     \end{equation}
@@ -89,9 +89,9 @@ We will now formalise the financial market and establish the principle of arbitr
 \begin{equation}
     B_t = \exp\left(\int_0^t r(s) \,\mathrm ds\right)
 \end{equation}
-and one or more risky assets $S_t$ that follows an Itô process.
+and one or more risky assets $S_t$ that follow an Itô process.
 
-It is important that the market is arbitrage-free, which means that there does not exist any trading strategy that can generate a positive profit with zero initial investment and zero risk. This trading strategy $\phi$ must be self-financing, which means that that any change in the value of the portfolio is only due to changes in the assets held, without any external cash flow.
+It is important that the market is arbitrage-free, which means that there does not exist any trading strategy that can generate a positive profit with zero initial investment and zero risk. This trading strategy $\phi$ must be self-financing, which means that any change in the value of the portfolio is only due to changes in the assets held, without any external cash flow.
 
 \begin{definition}[Self-financing trading strategy]
     A \textit{self-financing trading strategy} $\phi$ is a predictable process such that the value of the portfolio $V_t = \phi_t^B B_t + \phi_t^S S_t$ satisfies
@@ -106,7 +106,7 @@ It is important that the market is arbitrage-free, which means that there does n
 
 By the fundamental theorem of asset pricing, the market is arbitrage-free if and only if there exists a measure $\mathbb Q$ such that $\mathbb Q$ is equivalent to $\mathbb P$ (they have the same null sets) and the discounted price process $\tilde S_t = \frac{S_t}{B_t}$ is a martingale under $\mathbb Q$. We will assume that our market is complete (any derivative can be replicated), and hence such a measure $\mathbb Q$ will be unique.
 
-Given that the market is arbitrage-free, we can price any derivative with payoff $g(\cdot)$ at time $t$ by taking the discounted expectation of the payoff under the risk-neutral measure $\mathbb Q$, giving us the risk-neutral pricing formula for European derivative with maturity $T$:
+Given that the market is arbitrage-free, we can price any derivative with payoff $g(\cdot)$ at time $t$ by taking the discounted expectation of the payoff under the risk-neutral measure $\mathbb Q$, giving us the risk-neutral pricing formula for a European derivative with maturity $T$:
 \begin{equation}
     v(t, S) = B_t \cdot \mathbb E^\mathbb Q \left[\frac{g(S_T)}{B_T} \Bigm| \mathcal F_t\right]
 \end{equation}
@@ -144,7 +144,7 @@ which is achieved by an optimal stopping time $\tau^\star$ taking the form
 \begin{equation}
     \tau^\star = \inf\{\tau \ge 0 : S_\tau \le b^\star(\tau)\}
 \end{equation}
-for some optimal exercise boundary $b^\star(\tau)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary. The illustration is based on the binomial tree solution on the American put option, which has the boundary
+for some optimal exercise boundary $b^\star(\tau)$ \cite{glasserman2004monte}. This is illustrated in Figure \ref{fig:free_boundary}, where we simulate one realisation of the asset price assuming a geometric Brownian motion and plot it against the exercise boundary. The illustration is based on the binomial tree solution for the American put option, which has the boundary
 \begin{equation}
     b^\star(\tau) = \sup\{S : c(\tau, S) = g(S)\}
 \label{eq:free_boundary}
@@ -172,16 +172,16 @@ The first method is to use a sigmoid function $s: \mathbb R \to (0, 1)$ defined 
 \begin{equation}
     s(x) = \frac{1}{1 + e^{-x}}
 \end{equation}
-to smoothly transition the continuation probability from $0$ to $1$ as the value function transitions from being smaller than the payoff to being greater than the payoff. As the sigmoid function is the CDF of the logistic distribution, we can interpret this as modelling the noise in the value function as a logistic distribution. The effect of the noise can be controlled by introducing the softness parameter $\tau > 0$, and our continuation probability function $P: \mathbb R \to (0, 1)$ can be defined on the relative difference from the payoff as
+to smoothly transition the continuation probability from $0$ to $1$ as the value function transitions from being smaller than the payoff to being greater than the payoff. As the sigmoid function is the CDF of the logistic distribution, we can interpret this as modelling the noise in the value function as a logistic distribution. The effect of the noise can be controlled by introducing the softness parameter $\beta > 0$, and our continuation probability function $P: \mathbb R \to (0, 1)$ can be defined on the relative difference from the payoff as
 \begin{equation}
-    P(d) = s\left(\frac d \tau\right),
+    P(d) = s\left(\frac d \beta\right),
     \qquad d := \frac{c(t, S) - g(S)}{g(S)}
 \label{eq:continuation_probability_sigmoid}
 \end{equation}
 
-To tune the softness parameter, introduce some reference relative difference $\epsilon > 0$ and some target $J \in (0.5, 1)$ such that $P(\epsilon) = J$. With some simple algebraic manipulation, we can solve for $\tau$ to get
+To tune the softness parameter, introduce some reference relative difference $\epsilon > 0$ and some target $J \in (0.5, 1)$ such that $P(\epsilon) = J$. With some simple algebraic manipulation, we can solve for $\beta$ to get
 \begin{equation}
-    \tau = \frac{\epsilon}{\ln\left(\frac{J}{1 - J}\right)}
+    \beta = \frac{\epsilon}{\ln\left(\frac{J}{1 - J}\right)}
 \end{equation}
 
 \subsubsection{Gaussian noise soft classification}
@@ -190,7 +190,7 @@ The second method is to assume Gaussianity of the noise in our estimate $\hat c$
 \begin{equation}
     \hat c(t, S) = c(t, S) + \epsilon, \qquad \epsilon \sim \mathcal N(0, \sigma^2)
 \end{equation}
-where $c$ is the true (latent) continuation value and $\sigma$ is the standard deviation of the solution noise, which is also unknown. We can then solve the pricing problem $n$ times to obtain the different approximated continuation values $\hat c_1, \dots, \hat c_n$. This allows us to use the sample mean $\bar c$ as our unbiased estimate of the continuation value function paired with the sample standard deviation $\hat \sigma$ as our estimate. Then $\bar c$ is distributed according to a $t$-distribution with $n-1$ degrees of freedom, and we can compute the continuation probability as
+where $c$ is the true (latent) continuation value and $\sigma$ is the standard deviation of the solution noise, which is also unknown. We can then solve the pricing problem $n$ times to obtain the different approximated continuation values $\hat c_1, \dots, \hat c_n$. This allows us to use the sample mean $\bar c$ as our unbiased estimate of the continuation value function paired with the sample standard deviation $\hat \sigma$. Then the standardised statistic is distributed according to a $t$-distribution with $n-1$ degrees of freedom, and we can compute the continuation probability as
 \begin{equation}
     P(t, S) = \mathbb P_{t_{n-1}}\left( \frac{\bar c(t, S) - g(S)}{\hat \sigma(t, S) / \sqrt n} > 0 \right)
 \end{equation}
@@ -259,7 +259,7 @@ With these transition probabilities, we can compute the option value at time $t_
     v(t_n, S_n^i) = \max\left(g(S_n^i),\: e^{-r\Delta t} \sum_{j=1}^{M_{n+1}} p_{ij}^{(n)} v(t_{n+1}, S_{n+1}^j) \right)
 \end{equation}
 
-where we take the maximum of the payoff and the discounted expected future price to account for early exercise for the American option. This maximum operator can easily be lifted for all time steps for European options, or only imposed on certain time steps for Bermudan options, leaving the tree method a very flexible method. This backwards induction is applied iteratively starting from the terminal condition at time $t_N = T$ to compute the option value at time $t_0 = 0$.
+where we take the maximum of the payoff and the discounted expected future price to account for early exercise for the American option. This maximum operator can easily be lifted for all time steps for European options, or only imposed on certain time steps for Bermudan options, making the tree method very flexible. This backwards induction is applied iteratively starting from the terminal condition at time $t_N = T$ to compute the option value at time $t_0 = 0$.
 
 An issue with tree methods is that the number of states $M_n$ can grow exponentially with the number of time steps, leading to a very computationally expensive algorithm. To mitigate this, we use recombining trees where the states at each time step are designed to recombine with each other, so that the number of states $M_n$ grows linearly. Figure \ref{fig:recombinant_trees} illustrates the difference between non-recombinant and recombinant trees. Another issue is that, while flexible, the tree method can be difficult to implement for more complex models where the state depends on multiple variables. This makes it difficult for potential extensions to price more complex derivatives on multiple assets. However, the reliability and interpretability of the tree method make it a good benchmark for simpler models.
 
@@ -274,14 +274,14 @@ An issue with tree methods is that the number of states $M_n$ can grow exponenti
 \label{sec:pinns}
 
 \subsection{Motivation}
-Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent from the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality. Traditional methods such as finite difference methods require discretisation of the domain and the number of grid points (and hence algorithm complexity) scales exponentially $\mathcal O(N^d)$ with the dimension $d$ of the problem.
+Our option pricing problem can alternatively be formulated as a variational inequality which takes the form of a partial differential equation that is independent of the payoff $g(\cdot)$. These PDEs can be of high dimension, and are thus difficult to solve using traditional numerical methods due to the curse of dimensionality. Traditional methods such as finite difference methods require discretisation of the domain and the number of grid points (and hence algorithm complexity) scales exponentially $\mathcal O(N^d)$ with the dimension $d$ of the problem.
 
 We can attempt a neural network solution to the PDEs, as neural networks are known to be universal approximators. To be more precise, let $\Psi(\cdot)$ be a squashing activation function, which is a non-decreasing function satisfying the limits
 \begin{equation}
     \Psi(-\infty) = 0, \quad \Psi(\infty) = 1
 \end{equation}
 
-Define the class of functions $\mathscr F$ over a compact set $\mathcal X$ that can be represented by a neural network with one hidden layer, activation function $\Psi$ and any finite number of hidden neurons. Then $\mathscr F$ is dense in the space of continuous functions on $\mathcal X$ \cite{hornik1989multilayer}. In other words, for any continuous target function $f^\star$ and any target accuracy $\epsilon > 0$, there exists a function $f \in \mathscr F$, realised by a network with sufficiently many hiden neurons, such that
+Define the class of functions $\mathscr F$ over a compact set $\mathcal X$ that can be represented by a neural network with one hidden layer, activation function $\Psi$ and any finite number of hidden neurons. Then $\mathscr F$ is dense in the space of continuous functions on $\mathcal X$ \cite{hornik1989multilayer}. In other words, for any continuous target function $f^\star$ and any target accuracy $\epsilon > 0$, there exists a function $f \in \mathscr F$, realised by a network with sufficiently many hidden neurons, such that
 \begin{equation}
     \sup_{x \in \mathcal X} |f(x) - f^\star(x)| \le \epsilon
 \end{equation}
@@ -324,7 +324,7 @@ For our specific problem of option pricing, we can modify the above setup to acc
     u(T, x) &= g(x), \qquad x \in \Omega \label{eq:pinn_terminal}\\
     \mathcal B_k[u] &= 0 \qquad t \in [0, T], x \in \partial \Omega, k=1, \dots, K \label{eq:pinn_boundary}
 \end{align}
-where $k$ indexes the $K$ different boundary conditions. This is very similar to the general setup for PINNs, except that we have a variational inequality instead of a PDE, and we have a terminal condition instead of an initial condition. However, we can still use the framework by noting we can make the substitution $t \mapsto T-t$ to un-negate the negative partial derivative in the PDE term and to convert the terminal condition to an initial condition. The variational inequality can be handled by modifying the PDE residual loss (\ref{eq:pde_residual}) to
+where $k$ indexes the $K$ different boundary conditions. This is very similar to the general setup for PINNs, except that we have a variational inequality instead of a PDE, and we have a terminal condition instead of an initial condition. However, we can still use the framework by noting we can make the substitution $t \mapsto T-t$ to remove the sign of the negative partial derivative in the PDE term and to convert the terminal condition to an initial condition. The variational inequality can be handled by modifying the PDE residual loss (\ref{eq:pde_residual}) to
 \begin{equation}
     \mathcal R_\theta(t, x) = \min\left\{\frac{\partial f_\theta}{\partial t}(t, x) + \mathcal L[f_\theta](t, x), \: f_\theta(t, x) - g(x) \right\}
 \end{equation}
@@ -345,10 +345,10 @@ While keeping the loss weights $\lambda_r, \lambda_{bc}, \lambda_{ic}$ fixed is 
 \end{align*}
 and update the global weights $\lambda = (\lambda_r, \lambda_{bc}, \lambda_{ic})$ with a smoothness $\alpha \in (0, 1)$ as a moving average
 \begin{equation}
-    \lambda_\text{new} = \alpha \hat\lambda_\text{old} + (1 - \alpha) \hat \lambda_\text{new}
+    \lambda_\text{new} = \alpha \lambda_\text{old} + (1 - \alpha) \hat \lambda_\text{new}
 \end{equation}
 
-This is not performed at each iteration, but rather at a fixed frequency to prevent the weights from changing too rapidly. The literature \cite{wang2023expert} suggests to update the weights every $1000$ iterations with $\alpha=0.9$ in general.
+This is not performed at each iteration, but rather at a fixed frequency to prevent the weights from changing too rapidly. The literature \cite{wang2023expert} suggests updating the weights every $1000$ iterations with $\alpha=0.9$ in general.
 
 \subsection{Numerical Optimisation}
 
@@ -356,18 +356,18 @@ This is not performed at each iteration, but rather at a fixed frequency to prev
 
 Our neural network will learn through gradient descent, in particular Adam, which uses adaptive learning rates and momentum to speed up convergence. Note this does not conflict with the adaptive loss weighting described in Section \ref{sec:adaptive_loss_weighting}, as the adaptive loss weighting is used to balance the different loss components, while Adam is used to adapt the learning rate for each parameter based on the historical gradients.
 
-We will additionally impose a schedule to decay the learning rate over time, which starts at a conventional value of $10^{-3}$ to allow for fast learning at the beginning, and decays by a factor for every certain number of iterations, allowing for finer convergence in later iterations. These are also tuned by observing the training curve, and can vary for different models and different payoffs.
+We will additionally impose a schedule to decay the learning rate over time, which starts at a conventional value of $10^{-3}$ to allow for fast learning at the beginning, and decays by a factor every certain number of iterations, allowing for finer convergence in later iterations. These are also tuned by observing the training curve, and can vary for different models and different payoffs.
 
 \subsubsection{Early Stopping}
 
 Early stopping is a regularisation technique mainly used to prevent overfitting in neural network training. However, we are training on a new random training set each epoch, so we do not need to worry about overfitting, and early stopping is implemented to avoid unnecessary training for efficiency.
 
-The idea of early stopping is to stop the training process once we do not observe a significant improvement in the loss function after a certain number of iterations, which we call the patience. This can be tuned by observing the training curve and finding a good balance between training time and performance. Once the patience is exceeded without observing a significant improvement, the training is stopped and the model reverted to the best performing model observed during training. The loss used to evaluate the improvement is a validation set that is held through the training process, a set of points in the time-state space that is not used for training but only for evaluation.
+The idea of early stopping is to stop the training process once we do not observe a significant improvement in the loss function after a certain number of iterations, which we call the patience. This can be tuned by observing the training curve and finding a good balance between training time and performance. Once the patience is exceeded without observing a significant improvement, the training is stopped and the model reverted to the best performing model observed during training. The loss used to evaluate the improvement is computed on a validation set that is held through the training process, a set of points in the time-state space that is not used for training but only for evaluation.
 
 Throughout this project, we will set the improvement threshold to be $10^{-6}$ or $10^{-7}$ and the patience to be between $500$ and $1500$ iterations depending on the complexity of the model.
 
 \subsubsection{Fine-tuning}
 
-The Adam optimiser is a first-order method that uses the first moment of the gradients to adapt the learning rate, so we do not leverage the information given by the second moment of the gradients. It is particularly good for navigating the loss landscape at the beginning of training, but it in the later stages, it can exhibit poor convergence behaviour. This is because its stochastic noise and momentum can prevent it from tight convergence, requiring a very small learning rate to prevent oscillation. \cite{reddi2019convergence} explains in detail the shortcomings of Adam, where they construct explicit counterexamples of simple convex functions where Adam fails to converge to the optimal solution.
+The Adam optimiser is a first-order method that uses the first moment of the gradients to adapt the learning rate, so we do not leverage the information given by the second moment of the gradients. It is particularly good for navigating the loss landscape at the beginning of training, but in the later stages, it can exhibit poor convergence behaviour. This is because its stochastic noise and momentum can prevent it from tight convergence, requiring a very small learning rate to prevent oscillation. \cite{reddi2019convergence} explains in detail the shortcomings of Adam, where they construct explicit counterexamples of simple convex functions where Adam fails to converge to the optimal solution.
 
-For PINNs, this is a problem, as we require a very small residual loss to satisfy the PDE accurately. We will therefore use a second-order method to fine-tune the model: Adam would serve as the global exploration to get us close to a minimum, and then we can switch to a second-order method to converge tightly. This makes us turn to quasi-Newton methods such as the BFGS algorithm \cite{nocedal2006numerical}, which maintains a dense Hessian matrix which is updated at each iteration, and a step size is computed with a line search method, which is more optimal than setting a learning rate. However, this can be computationally expensive for large models, and the literature suggests we fine-tune with L-BFGS \cite{markidis2021old} after having already completed gradient descent with the Adam optimiser. L-BFGS is a limited-memory version of BFGS that only stores a few vectors to approximate the Hessian, which is much more efficient for large models, at the trade-off of a shorter memory of the curvature information across iterations \cite{liu1989limited}.
+For PINNs, this is a problem, as we require a very small residual loss to satisfy the PDE accurately. We will therefore use a second-order method to fine-tune the model: Adam would serve as the global exploration to get us close to a minimum, and then we can switch to a second-order method to converge tightly. This makes us turn to quasi-Newton methods such as the BFGS algorithm \cite{nocedal2006numerical}, which maintains a dense Hessian matrix which is updated at each iteration, and a step size is computed with a line search method, which is more effective than setting a learning rate. However, this can be computationally expensive for large models, and the literature suggests we fine-tune with L-BFGS \cite{markidis2021old} after having already completed gradient descent with the Adam optimiser. L-BFGS is a limited-memory version of BFGS that only stores a few vectors to approximate the Hessian, which is much more efficient for large models, at the trade-off of a shorter memory of the curvature information across iterations \cite{liu1989limited}.
