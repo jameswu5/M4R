@@ -1,6 +1,6 @@
 \chapter{The Heston Model}
 
-The classic Black-Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black-Scholes formula does not depend on the mean of the log returns $\mu$ (since we perform a change of measure, and it depends instead on the risk-free rate $r$). We therefore have two directions in which we can take this project: we can model the risk-free rate as a stochastic process, or we can allow the volatility to vary according to a stochastic process. We will focus on the latter. Heston \cite{heston1993closed} proposes a model involving a stochastic variance process in which a closed-form solution for European call options exists. In this model, the dynamics under the pricing measure of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
+The classic Black-Scholes model makes the strong assumption that the stock returns are normally distributed with known mean and variance. However, the Black-Scholes formula does not depend on the mean of the log returns $\mu$ (since we perform a change of measure, and it depends instead on the risk-free rate $r$). We therefore have two directions in which we can take this project: we can model the risk-free rate as a stochastic process, or we can allow the volatility to vary according to a stochastic process. We will focus on the latter. Heston \cite{heston1993closed} proposes a model involving a stochastic variance process in which a closed-form solution for European call options exists. In this model, the dynamics of the asset price $S$ and the variance (squared volatility) process $V$ are governed by the stochastic differential equation system under the risk-neutral measure $\mathbb Q$:
 \begin{align}
 \mathrm dS_t &= rS_t\mathrm dt + S_t \sqrt {V_t} \mathrm dW_t^1 \\
 \mathrm d V_t &= \kappa (\theta - V_t) \mathrm dt + \sigma \sqrt {V_t} \mathrm dW_t^2
@@ -9,7 +9,7 @@ where we have initial conditions $S_0 > 0$ and $V_0 \ge 0$, and the two Brownian
 \begin{equation}
 \mathrm d\langle W^1, W^2\rangle _t = \rho \,\mathrm dt \qquad \rho \in (-1, 1)
 \end{equation}
-The dynamics of the variance $V$ follow a Cox-Ingersoll-Ross (CIR) process with mean reversion rate $\kappa > 0$, long run state $\theta > 0$ and volatility of the volatility $\sigma > 0$. We can enforce the Feller condition $2\kappa\theta \ge \sigma^2$ so that the volatility process stays positive.
+The dynamics of the variance $V$ follow a Cox-Ingersoll-Ross (CIR) process with mean reversion rate $\kappa > 0$, long-run mean $\theta > 0$ and volatility of the volatility $\sigma > 0$. We can enforce the Feller condition $2\kappa\theta \ge \sigma^2$ so that the volatility process stays positive.
 
 \begin{figure}[htb]
     \centering
@@ -18,7 +18,7 @@ The dynamics of the variance $V$ follow a Cox-Ingersoll-Ross (CIR) process with 
     \label{fig:heston_vol_smile}
 \end{figure}
 
-The Heston model takes into account the stochastic nature of volatility while enforcing its mean-reverting nature, which is observed empirically in the market. It supports non-constant volatility smiles, as we can observe in Figure \ref{fig:heston_vol_smile}. The curvature is determined by the volatility of volatility $\sigma$, and the skew is determined by the correlation $\rho$.
+The Heston model takes into account the stochastic nature of volatility while enforcing its mean-reverting nature, which is observed empirically in the market. It supports non-flat volatility smiles, as we can observe in Figure \ref{fig:heston_vol_smile}. The curvature is determined by the volatility of volatility $\sigma$, and the skew is determined by the correlation $\rho$.
 
 \section{Closed-form Solution}
 
@@ -50,7 +50,7 @@ which admits the Ansatz
 \begin{equation}
     \phi_j(x, V, t; \omega) = \exp\left(C_j(\tau, \omega) + D_j(\tau, \omega) V + i \omega x\right), \qquad \tau := T-t
 \end{equation}
-since the coefficients in the PDE for $P_j$ are independent of $x$ (justifying the $e^{i\omega x}$ term) and affine in $V$ (justifying the $e^{D_j V}$ term)\cite{duffie2000transform}.
+since the coefficients in the PDE for $P_j$ are independent of $x$ (justifying the $e^{i\omega x}$ term) and affine in $V$ (justifying the $e^{D_j V}$ term) \cite{duffie2000transform}.
 
 We can insert this Ansatz into the PDE for $P_j$ to get a system of ODEs for $C_j$ and $D_j$:
 \begin{equation}
@@ -74,11 +74,11 @@ P_j = \frac 12 + \frac 1\pi \int_0^\infty \Re\left[\frac{e^{-i\omega \ln K} \phi
 \label{eq:heston_gil_pelaez}
 \end{equation}
 
-which we can substitute back into our original Ansatz for the call option (\ref{eq:heston_ansatz}) to get the closed-form solution for the call option price. If we would like to be pedantic, we could argue this is not strictly closed-form as we require numerical integration to compute the second term of (\ref{eq:heston_gil_pelaez}), but this remains a semi-analytical and tractable solution nonetheless, that we could use as a benchmark for our other methods.
+which we can substitute back into our original Ansatz for the call option (\ref{eq:heston_ansatz}) to get the closed-form solution for the call option price. If we wanted to be pedantic, we could argue this is not strictly closed-form as we require numerical integration to compute the second term of (\ref{eq:heston_gil_pelaez}), but this remains a semi-analytical and tractable solution nonetheless, that we could use as a benchmark for our other methods.
 
 \section{Tree Solution}
 
-Since the closed-form solution is limited to European options, we would like to find ways to approximate solutions to the pricing problem so that we can eventually extend the case to American options, which have no closed-form solution. The first method we will explore is the tree method, where it is easy to modify to the American case by adding an additional comparison to the intrinsic value at each node. We will use the closed-form formula as a benchmark for the tree method for European options, to give us confidence in the solution the tree model provides for American options as it is a simple modification in the algorithm, which we can use as a benchmark for the neural networks we will explore later.
+Since the closed-form solution is limited to European options, we would like to find ways to approximate solutions to the pricing problem so that we can eventually extend the case to American options, which have no closed-form solution. The first method we will explore is the tree method, where it is easy to modify to the American case by adding an additional comparison to the intrinsic value at each node. We will use the closed-form formula as a benchmark for the tree method for European options. This would give us confidence in the solution the tree model provides for American options as it is a simple modification in the algorithm, which we can use as a benchmark for the neural networks we will explore later.
 
 The idea will be similar to the binomial tree we explored earlier in the paper for the Black-Scholes model, but we now have two correlated stochastic processes in the Heston model: the asset price process and the variance process. As this tree is not recombinant, generating paths for these processes and computing the option prices by backward induction naively would lead to an exponential time complexity, which is not computationally feasible. Therefore, we will use a grid interpolation approach as in \cite{vellekoop2009tree} so that the number of nodes grows quadratically in the number of time steps instead.
 
@@ -312,7 +312,7 @@ We can fit the variational equation (\ref{eq:heston_variational_inequality}) int
     \begin{equation}
         v(t, \infty, V) = 0
     \end{equation}
-    \item $V \to 0$: volatility being zero is a slightly more complicated case, as this would only be true instantaneously due to the mean-reverting nature of the variance process, and the fact the variance process is guaranteed to be positive by the Feller condition. The original paper by Heston \cite{heston1993closed} proposes a collapsed first-order PDE, but this turns out to be a bit overkill for the one-dimensional case, as it doesn't yield better results. We will take this case to be that the asset price process becomes approximately deterministic, a simplification of small volatilities, and hence the value of the option can be taken to be the payoff
+    \item $V \to 0$: volatility being zero is a slightly more complicated case, as this would only be true instantaneously due to the mean-reverting nature of the variance process, and the fact the variance process is guaranteed to be positive by the Feller condition. The original paper by Heston \cite{heston1993closed} proposes a collapsed first-order PDE, but this turns out to be a bit overkill for the one-dimensional case, as it doesn't yield significantly better results. We will take this case to be that the asset price process becomes approximately deterministic, a simplification of small volatilities, and hence the value of the option can be taken to be the payoff
     \begin{equation}
         v(t, S, 0) = \max(0, K - S)
     \end{equation}
@@ -327,7 +327,8 @@ In practice, as we clearly cannot represent infinity, we will settle for large c
 \begin{equation}
     \Omega = (0, T) \times (0, S_\text{max}) \times (0, V_\text{max})
 \end{equation}
-noting the difference between $S_\text{max}$ and $S_\text{inf}$, where the former is the maximum asset price in our sampling domain, and the latter is the value we use for the boundary condition. This also applies to $V_\text{max}$ and $V_\text{inf}$.
+
+Note the difference between $S_\text{max}$ and $S_\text{inf}$: the former is the maximum asset price in our sampling domain, and the latter is the value we use for the boundary condition. This also applies to $V_\text{max}$ and $V_\text{inf}$.
 
 The boundary conditions (2)-(5) together will form the boundary loss (\ref{eq:pinn_boundary}) for the PINN. By choosing relevant weights for each of these loss components (we could additionally set different values for different individual boundary components), we can ensure that the neural network learns the correct behaviour at the boundaries, which is crucial for the accuracy of the solution.
 
@@ -345,12 +346,11 @@ where we have the vector of iid Brownian motions $W^1 = (W^{1, 1}, \dots, W^{1, 
 
 For simplicity, in this model we will assume equicorrelation between the assets: that is $\Sigma_{ij} = \varrho$ for $i \ne j$ and $\Sigma_{ii} = 1$. Alternatively, we can write
 \begin{equation}
-    \Sigma = (1 - \varrho) I_n + \rho \mathbf{1}\mathbf{1}^\top
+    \Sigma = (1 - \varrho) I_n + \varrho \mathbf{1}\mathbf{1}^\top
 \end{equation}
-where $I_n$ is the $n$-dimensional identity matrix and $\mathbf{1}$ is the $n$-dimensional vector of ones. We will quickly derive a bound for $\varrho$ to ensure $\Sigma \succeq 0$, so that it is a valid correlation matrix. As $\Sigma$ has an eigenvector $\mathbf{1}$ with coresponding eigenvalue $\lambda_1 = 1 + (n-1)\varrho$ and $n-1$ eigenvectors orthogonal to $\mathbf{1}$ with corresponding eigenvalue $\lambda_2 = 1 - \varrho$, we have $\Sigma \succeq 0$ if and only if $\lambda_1, \lambda_2 \ge 0$, which gives us the bound $\varrho \in [-\frac 1{n-1}, 1]$.
+where $I_n$ is the $n$-dimensional identity matrix and $\mathbf{1}$ is the $n$-dimensional vector of ones. We will quickly derive a bound for $\varrho$ to ensure $\Sigma \succeq 0$, so that it is a valid correlation matrix. As $\Sigma$ has an eigenvector $\mathbf{1}$ with corresponding eigenvalue $\lambda_1 = 1 + (n-1)\varrho$ and $n-1$ eigenvectors orthogonal to $\mathbf{1}$ with corresponding eigenvalue $\lambda_2 = 1 - \varrho$, we have $\Sigma \succeq 0$ if and only if $\lambda_1, \lambda_2 \ge 0$, which gives us the bound $\varrho \in [-\frac 1{n-1}, 1]$.
 
 We will also assume that each independent driving factor is correlated with the variance process: $\dd W^{1, j} \dd W^2 =\rho_j \dd t$, with $\rho = (\rho_1, \dots, \rho_n)^\top$, the cross-correlation vector between assets and the variance process. Note that this means the asset $S^i$ satisfies
-
 \begin{equation}
     \dd S^i = S^i \left(r\,\dd t + \sqrt V \sigma_i \sum_{j=1}^n L_{ij}\,\dd W^{1, j}\right)
 \end{equation}
@@ -513,7 +513,9 @@ This will be very similar to the one-dimensional case, but we will make a few mo
 
 \begin{enumerate}
     \item $t \to T$: the value at expiry is just the intrinsic value which is the payoff:
-    \begin{equation}u(T, S^1, \dots, S^n, V) = \max \left(0, K - \prod_{k=1}^n S^k\right)\end{equation}
+    \begin{equation}
+        v(T, S^1, \dots, S^n, V) = \max \left(0, K - \prod_{k=1}^n S^k\right)
+    \end{equation}
     which serves as our terminal loss (\ref{eq:pinn_terminal}) for the PINN.
     \item $S \to 0$: if one of the assets reaches zero, then the product of assets is consequently zero and we should exercise immediately. Thus the value is the strike. To implement this, let $\tilde S$ be $S$ with one of the assets modified manually to $0$. Then we have
     \begin{equation}
@@ -653,9 +655,7 @@ We will first present the free boundary on the $S^1$-$S^2$ plane, where we fix $
 
 We can see that the continuation region is well approximated, with the shape correctly captured and the continuation probabilities resembling that of the tree method. This is promising: the PINN is able to capture the free boundary well with respect to the asset price.
 
-We now present the free boundary on the $S$-$t$ plane in Figure \ref{fig:heston_nd_continuation_probs_time}, where we fix $S^1 = S^2 = \sqrt{K}$ and $V=V_0$. This should be somewhat analogous to the free boundary for the one-dimensional case as observed in Figure \ref{fig:bs_nd_continuation_probs_time}. We first notice that the Heston tree free boundary is no longer smooth: this is likely due to the fact we are using an interpolation method which has some degree of error. The PINN also noticeably struggles a bit more to capture the curvature of the free boundary.
-
-These shortcomings are likely linked to the limitations of the model, which has settled for an average price prediction across the time cross section, as an efficient and easy way of minimising the loss. To remedy this, we would need to do further experimentation with different training conditions. Even after changing the activation function between Sigmoid, Tanh and ReLU, trying different weights for the loss components, and even adding dropout layers, the results seem to be somewhat similar, so further improvements to the free boundary estimation would require a more fundamental change to the model, whether it be increasing its capacity or the sampling algorithm.
+We now present the free boundary on the $S$-$t$ plane in Figure \ref{fig:heston_nd_continuation_probs_time}, where we fix $S^1 = S^2$ and $V=V_0$. This should be somewhat analogous to the free boundary for the one-dimensional case as observed in Figure \ref{fig:bs_nd_continuation_probs_time}. We first notice that the Heston tree free boundary is no longer smooth: this is likely due to the fact we are using an interpolation method which has some degree of error. The PINN also noticeably struggles a bit more to capture the curvature of the free boundary.
 
 \begin{figure}[htb]
     \centering
@@ -663,3 +663,6 @@ These shortcomings are likely linked to the limitations of the model, which has 
     \caption[Heston PINN continuation probabilities (nD) $S$-$t$]{Continuation probabilities for the American put option on the $S$-$t$ plane}
     \label{fig:heston_nd_continuation_probs_time}
 \end{figure}
+
+These shortcomings are likely linked to the limitations of the model, which has settled for an average price prediction across the time cross section, as an efficient and easy way of minimising the loss. To remedy this, we would need to do further experimentation with different training conditions. Even after changing the activation function between Sigmoid, Tanh and ReLU, trying different weights for the loss components, and even adding dropout layers, the results seem to be somewhat similar, so further improvements to the free boundary estimation would require a more fundamental change to the model, whether it be increasing its capacity or the sampling algorithm.
+
