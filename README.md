@@ -1,6 +1,10 @@
 # M4R
 
+**A Variational Approach to American Option Pricing via Physics-Informed Neural Networks**
+
 Python library developed as part of my final dissertation project at Imperial College London. The library includes neural network and classical methods for pricing American options under Black-Scholes and Heston dynamics.
+
+Further work may be done on this repository beyond the submission deadline of Monday 8 June 2026. Please refer to the commit **FIRST SUBMISSION** with commit id `2cf8354` and commit hash `2cf8354a602b2a4f49f96185d84396ee3459611d` for the version of the repository at submission.
 
 ## Packages
 
